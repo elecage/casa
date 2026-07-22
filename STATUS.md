@@ -17,7 +17,7 @@
 | ID | 작업 | 상태 | 산출물 |
 |---|---|---|---|
 | W1 | buggy-pipeline 템플릿 + 채점기 | **완료** (2026-07-22, PR #2) | `pilot/tasks/buggy-pipeline/` |
-| W1.5 | **수직 슬라이스**: 러너 프로토타입으로 W1 과제 세션 2~3개를 끝까지 (실행→트랜스크립트 수집→casa audit→채점) | 대기 | 러너 초안 + **게이트 G1 기록** |
+| W1.5 | **수직 슬라이스**: 러너 프로토타입으로 W1 과제 세션 2~3개를 끝까지 (실행→트랜스크립트 수집→casa audit→채점) | **진행 중** — 러너 초안·테스트 완료(PR #3), 세션 실행은 CLI 재인증 대기 | 러너 초안 + **게이트 G1 기록** |
 | W2 | plugin-add 템플릿 + 채점기 (+ search-before-write 규칙 구체화) | 대기 | `pilot/tasks/plugin-add/` |
 | W3 | rename-sweep 템플릿 + 채점기 | 대기 | `pilot/tasks/rename-sweep/` |
 | W4 | 세션 러너 완성 (반복 실행, 버전 기록, 트랜스크립트 수집) | 대기 | `pilot/run_sessions.py` |
@@ -78,8 +78,11 @@
 
 ## 미해결 / 주의
 
-- 파일럿 러너(W4)가 클로드 코드를 헤드리스로 반복 실행하는 방법(권한 모드,
-  `claude -p` 등)은 W4 착수 시 조사 필요 — 아직 검증 안 됨.
+- **W1.5 블로커 (유저 액션 필요):** 헤드리스 `claude -p` 스모크 테스트가
+  401 (OAuth 토큰 만료)로 실패. 유저가 터미널에서 `claude auth login`으로
+  재인증해야 슬라이스 세션 실행 가능. CLI 2.1.172, 플래그(`-p`,
+  `--output-format json`, `--dangerously-skip-permissions`)는 확인됨 —
+  JSON 결과에 session_id·usage가 포함되는 것까지 검증 (401 응답에서 확인).
 - rules/canary_rules.yaml의 `canary-search-before-write`는 플레이스홀더
   (빈 패턴 = 위반 발생 불가). W2에서 구체화하기로 함.
 - 투고 직전 재확인: 최근접 프리프린트 2편의 개정/심사 상태 + ICSE/FSE/ICLR
