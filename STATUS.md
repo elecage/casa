@@ -68,6 +68,11 @@
 - 2026-07-22 개발 규칙 강화: 모든 코드 변경은 테스트 동반, main 직접 push
   금지 — 피처 브랜치 + PR + CI(GitHub Actions, Ubuntu/Windows ×
   py3.10/3.13) 녹색이어야 머지. → CLAUDE.md Working rules
+- 2026-07-22 하네스 완비: .gitattributes(줄바꿈 정규화), pre-commit 훅
+  (scripts/git-hooks — pytest+main 커밋 차단, clone당 1회 core.hooksPath
+  설정 필요), 프로젝트 .claude/settings.json(권한 허용 목록 + CASA 셀프
+  감사 훅 배선 — hooks/run.sh 경유), PR 템플릿. 브랜치 보호는 무료 플랜
+  private라 불가(관례+pre-commit으로 대체, public 전환 시 재시도).
 
 ## 미해결 / 주의
 

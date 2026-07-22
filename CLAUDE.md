@@ -46,6 +46,9 @@ transcripts (JSONL) and hooks. No model internals, no server access.
   POSIX: `.venv/bin/python`. If `.venv/` is missing, create it with
   `python -m venv .venv` and install with `pip install -e ".[dev]"`.
   Never install into or run against the system Python.
+- One-time per clone: `git config core.hooksPath scripts/git-hooks` — the
+  pre-commit hook machine-enforces "tests pass" and "no direct commits to
+  main". If a commit is rejected, fix the cause; do not bypass with -n.
 - Run `.venv\Scripts\python.exe -m pytest` (Windows) / `.venv/bin/python -m pytest`
   (POSIX) before every commit. Do not commit failing tests.
 - **Every code change ships with tests in the same commit/PR.** New feature →
