@@ -65,6 +65,9 @@
 - 2026-07-22 Python 환경 = 프로젝트 `.venv/` 필수. 훅도 venv python 명시
   호출 (Windows: `.venv\Scripts\python.exe`).
 - 2026-07-22 GitHub private 저장소 https://github.com/elecage/casa 로 동기화.
+- 2026-07-22 개발 규칙 강화: 모든 코드 변경은 테스트 동반, main 직접 push
+  금지 — 피처 브랜치 + PR + CI(GitHub Actions, Ubuntu/Windows ×
+  py3.10/3.13) 녹색이어야 머지. → CLAUDE.md Working rules
 
 ## 미해결 / 주의
 

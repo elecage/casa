@@ -48,6 +48,14 @@ transcripts (JSONL) and hooks. No model internals, no server access.
   Never install into or run against the system Python.
 - Run `.venv\Scripts\python.exe -m pytest` (Windows) / `.venv/bin/python -m pytest`
   (POSIX) before every commit. Do not commit failing tests.
+- **Every code change ships with tests in the same commit/PR.** New feature →
+  tests proving the behavior; bug fix → regression test that fails before the
+  fix. Docs-only and rules-YAML-only changes are exempt.
+- **All changes reach `main` via pull request, and merge only when the CI
+  workflow (`.github/workflows/ci.yml`: pytest on Ubuntu/Windows × Python
+  3.10/3.13) is green.** Work on a feature branch (`w1-buggy-pipeline`-style
+  names), push, open the PR with `gh pr create`, wait for CI, then merge.
+  Do not push directly to main.
 - Never edit `tests/fixtures/*.jsonl` to make a test pass; fix the code.
 - Keep dependencies to stdlib + PyYAML. Justify any new dependency in the PR/commit message.
 - Update `docs/` in the same commit when behavior or study design changes.
