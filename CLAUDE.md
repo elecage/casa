@@ -9,6 +9,7 @@ transcripts (JSONL) and hooks. No model internals, no server access.
 
 - `docs/RESEARCH_PLAN.md` — research questions, contribution package, risks, target venues
 - `docs/PILOT_DESIGN.md` — canary-rule pilot: what to run before committing to the full study
+- `docs/PILOT_TASKS.md` — the three pilot task specs (buggy-pipeline / plugin-add / rename-sweep)
 - `docs/RELATED_WORK.md` — prior work map; do not re-derive novelty claims, extend this file
 - `docs/ARCHITECTURE.md` — module layout and design principles
 
