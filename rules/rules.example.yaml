@@ -1,0 +1,42 @@
+# Example everyday-use rules (block mode).
+# These are CLAUDE.md-style instructions translated into enforceable form.
+rules:
+  - id: no-force-push
+    type: prohibit
+    kind: prohibition
+    tool: Bash
+    pattern: "git push[^&|;]*(--force|-f\\b)"
+    severity: high
+    category: security
+    action: block
+    description: "Never force-push (CLAUDE.md: git 이력 보호)"
+
+  - id: no-rm-rf
+    type: prohibit
+    kind: prohibition
+    tool: Bash
+    pattern: "rm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r)\\b"
+    severity: high
+    category: security
+    action: block
+    description: "Never rm -rf"
+
+  - id: no-git-add-all
+    type: prohibit
+    kind: prohibition
+    tool: Bash
+    pattern: "git add\\s+(-A\\b|--all\\b|\\.($|\\s))"
+    severity: medium
+    category: workflow
+    action: block
+    description: "Stage files explicitly, never git add -A / git add ."
+
+  - id: test-before-commit
+    type: require_before
+    kind: obligation
+    trigger: { tool: Bash, pattern: "git commit" }
+    prerequisite: { tool: Bash, pattern: "pytest|npm test|cargo test|go test" }
+    severity: medium
+    category: workflow
+    action: log
+    description: "Run the test suite before committing"
