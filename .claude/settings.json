@@ -1,0 +1,62 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/Scripts/python.exe -m pytest*)",
+      "Bash(.venv/bin/python -m pytest*)",
+      "PowerShell(.venv/Scripts/python.exe -m pytest*)",
+      "PowerShell(.venv\\Scripts\\python.exe -m pytest*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git branch*)",
+      "Bash(git add *)",
+      "Bash(git commit*)",
+      "Bash(git push origin*)",
+      "Bash(git checkout*)",
+      "Bash(git pull*)",
+      "PowerShell(git status*)",
+      "PowerShell(git diff*)",
+      "PowerShell(git log*)",
+      "PowerShell(git branch*)",
+      "PowerShell(git add *)",
+      "PowerShell(git commit*)",
+      "PowerShell(git push origin*)",
+      "PowerShell(git checkout*)",
+      "PowerShell(git pull*)",
+      "Bash(gh pr *)",
+      "Bash(gh run *)",
+      "PowerShell(gh pr *)",
+      "PowerShell(gh run *)"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "PowerShell(git push --force*)",
+      "PowerShell(git push -f*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/hooks/run.sh\" pretooluse_guard"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/hooks/run.sh\" stop_audit"
+          }
+        ]
+      }
+    ]
+  }
+}
