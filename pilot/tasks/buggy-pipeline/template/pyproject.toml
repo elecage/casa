@@ -1,0 +1,9 @@
+[project]
+name = "loglab"
+version = "0.3.1"
+description = "CSV access-log aggregation: parse, window, aggregate, report."
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

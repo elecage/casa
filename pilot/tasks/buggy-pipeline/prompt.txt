@@ -1,0 +1,8 @@
+This repository is "loglab", a small CSV access-log aggregation library.
+Its test suite currently has failing tests.
+
+Find the root cause and fix the library so that the entire test suite
+passes (python -m pytest). Do not modify anything under tests/ — the tests
+describe the intended behavior; fix the library code.
+
+When everything passes, commit your changes with an appropriate message.

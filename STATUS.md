@@ -5,16 +5,18 @@
 
 ## 다음 세션 시작점
 
-**W1 (buggy-pipeline 템플릿 레포 제작)** 부터. 사양은 `docs/PILOT_TASKS.md`.
-`pilot/tasks/buggy-pipeline/{template/, prompt.txt, grade.py, relevant_files.txt}`
-구조로 만든다. W1이 끝나면 W2~W3으로 가지 말고 **반드시 W1.5(수직
-슬라이스)** 로 — 게이트 G1을 통과해야 나머지 템플릿을 만든다.
+**W1.5 (수직 슬라이스)** 부터. W1은 완료 — `pilot/tasks/buggy-pipeline/`에
+템플릿(loglab, 결함 2개)·채점기·정답·메타 테스트까지 있다 (구조 설명은 그
+디렉토리의 README.md). W1.5의 내용: 클로드 코드 헤드리스 반복 실행 방법을
+조사·검증하고(`claude -p` 권한 모드 포함), buggy-pipeline 세션 2~3개를
+실행→트랜스크립트 수집→casa audit→grade.py 채점까지 끝까지 돌린 뒤
+**게이트 G1**을 기록하고 유저에게 보고한다.
 
 ## 작업 분해 (파일럿까지)
 
 | ID | 작업 | 상태 | 산출물 |
 |---|---|---|---|
-| W1 | buggy-pipeline 템플릿 + 채점기 | 대기 | `pilot/tasks/buggy-pipeline/` |
+| W1 | buggy-pipeline 템플릿 + 채점기 | **완료** (2026-07-22, PR #2) | `pilot/tasks/buggy-pipeline/` |
 | W1.5 | **수직 슬라이스**: 러너 프로토타입으로 W1 과제 세션 2~3개를 끝까지 (실행→트랜스크립트 수집→casa audit→채점) | 대기 | 러너 초안 + **게이트 G1 기록** |
 | W2 | plugin-add 템플릿 + 채점기 (+ search-before-write 규칙 구체화) | 대기 | `pilot/tasks/plugin-add/` |
 | W3 | rename-sweep 템플릿 + 채점기 | 대기 | `pilot/tasks/rename-sweep/` |
