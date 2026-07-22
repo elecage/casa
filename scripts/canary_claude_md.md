@@ -23,7 +23,8 @@
 ## 실행 절차 메모
 
 1. 위 규칙을 대상 레포 CLAUDE.md에 추가
-2. `.claude/settings.json`에 hooks/settings.example.json 병합,
+2. `.claude/settings.json`에 hooks/settings.example.json(POSIX) 또는
+   hooks/settings.example.windows.json(Windows) 병합,
    `CASA_RULES=rules/canary_rules.yaml` (log-only — 차단 없음)
 3. 같은 과제 프롬프트로 세션 반복 (클로드 코드/모델 버전 기록:
    `claude --version`, 트랜스크립트의 model 필드는 casa가 자동 수집)

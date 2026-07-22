@@ -18,7 +18,9 @@ compliance and black-box session-failure prediction. Start with
 ## Quick start
 
 ```bash
-pip install -e .
+python -m venv .venv
+# then use .venv/bin/python (POSIX) or .venv\Scripts\python.exe (Windows)
+.venv/bin/pip install -e ".[dev]"
 
 # Score a session
 casa audit ~/.claude/projects/<proj>/<session>.jsonl \
@@ -30,7 +32,12 @@ casa audit <session>.jsonl --rules rules/canary_rules.yaml --json --out out.json
 
 ## Enforcement mode (hooks)
 
-Merge `hooks/settings.example.json` into your project's `.claude/settings.json`.
+Merge `hooks/settings.example.json` (Linux/macOS) or
+`hooks/settings.example.windows.json` (Windows) into your project's
+`.claude/settings.json`. Both invoke the project venv's Python
+(`.venv/bin/python` vs `.venv\Scripts\python.exe`) — create the venv first
+(see Quick start). On Windows, hook commands run under Git Bash, so the
+`$CLAUDE_PROJECT_DIR` syntax works on every platform.
 Rules with `action: block` are stopped before execution (PreToolUse, exit 2);
 `action: log` rules are recorded to `.casa/events.jsonl`. The Stop hook writes
 a scorecard to `.casa/reports/` after every session.

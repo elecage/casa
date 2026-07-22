@@ -27,6 +27,11 @@ sys.path.insert(0, str(_REPO / "src"))
 from casa.rules import check_call, load_rules  # noqa: E402
 from casa.transcript import ToolCall  # noqa: E402
 
+# Windows consoles default to a legacy codepage; rule descriptions are UTF-8.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 
 def _rules_path() -> Path:
     if os.environ.get("CASA_RULES"):

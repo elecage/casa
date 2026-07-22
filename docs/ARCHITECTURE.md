@@ -29,7 +29,14 @@ hooks/stop_audit           - rules.py       규칙 매칭
 
 ## 훅 연결
 
-`hooks/settings.example.json`을 프로젝트 `.claude/settings.json`에 병합.
+`hooks/settings.example.json`(Linux/macOS) 또는
+`hooks/settings.example.windows.json`(Windows)을 프로젝트
+`.claude/settings.json`에 병합. 두 예시 모두 프로젝트 venv의 Python을
+명시 호출한다(`.venv/bin/python` / `.venv\Scripts\python.exe`) — 시스템
+Python에는 PyYAML이 없을 수 있고, 훅은 조용히 실패하면 안 되기 때문.
+Windows에서 훅 커맨드는 Git Bash로 실행되므로 `$CLAUDE_PROJECT_DIR`
+문법이 그대로 동작한다. 훅 스크립트는 stdout/stderr를 UTF-8로 재설정한다
+(Windows 레거시 코드페이지에서 규칙 설명이 깨지는 것 방지).
 PreToolUse는 stdin으로 {tool_name, tool_input, transcript_path}를 받고
 exit 2 + stderr로 차단한다. Stop 훅은 transcript_path로 casa audit을 실행해
 `.casa/reports/`에 스코어카드를 남긴다.
