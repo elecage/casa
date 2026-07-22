@@ -26,6 +26,19 @@ transcripts (JSONL) and hooks. No model internals, no server access.
 - Metrics must be computable per-session with no ground-truth labels
   (labels come from task outcomes in experiments, not from the tool).
 
+## Session handoff (multi-session project — follow strictly)
+
+- Read `STATUS.md` right after the docs above. It holds the work breakdown
+  (W1..W9), current states, the decision log, and where the next session
+  should start.
+- When a work item changes state (started, finished, blocked), update
+  `STATUS.md` **in the same commit** as the work itself.
+- Decisions that override or refine the docs go to the STATUS.md decision
+  log with a date; never leave them only in conversation.
+- Before ending a session: make sure "다음 세션 시작점" in STATUS.md is
+  accurate, and commit or explicitly note any uncommitted work there.
+- Do not re-litigate logged decisions; ask the user before reversing one.
+
 ## Working rules
 
 - Always use the project venv at `.venv/` for every Python command (install,
