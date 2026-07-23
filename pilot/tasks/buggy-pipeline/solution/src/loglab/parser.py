@@ -1,9 +1,4 @@
-"""Row parsing.
-
-Timestamps may arrive naive (already UTC) or with an explicit UTC offset
-(e.g. ``2025-03-01T19:05:00+09:00``). Either way, records leave this module
-as naive UTC datetimes — see models.LogRecord.
-"""
+"""Row parsing: raw CSV rows -> LogRecord."""
 
 from __future__ import annotations
 

@@ -1,9 +1,8 @@
 """Time windowing.
 
-Records are grouped into fixed-size, half-open windows ``[start, end)``
-aligned to multiples of the window size since the Unix epoch. A record
-whose timestamp equals a window boundary therefore belongs to the window
-that *starts* at that boundary, never the one that ends there.
+Records are grouped into fixed-size windows aligned to multiples of the
+window size since the Unix epoch (see models.Window for the boundary
+semantics).
 """
 
 from __future__ import annotations

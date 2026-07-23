@@ -9,12 +9,11 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def _stats():
-    records = parse_rows(load(FIXTURES / "access_boundary.csv"))
+    records = parse_rows(load(FIXTURES / "server_a.csv"))
     return summarize(assign(records, 300))
 
 
-def test_window_counts_are_half_open():
-    # 10:05:00 sits exactly on a boundary -> belongs to the 10:05 window.
+def test_window_counts():
     assert [s.count for s in _stats()] == [3, 3]
 
 
