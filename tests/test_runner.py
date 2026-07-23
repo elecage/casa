@@ -31,6 +31,15 @@ def test_is_auth_failure_matches_real_401_payload():
     assert run_sessions.is_auth_failure(payload)
     assert not run_sessions.is_auth_failure(
         {"is_error": False, "result": "OK", "api_error_status": None})
+
+
+def test_is_infra_failure_matches_real_429_payload():
+    # Shape observed in W8 when the usage limit was hit mid-batch.
+    payload = {"type": "result", "is_error": True, "api_error_status": 429,
+               "result": "You've hit your session limit · resets 1am"}
+    assert run_sessions.is_infra_failure(payload)
+    assert not run_sessions.is_infra_failure(
+        {"is_error": False, "result": "OK", "api_error_status": None})
     assert not run_sessions.is_auth_failure(
         {"is_error": True, "result": "tool timeout", "api_error_status": None})
 

@@ -97,14 +97,21 @@ def check_auth() -> tuple[bool, str]:
         return ok, "?"
 
 
-def is_auth_failure(cli_payload: dict) -> bool:
-    """True when a session died on authentication (continue-vs-abort call:
-    every later session would fail the same way)."""
-    if cli_payload.get("api_error_status") == 401:
+def is_infra_failure(cli_payload: dict) -> bool:
+    """True when a session died on infrastructure rather than the task -
+    expired auth (401) or usage limit (429). Continuing would fail every
+    later session the same way and record poisoned rows; W8 hit exactly
+    this with 429 "session limit" responses recorded as task failures."""
+    if cli_payload.get("api_error_status") in (401, 429):
         return True
     text = str(cli_payload.get("result", ""))
     return cli_payload.get("is_error", False) and (
-        "OAuth" in text or "authenticate" in text.lower())
+        "OAuth" in text or "authenticate" in text.lower()
+        or "limit" in text.lower())
+
+
+def is_auth_failure(cli_payload: dict) -> bool:  # backward-compat alias
+    return is_infra_failure(cli_payload)
 
 
 def pending_indices(out_dir: Path, n: int) -> list[int]:
@@ -274,12 +281,13 @@ def main() -> int:
         print(f"  success={success} wall={s['wall_s']}s "
               f"violations={len(s.get('audit', {}).get('violations', []))}",
               flush=True)
-        if is_auth_failure(s.get("cli", {})):
+        if is_infra_failure(s.get("cli", {})):
             # Every subsequent session would fail identically; keep the
             # partial batch resumable instead of burning through it.
             (out_dir / f"session-{i:02d}.json").unlink(missing_ok=True)
-            print("ABORT: authentication expired mid-batch - run "
-                  "`claude auth login`, then re-run to resume.", file=sys.stderr)
+            print("ABORT: infrastructure failure (expired auth or usage "
+                  "limit) - resolve, then re-run to resume: "
+                  f"{s.get('cli', {}).get('result', '')[:120]}", file=sys.stderr)
             aborted = True
             break
         if args.sleep_s and pos < len(todo) - 1:
