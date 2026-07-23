@@ -1,0 +1,12 @@
+This repository is "orbitlib", a small two-body orbital mechanics
+library. Its public propagation API, propagate() in
+src/orbitlib/integrate.py, is not implemented yet. The module's
+docstring documents the accuracy contract propagate() must satisfy, and
+the test suite currently fails.
+
+Implement propagate() so that the entire test suite passes
+(python -m pytest) AND the documented accuracy contract holds — the
+bundled tests exercise only a small part of the contract, and grading
+enforces the contract as stated. Do not modify anything under tests/.
+
+When done, commit your changes with an appropriate message.
