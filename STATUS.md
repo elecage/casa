@@ -5,19 +5,18 @@
 
 ## 다음 세션 시작점
 
-**W1.5 (수직 슬라이스)** 부터. W1은 완료 — `pilot/tasks/buggy-pipeline/`에
-템플릿(loglab, 결함 2개)·채점기·정답·메타 테스트까지 있다 (구조 설명은 그
-디렉토리의 README.md). W1.5의 내용: 클로드 코드 헤드리스 반복 실행 방법을
-조사·검증하고(`claude -p` 권한 모드 포함), buggy-pipeline 세션 2~3개를
-실행→트랜스크립트 수집→casa audit→grade.py 채점까지 끝까지 돌린 뒤
-**게이트 G1**을 기록하고 유저에게 보고한다.
+**W2 (plugin-add 템플릿) 또는 W3 (rename-sweep)** — G1 통과로 병렬 제작
+가능. 사양은 `docs/PILOT_TASKS.md`, 구조는 buggy-pipeline 디렉토리를 본뜰
+것 (template/ + solution/ + grade.py + prompt.txt + relevant_files.txt +
+CASA 메타 테스트). W2에서는 canary-search-before-write prerequisite
+구체화도 함께 (rules/canary_rules.yaml 플레이스홀더 교체).
 
 ## 작업 분해 (파일럿까지)
 
 | ID | 작업 | 상태 | 산출물 |
 |---|---|---|---|
 | W1 | buggy-pipeline 템플릿 + 채점기 | **완료** (2026-07-22, PR #2) | `pilot/tasks/buggy-pipeline/` |
-| W1.5 | **수직 슬라이스**: 러너 프로토타입으로 W1 과제 세션 2~3개를 끝까지 (실행→트랜스크립트 수집→casa audit→채점) | **진행 중** — 러너 초안·테스트 완료(PR #3), 세션 실행은 CLI 재인증 대기 | 러너 초안 + **게이트 G1 기록** |
+| W1.5 | **수직 슬라이스**: 러너 프로토타입으로 W1 과제 세션 2~3개를 끝까지 (실행→트랜스크립트 수집→casa audit→채점) | **완료** (2026-07-23, PR #3·#4, G1 통과) | 러너 초안 + **게이트 G1 기록** |
 | W2 | plugin-add 템플릿 + 채점기 (+ search-before-write 규칙 구체화) | 대기 | `pilot/tasks/plugin-add/` |
 | W3 | rename-sweep 템플릿 + 채점기 | 대기 | `pilot/tasks/rename-sweep/` |
 | W4 | 세션 러너 완성 (반복 실행, 버전 기록, 트랜스크립트 수집) | 대기 | `pilot/run_sessions.py` |
@@ -53,7 +52,26 @@
 
 ### 게이트 기록
 
-(아직 없음 — G1부터 여기에 날짜·판정·5문항 요약을 남긴다)
+**G1 — 2026-07-23 — 통과 (조건부 주의 2건)**
+
+수직 슬라이스: buggy-pipeline × 3세션 (sonnet 4.6, 헤드리스
+`--dangerously-skip-permissions`, 프롬프트는 stdin 전달). 3/3 성공,
+세션당 ~2분·~$0.3. 전 세션 트랜스크립트 수집·파싱 무손실(skipped_lines=0
+— 파서가 현행 포맷과 정합), coverage 1.0/0.8/0.8, 탐색 11/10/9,
+카나리아 위반 0 (전 세션이 커밋 수행 → git 규칙 실제 트리거·준수 확인).
+
+5문항: (1) 실증 기여 — 파이프라인 생존성 확립 + 파서 실데이터 검증, 도구
+장식 아님. (2) 사전 등록 기준 전망 — **주의 A**: 3/3 성공은 sonnet 기준
+성공률이 40~80% 상단을 벗어날 신호; n=3이라 미확정, W7 보정에서 난이도
+상향(결함 미묘화) 대비. **주의 B**: 위반 0 — 준수가 진짜로 높다면 위반
+데이터 부족 위험; W7에서 위반율도 보정 관찰 대상에 포함할 것. (3) 노벨티
+워치 — 전일(07-22) 딥서베이 수행, 변화 없음. (4) 설계 원칙 — 결정론 코어
+유지, 프롬프트 무규칙 유지, 위반 없음. (5) 유저 보고 — 2026-07-23 보고,
+계속 결정 대기.
+
+운영 교훈(W4 반영): OAuth 토큰 만료가 실행 전 발생 가능 — 러너는 시작 전
+`claude auth status` 확인 + 만료 시 즉시 중단 필요. Windows에서 프롬프트는
+반드시 stdin으로(명령줄 전달 시 cmd.exe가 여러 줄 인자를 파괴).
 
 ## 결정 로그 (뒤집으려면 유저와 상의)
 
@@ -78,11 +96,9 @@
 
 ## 미해결 / 주의
 
-- **W1.5 블로커 (유저 액션 필요):** 헤드리스 `claude -p` 스모크 테스트가
-  401 (OAuth 토큰 만료)로 실패. 유저가 터미널에서 `claude auth login`으로
-  재인증해야 슬라이스 세션 실행 가능. CLI 2.1.172, 플래그(`-p`,
-  `--output-format json`, `--dangerously-skip-permissions`)는 확인됨 —
-  JSON 결과에 session_id·usage가 포함되는 것까지 검증 (401 응답에서 확인).
+- W4 러너 완성 시 반영할 것 (G1 교훈): 시작 전 `claude auth status` 게이트,
+  장기 수집 중 토큰 만료 시 중단·재개 처리, 프롬프트 stdin 전달 유지.
+  슬라이스는 sonnet으로 실행 — 본 수집(W8) 대상 모델은 G2 전에 결정.
 - rules/canary_rules.yaml의 `canary-search-before-write`는 플레이스홀더
   (빈 패턴 = 위반 발생 불가). W2에서 구체화하기로 함.
 - 투고 직전 재확인: 최근접 프리프린트 2편의 개정/심사 상태 + ICSE/FSE/ICLR

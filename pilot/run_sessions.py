@@ -70,11 +70,14 @@ def _child_env() -> dict[str, str]:
 
 def run_headless(workdir: Path, prompt: str, model: str | None,
                  timeout_s: int) -> dict:
-    cmd = ["claude", "-p", prompt, "--output-format", "json",
-           "--dangerously-skip-permissions"]
+    # The prompt goes through stdin, never the command line: on Windows the
+    # command runs via the shell (npm .cmd shim), and cmd.exe mangles
+    # multi-line arguments. The command string itself carries flags only.
+    cmd = "claude -p --output-format json --dangerously-skip-permissions"
     if model:
-        cmd += ["--model", model]
-    proc = subprocess.run(cmd, cwd=workdir, capture_output=True, text=True,
+        cmd += f" --model {model}"
+    proc = subprocess.run(cmd, cwd=workdir, input=prompt,
+                          capture_output=True, text=True,
                           encoding="utf-8", errors="replace",
                           timeout=timeout_s, env=_child_env(), shell=True)
     try:
@@ -102,7 +105,13 @@ def run_one(task_dir: Path, out_dir: Path, index: int, model: str | None,
                      "wall_s": wall_s, "cli": cli}
 
     session_id = cli.get("session_id")
-    transcript = transcript_dir_for(workdir) / f"{session_id}.jsonl" if session_id else None
+    tdir = transcript_dir_for(workdir)
+    transcript = tdir / f"{session_id}.jsonl" if session_id else None
+    if (transcript is None or not transcript.exists()) and tdir.exists():
+        # Fallback: newest transcript for this workdir (session_id missing
+        # from CLI output, e.g. after an output-parse failure).
+        candidates = sorted(tdir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime)
+        transcript = candidates[-1] if candidates else None
     if transcript and transcript.exists():
         saved = out_dir / f"transcript-{index:02d}.jsonl"
         shutil.copyfile(transcript, saved)
@@ -137,7 +146,7 @@ def main() -> int:
     out_dir = Path(args.out).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    version = subprocess.run(["claude", "--version"], capture_output=True,
+    version = subprocess.run("claude --version", capture_output=True,
                              text=True, shell=True).stdout.strip()
     (out_dir / "meta.json").write_text(json.dumps({
         "claude_version": version, "task": task_dir.name,
