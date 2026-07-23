@@ -23,7 +23,7 @@
 | W3 | rename-sweep 템플릿 + 채점기 | **완료** (2026-07-23, PR #6) | `pilot/tasks/rename-sweep/` |
 | W4 | 세션 러너 완성 (반복 실행, 버전 기록, 트랜스크립트 수집) | **완료** (2026-07-23, PR #7) | `pilot/run_sessions.py` |
 | W5 | 궤적 지표 확장 (스텝별 누적 시계열, 궤적 유사도) | **완료** (2026-07-23, PR #8) | `src/casa/metrics.py` 확장 |
-| W6 | 집계·분석 (`casa report`: 분산 통계, AUROC@k) | 대기 | `src/casa/cli.py` + ARCHITECTURE 동기화 |
+| W6 | 집계·분석 (`casa report`: 분산 통계, AUROC@k + Brier/ECE, 베이스라인 비교, diff 통계) | 대기 | `src/casa/cli.py` + ARCHITECTURE 동기화 |
 | W7 | 난이도 보정 (과제당 2~3세션, 40~80% 확인) → **게이트 G2** | 대기 | 보정 기록 → 이 파일 |
 | W8 | 파일럿 본 수집 (과제 3 × 15~20세션) | 대기 | `results/` |
 | W9 | 분석 + go/no-go = **게이트 G3** (PILOT_DESIGN 사전 등록 기준) | 대기 | 분석 노트 |
@@ -96,6 +96,10 @@
   감사 훅 배선 — hooks/run.sh 경유), PR 템플릿. 브랜치 보호는 무료 플랜
   private라 불가(관례+pre-commit으로 대체, public 전환 시 재시도).
 
+- 2026-07-23 외부 리뷰(유저 제공 ChatGPT 정리안) 비교 후 5개 보강 채택:
+  calibration 지표(Brier/ECE)·베이스라인 4종·재시작 오탐 비용·diff 라벨·
+  세션 지속성 개념 프레임(+부차 arm 후보). 개입 정책 구현·학습 예측기·
+  사람 평가·세션당 다과제 1차 설계는 기각. → RESEARCH_PLAN/PILOT_DESIGN
 - 2026-07-23 저장소 **public 전환** (유저 결정) + main 브랜치 보호 활성화:
   CI 4개 체크 필수, 관리자 포함 강제, force-push/삭제 차단. 배경: 무료
   플랜 private에서 Actions 결제 실패로 CI 미실행 + 빨간 CI 머지 사고
