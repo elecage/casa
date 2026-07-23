@@ -67,6 +67,24 @@ def test_prepare_workdir_wipes_leftover_dest(tmp_path):
     assert (dest / "CLAUDE.md").exists()
 
 
+def test_prepare_workdir_wipes_readonly_leftovers(tmp_path):
+    # Windows git object files are read-only; a crashed session's workdir
+    # must still be removable (regression: WinError 5 on .git/objects).
+    import os
+    import stat
+
+    task_dir = REPO / "pilot" / "tasks" / "buggy-pipeline"
+    dest = tmp_path / "w"
+    (dest / ".git" / "objects").mkdir(parents=True)
+    locked = dest / ".git" / "objects" / "ab12cd"
+    locked.write_text("x", encoding="utf-8")
+    os.chmod(locked, stat.S_IREAD)
+
+    run_sessions.prepare_workdir(task_dir, dest)
+    assert not locked.exists()
+    assert (dest / "CLAUDE.md").exists()
+
+
 def test_rules_for_prefers_task_local_rules():
     tasks = REPO / "pilot" / "tasks"
     assert run_sessions.rules_for(tasks / "plugin-add") == \
