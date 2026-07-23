@@ -10,9 +10,10 @@ rules/*.yaml  ──────────────┐
 [런타임 계층]          [감사 엔진]
 hooks/pretooluse_guard  src/casa/
   - block 모드: 위반 차단   - transcript.py  JSONL 파서 (관용적)
-  - log 모드: 기록만        - metrics.py     행동 지표
+  - log 모드: 기록만        - metrics.py     행동 지표 (+궤적 시계열)
 hooks/stop_audit           - rules.py       규칙 매칭
   - 세션 종료 시 채점        - audit.py       스코어카드
+                           - report.py      배치 집계 (AUROC@k, 보정, 기준선)
                            - cli.py         casa audit / casa report
 ```
 

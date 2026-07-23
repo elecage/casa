@@ -5,12 +5,14 @@
 
 ## 다음 세션 시작점
 
-**W6 (casa report 집계) — W8 수집이 백그라운드로 도는 동안 제작.**
-`results/main/<task>/session-NN.json` 60개를 입력으로: 과제별 성공률·
-행동 분산 통계, AUROC@k 곡선(+Brier/ECE), 베이스라인 4종 비교, diff
-통계, 준수 요약. `casa report <dir>...` CLI 서브커맨드로. W8이 중단돼
-있으면 러너 재개 명령부터 (수집 상태는 results/main/*/summary.json).
-사전 등록 판정(G3)은 60세션 완주 후 W9에서.
+**W9 (분석 + 게이트 G3) — W8 완주 확인 후.** W8이 중단돼 있으면 러너
+재개부터 (`pilot/run_sessions.py <task> -n 15 --model sonnet --out
+results/main/<task>` — 완료 세션은 자동 스킵; 상태는
+results/main/*/summary.json). 60세션이 모이면:
+`casa report results/main/* --tasks-root pilot/tasks` 로 집계 →
+PILOT_DESIGN 사전 등록 기준(RQ1 분산, RQ2 AUROC@first-edit ≥ 0.7,
+준수×일관성, H1b) 판정 → **G3 기록 + 유저 보고** (본 실험 go/no-go).
+diff 통계는 results/main/*/work-NN의 git 로그에서 산출해 보고에 추가.
 
 ## 작업 분해 (파일럿까지)
 
@@ -22,7 +24,7 @@
 | W3 | rename-sweep 템플릿 + 채점기 | **완료** (2026-07-23, PR #6) | `pilot/tasks/rename-sweep/` |
 | W4 | 세션 러너 완성 (반복 실행, 버전 기록, 트랜스크립트 수집) | **완료** (2026-07-23, PR #7) | `pilot/run_sessions.py` |
 | W5 | 궤적 지표 확장 (스텝별 누적 시계열, 궤적 유사도) | **완료** (2026-07-23, PR #8) | `src/casa/metrics.py` 확장 |
-| W6 | 집계·분석 (`casa report`: 분산 통계, AUROC@k + Brier/ECE, 베이스라인 비교, diff 통계) | 대기 | `src/casa/cli.py` + ARCHITECTURE 동기화 |
+| W6 | 집계·분석 (`casa report`: 분산 통계, AUROC@k + Brier/ECE, 베이스라인 비교) | **완료** (2026-07-23, PR #18; diff 통계는 W9에서 워크디렉토리 기반 산출) | `src/casa/report.py` |
 | W7 | 난이도 보정 (과제당 2~3세션, 40~80% 확인) → **게이트 G2** | **완료** (2026-07-23, G2 통과 — 게이트 기록 참조) | 보정 기록 → 이 파일 |
 | W7.5 | 과제 D orbit-propagator (숨은 오라클 설계, 유저 제안) | **완료** (2026-07-23, PR #14, 보정 1/3) | `pilot/tasks/orbit-propagator/` |
 | W8 | 파일럿 본 수집 (과제 4 × 15세션, sonnet) | **진행 중** (2026-07-23 시작, 유저 승인) | `results/main/` (gitignore, 로컬) |
