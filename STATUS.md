@@ -5,7 +5,11 @@
 
 ## 다음 세션 시작점
 
-**W9 (분석 + 게이트 G3) — W8 완주 확인 후.** W8이 중단돼 있으면 러너
+**W9 (분석 + 게이트 G3) — 새 세션에서 시작할 것 (컨텍스트 관리).**
+주의: W8 수집 프로세스는 시작한 세션의 자식 — 그 세션이 닫히면 수집도
+중단된다. 중단됐다면 아래 재개 명령을 과제별로 실행 (완료 세션 자동
+스킵). 진행 상황은 `results/main/<task>/summary.json`과 session-NN.json
+개수로 확인. W8 완주 확인 후. W8이 중단돼 있으면 러너
 재개부터 (`pilot/run_sessions.py <task> -n 15 --model sonnet --out
 results/main/<task>` — 완료 세션은 자동 스킵; 상태는
 results/main/*/summary.json). 60세션이 모이면:
