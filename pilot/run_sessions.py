@@ -22,6 +22,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -54,12 +55,24 @@ def transcript_dir_for(workdir: Path) -> Path:
     return Path.home() / ".claude" / "projects" / munge_project_dir(workdir.resolve())
 
 
+def _rmtree_force(path: Path) -> None:
+    """rmtree that also removes read-only files - on Windows, git object
+    files are read-only and plain rmtree dies with PermissionError."""
+    def clear_readonly(func, target, _exc):
+        os.chmod(target, stat.S_IWRITE)
+        func(target)
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=clear_readonly)
+    else:
+        shutil.rmtree(path, onerror=clear_readonly)
+
+
 def prepare_workdir(task_dir: Path, dest: Path) -> Path:
     """Copy the task template (never solution/ etc.) and make it a git repo
     with an initial commit, so the session can follow 'commit your changes'.
     An existing dest (leftover of a crashed session) is wiped first."""
     if dest.exists():
-        shutil.rmtree(dest)
+        _rmtree_force(dest)
     shutil.copytree(task_dir / "template", dest)
     run = lambda *cmd: subprocess.run(cmd, cwd=dest, check=True, capture_output=True)
     run("git", "init", "-q", "-b", "main")
