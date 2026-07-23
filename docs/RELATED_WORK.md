@@ -26,6 +26,18 @@
   future work로 제안만. → 우리 RQ2의 선점 아님(실행 안 됨). 프리프린트 주의.
 - **AI21: 200k SWE-bench runs** — https://www.ai21.com/blog/scaling-agentic-evaluation-swe-bench/
   산업 규모 방증: 인스턴스당 4~16 시드 반복(duplicity)이 필수라는 운영 결론.
+- **On Randomness in Agentic Evals** (Bjarnason et al., KTH; ICLR 2026 W
+  Agents in the Wild) — https://arxiv.org/abs/2602.07150
+  SWE-bench Verified **60,000 궤적**(3모델×2스캐폴드×10반복): 단일 실행
+  선택에 따라 pass@1 ±2.2~6.0%p, temp0에서도 σ>1.5%p; **궤적은 전체
+  토큰의 첫 몇 % 안에서 갈라지고 작은 차이가 다른 해결 전략으로 증폭**.
+  Zenodo에 7.7GB 궤적 공개(record 18684664) — 우리 지표의 외부 데이터
+  교차 검증 후보. → 배경 절의 핵심 인용. 단, 목적은 평가 점수의 통계적
+  신뢰성(반복을 늘려라)이지 단일 실행의 조기 판별이 아님 — 우리와의 경계.
+- **Zhou et al.** (2026 preprint) — https://arxiv.org/abs/2606.00920
+  16모델×100문제×5반복: run-level pass rate가 retry-free coverage를 최대
+  **17.8%p 과대평가**, 유사 모델 간 순위 역전. "평균적으로 푼다"와 "한
+  번에 안정적으로 푼다"의 분리 근거 — 결과 보고 시 지표 구분 인용용.
 
 ### 원인 — 서빙 스택 비결정성 (유저가 통제할 수 없음 = 우리 설정의 전제)
 
@@ -66,8 +78,23 @@
 - **Canonical Path Deviation** — https://arxiv.org/pdf/2602.19008
   model×task 쌍의 22.5%가 반복 run에서 혼합 결과; 정준 해결 경로 이탈을
   within-task 비일관성의 기제로 제시 (사후 인과 분석, 온라인 예측 아님).
-- **Understanding Code Agent Behaviour** — https://arxiv.org/pdf/2511.00197
-  성공/실패 궤적 대비; 같은 모델이 어떤 run에서만 실수에서 회복하는 사례.
+- **Understanding Code Agent Behaviour** (Majgaonkar et al., ICSE 2026
+  manuscript) — https://arxiv.org/pdf/2511.00197
+  성공/실패 궤적 대비. **주의할 각도: 실패 실행의 72~81%도 문제 파일은
+  찾았다** — 위치 탐색(coverage류)만으로 성패를 설명 못 하고 수정의
+  품질이 관건. 우리 coverage 신호의 한계 예고; 보정에서 coverage-성패
+  관계를 실측할 것.
+- **Confident and Wrong: Silent Semantic Failures** (Mehta, 2026 preprint)
+  — https://arxiv.org/abs/2603.25764
+  SWE-bench 1,750 궤적(50과제×4모델×5회): 과제별 결과가 **극단적 쌍봉**
+  (5회 전부 성공 아니면 전부 실패) — 일관성은 옳은 해석뿐 아니라 **잘못된
+  해석도 증폭**한다(실패 run의 68%[GPT-5]~80%[Llama 4]가 동일 오해석 반복;
+  ChatGPT 정리본의 "71%"는 날조 수치). pre-edit 가드 프롬프트는 resolve
+  개선 실패. → 두 함의: (1) 궤적 일관성↔성공 상관(2605.28840)을 액면
+  수용 금지 — 일관성은 확신의 신호이지 정답의 신호가 아님, (2) 쌍봉
+  주장은 우리 within-task 분산 설계와 긴장 — 우리 보정에서 C 과제가 1/3
+  혼합 결과를 낸 것은 우리 과제가 쌍봉을 벗어나는 변별력을 가진다는 초기
+  반례. 본 수집에서 과제별 성공 분포의 쌍봉성 자체를 보고할 것.
 - **Entropy-Based Observability** — https://arxiv.org/pdf/2606.05872
   궤적 엔트로피 지표 제안(반복 실행 설정 명시) — 지표 제안이지 실증 아님.
 
@@ -89,11 +116,44 @@
 - **MoE routing (RAD)** — https://arxiv.org/abs/2606.22798
   라우팅 상태로 롤아웃 선택 — 화이트박스 MoE 한정, 사후 선택.
 
-### 보고 관행 비판 (방법론 인용용)
+### 지시 준수·절차 평가 (준수 차원의 이웃 — 2026-07-23 검증 추가)
+
+- **AgentIF** (Qi et al., NeurIPS 2025 D&B Spotlight) —
+  https://arxiv.org/abs/2505.16944
+  에이전트 시나리오 지시 준수 벤치마크: 실제 앱 50개에서 707개 지시(평균
+  1,723단어, 평균 11.9개 제약), 제약별 code/LLM/hybrid 평가기. 프런티어
+  모델도 조건부 제약·도구 명세에서 낮은 성능. → **단발 지시-응답 평가**
+  — 지속 파일(CLAUDE.md류)·세션 관통·세션 간 준수 분산은 다루지 않음
+  (검증 확인). 빈자리 3의 문구를 이 논문 기준으로 정교화.
+- **PAE: corrupt success** (Cao et al., 2026 preprint) —
+  https://arxiv.org/abs/2603.03116
+  τ-bench에서 성공 판정의 **27~78%가 절차 위반을 숨긴 "corrupt success"**;
+  Utility/Efficiency/Interaction/Procedural Integrity 4축 분리. 인용 주의:
+  judge 정밀도는 93.8~95.2% (사람 검증 131건 후). → "테스트는 통과했지만
+  규칙은 어긴 세션"이라는 우리 측정 대상의 학술적 선례·명명.
+- **InferAct** (Fang et al., EMNLP 2025) — https://arxiv.org/abs/2407.11843
+  critical action 실행 전 LLM 판단기로 의도 오정렬 탐지(Macro-F1 최대
+  +20%). → 우리 PreToolUse 훅의 확률적 대응물: LLM 가드 vs 결정론 규칙
+  가드의 비교 프레임에서 베이스라인 인용.
+- **FixedBench** (Gloaguen et al., 2026 preprint) —
+  https://arxiv.org/abs/2605.07769
+  수정 불필요 과제 200개에서 프런티어 모델의 **35~65%가 불필요 수정**
+  (action bias); "수정 전 재현" 지시는 편향을 줄이나 over-abstention 유발
+  — 프롬프트 수준 규칙의 부작용 실증(우리 "강제는 코드로" 원칙의 방증).
+  → 본 실험의 negative task arm 후보.
+
+### 보고 관행 비판·방법론 준거
 
 - **Adding Error Bars to Evals** (Miller, Anthropic 2024) — https://arxiv.org/abs/2411.00640
 - **Questionable Practices in ML** (Leech et al. 2024) — https://arxiv.org/pdf/2407.12220
 - **Lessons from the Trenches** (Biderman et al. 2024) — https://arxiv.org/html/2405.14782
+- **Guidelines for Empirical Studies in SE involving LLMs** (Baltes et al.,
+  EMSE 게재 확정, 22인 공저) — https://arxiv.org/abs/2508.15503
+  연구 유형 7종·설계/보고 지침 8개 + 통합 체크리스트(llm-guidelines.org).
+  **"context files 등 구성 메커니즘 보고 must, 구성 아티팩트 공개 should",
+  노출 도구/MCP 명시 must, 세션 런타임 트레이스 공개, 반복 횟수 정당화
+  (power analysis 등)** — 우리 보고 프로토콜의 준거 문헌. 인용 주의:
+  CLAUDE.md를 명시적으로 지칭하지는 않음("context files"라는 일반 표현).
 
 ### 서베이가 남긴 열린 확인 사항
 
@@ -176,8 +236,10 @@
 2. **진행 중 세션의 조기(within-run) 성패 예측을 블랙박스 행동 신호만으로**
    — 2607.06503은 내부 활성값 프로브(화이트박스)로 하고 행동 신호를 약한
    베이스라인 취급; 폐쇄 상용 에이전트에는 블랙박스가 유일 가능 체제
-3. 지속 지시 파일(CLAUDE.md류) 준수의 실증 연구 — IFEval은 단일 프롬프트
-   수준; **준수율의 세션 간 분산과 궤적 일관성의 공분산은 완전 공백**
+3. 지속 지시 파일(CLAUDE.md류) 준수의 실증 연구 — IFEval은 단일 프롬프트,
+   AgentIF(2505.16944)도 제약이 풍부하나 **단발 지시-응답 평가**; 세션
+   관통 지속 파일과 **준수율의 세션 간 분산, 궤적 일관성과의 공분산은
+   완전 공백** (corrupt success[2603.03116]는 절차-성공 분리까지만)
 4. 상용 폐쇄 에이전트의 유저 측 현장 감사라는 문제 설정 (기존 훅 도구는
    보안 차단, 트랜스크립트 도구는 열람/비용 — "행동 품질 감사"는 공백)
 
