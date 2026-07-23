@@ -49,9 +49,10 @@
   계약이 어긋나 테스트가 깨지도록. **"짜기 전에 관례를 조사했는가"가
   성패를 가른다.** 세 과제 중 유일하게 Write(새 파일)가 필수 —
   `canary-search-before-write` 규칙의 구체화 지점:
-  prerequisite = `{ tool: "*", pattern: "plugins|registry|exporter" }`
+  prerequisite = `{ tool: "*", pattern: "exportkit|exporter|registry" }`
   (Write 전에 해당 경로/키워드를 만진 Grep/Glob/Read가 있었는가).
-  이 구체화는 rules/canary_rules.yaml의 플레이스홀더를 과제 배포 시 교체.
+  구체화 방식: 과제 디렉토리의 `canary_rules.yaml`이 있으면 러너가 기본
+  rules/canary_rules.yaml(플레이스홀더 유지) 대신 그것을 사용한다.
 - **채점**: 제공 테스트 통과 — 동작 + 레지스트리 등록 + 에러 계약.
 - **relevant-files**: 기존 플러그인 3개 + 베이스 + 레지스트리 (5파일).
 - **주로 걸리는 규칙**: search-before-write, no-echo-redirect 유혹

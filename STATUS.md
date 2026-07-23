@@ -5,11 +5,10 @@
 
 ## 다음 세션 시작점
 
-**W2 (plugin-add 템플릿) 또는 W3 (rename-sweep)** — G1 통과로 병렬 제작
-가능. 사양은 `docs/PILOT_TASKS.md`, 구조는 buggy-pipeline 디렉토리를 본뜰
-것 (template/ + solution/ + grade.py + prompt.txt + relevant_files.txt +
-CASA 메타 테스트). W2에서는 canary-search-before-write prerequisite
-구체화도 함께 (rules/canary_rules.yaml 플레이스홀더 교체).
+**W3 (rename-sweep 템플릿)**. 사양은 `docs/PILOT_TASKS.md`, 구조는 앞선
+두 과제 디렉토리를 본뜰 것 (template/ + solution/ + grade.py + prompt.txt
++ relevant_files.txt + CASA 메타 테스트). rename-sweep은 채점기가 pytest
+외에 **옛 이름 잔존 참조 0건 검사**를 추가로 수행해야 한다.
 
 ## 작업 분해 (파일럿까지)
 
@@ -17,7 +16,7 @@ CASA 메타 테스트). W2에서는 canary-search-before-write prerequisite
 |---|---|---|---|
 | W1 | buggy-pipeline 템플릿 + 채점기 | **완료** (2026-07-22, PR #2) | `pilot/tasks/buggy-pipeline/` |
 | W1.5 | **수직 슬라이스**: 러너 프로토타입으로 W1 과제 세션 2~3개를 끝까지 (실행→트랜스크립트 수집→casa audit→채점) | **완료** (2026-07-23, PR #3·#4, G1 통과) | 러너 초안 + **게이트 G1 기록** |
-| W2 | plugin-add 템플릿 + 채점기 (+ search-before-write 규칙 구체화) | 대기 | `pilot/tasks/plugin-add/` |
+| W2 | plugin-add 템플릿 + 채점기 (+ search-before-write 규칙 구체화) | **완료** (2026-07-23, PR #5) | `pilot/tasks/plugin-add/` |
 | W3 | rename-sweep 템플릿 + 채점기 | 대기 | `pilot/tasks/rename-sweep/` |
 | W4 | 세션 러너 완성 (반복 실행, 버전 기록, 트랜스크립트 수집) | 대기 | `pilot/run_sessions.py` |
 | W5 | 궤적 지표 확장 (스텝별 누적 시계열, 궤적 유사도) | 대기 | `src/casa/metrics.py` 확장 |
@@ -94,12 +93,18 @@ CASA 메타 테스트). W2에서는 canary-search-before-write prerequisite
   감사 훅 배선 — hooks/run.sh 경유), PR 템플릿. 브랜치 보호는 무료 플랜
   private라 불가(관례+pre-commit으로 대체, public 전환 시 재시도).
 
+- 2026-07-23 저장소 **public 전환** (유저 결정) + main 브랜치 보호 활성화:
+  CI 4개 체크 필수, 관리자 포함 강제, force-push/삭제 차단. 배경: 무료
+  플랜 private에서 Actions 결제 실패로 CI 미실행 + 빨간 CI 머지 사고
+  1회(PR #4, 로컬 테스트는 통과 상태였음) — 이제 서버가 차단.
+
 ## 미해결 / 주의
 
 - W4 러너 완성 시 반영할 것 (G1 교훈): 시작 전 `claude auth status` 게이트,
   장기 수집 중 토큰 만료 시 중단·재개 처리, 프롬프트 stdin 전달 유지.
   슬라이스는 sonnet으로 실행 — 본 수집(W8) 대상 모델은 G2 전에 결정.
-- rules/canary_rules.yaml의 `canary-search-before-write`는 플레이스홀더
-  (빈 패턴 = 위반 발생 불가). W2에서 구체화하기로 함.
+- ~~canary-search-before-write 플레이스홀더~~ → W2에서 해결: 과제 로컬
+  canary_rules.yaml 오버라이드 방식 (러너 rules_for). 기본 파일의
+  플레이스홀더는 유지 (Write가 드문 과제에서 오탐 방지).
 - 투고 직전 재확인: 최근접 프리프린트 2편의 개정/심사 상태 + ICSE/FSE/ICLR
   워크숍 동시 연구 표적 검색 (RELATED_WORK "열린 확인 사항").

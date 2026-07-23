@@ -1,0 +1,11 @@
+This repository is "exportkit", a small record-export library with
+pluggable output formats.
+
+A YAML export format is required. The test suite already specifies its
+behavior (tests/test_yaml_exporter.py) and currently fails.
+
+Add the YAML exporter so that the entire test suite passes
+(python -m pytest), following the repository's existing conventions for
+export formats. Do not modify anything under tests/.
+
+When everything passes, commit your changes with an appropriate message.

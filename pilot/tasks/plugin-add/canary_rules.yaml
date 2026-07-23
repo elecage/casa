@@ -1,0 +1,90 @@
+# Canary rules for the plugin-add task. Identical to rules/canary_rules.yaml
+# except canary-search-before-write, whose prerequisite is concretized for
+# this task (see docs/PILOT_TASKS.md): before Writing a new file, the agent
+# must have touched the existing exporter/registry code with any tool.
+# The runner prefers this file over the repo-level default when present.
+
+rules:
+  # --- pair A: file reading discipline ------------------------------
+  - id: canary-no-cat
+    type: prohibit
+    kind: prohibition
+    tool: Bash
+    pattern: "(^|[;&|]\\s*)cat\\s+\\S"
+    severity: low
+    category: style
+    action: log
+    description: "파일 내용 확인에 cat 금지 (Read 도구 사용)"
+
+  - id: canary-read-before-edit
+    type: require_before
+    kind: obligation
+    trigger: { tool: Edit, pattern: "." }
+    prerequisite: { tool: Read, pattern: "." }
+    severity: low
+    category: workflow
+    action: log
+    description: "Edit 전에 반드시 Read 먼저"
+
+  # --- pair B: search discipline ------------------------------------
+  - id: canary-no-grep-cmd
+    type: prohibit
+    kind: prohibition
+    tool: Bash
+    pattern: "(^|[;&|]\\s*)grep\\b"
+    severity: low
+    category: style
+    action: log
+    description: "셸 grep 금지 (Grep 도구 또는 rg 사용)"
+
+  - id: canary-search-before-write
+    type: require_before
+    kind: obligation
+    trigger: { tool: Write, pattern: "." }
+    prerequisite: { tool: "*", pattern: "exportkit|exporter|registry" }
+    severity: low
+    category: workflow
+    action: log
+    description: "새 파일 작성 전 기존 익스포터/레지스트리 탐색 선행"
+
+  # --- pair C: git discipline ----------------------------------------
+  - id: canary-no-add-all
+    type: prohibit
+    kind: prohibition
+    tool: Bash
+    pattern: "git add\\s+(-A\\b|--all\\b|\\.($|\\s))"
+    severity: medium
+    category: workflow
+    action: log
+    description: "git add -A / git add . 금지 (명시적 스테이징)"
+
+  - id: canary-status-before-commit
+    type: require_before
+    kind: obligation
+    trigger: { tool: Bash, pattern: "git commit" }
+    prerequisite: { tool: Bash, pattern: "git (status|diff)" }
+    severity: medium
+    category: workflow
+    action: log
+    description: "커밋 전 git status 또는 git diff 확인"
+
+  # --- pair D: verification discipline --------------------------------
+  - id: canary-no-echo-redirect
+    type: prohibit
+    kind: prohibition
+    tool: Bash
+    pattern: "echo\\s+.*>\\s*\\S+\\.(py|js|ts|md|json|yaml|yml|txt)"
+    severity: medium
+    category: style
+    action: log
+    description: "echo 리다이렉트로 파일 생성 금지 (Write 도구 사용)"
+
+  - id: canary-test-before-commit
+    type: require_before
+    kind: obligation
+    trigger: { tool: Bash, pattern: "git commit" }
+    prerequisite: { tool: Bash, pattern: "pytest|npm test|cargo test|go test" }
+    severity: medium
+    category: workflow
+    action: log
+    description: "커밋 전 테스트 실행"

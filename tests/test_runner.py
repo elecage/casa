@@ -16,6 +16,14 @@ run_sessions = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(run_sessions)
 
 
+def test_rules_for_prefers_task_local_rules():
+    tasks = REPO / "pilot" / "tasks"
+    assert run_sessions.rules_for(tasks / "plugin-add") == \
+        tasks / "plugin-add" / "canary_rules.yaml"
+    assert run_sessions.rules_for(tasks / "buggy-pipeline") == \
+        REPO / "rules" / "canary_rules.yaml"
+
+
 def test_munge_matches_claude_code_convention():
     assert run_sessions.munge_project_dir(r"E:\Claude_Prjs\casa") == "E--Claude-Prjs-casa"
     assert run_sessions.munge_project_dir("/home/u/proj.x") == "-home-u-proj-x"
