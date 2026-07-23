@@ -5,10 +5,10 @@
 
 ## 다음 세션 시작점
 
-**W3 (rename-sweep 템플릿)**. 사양은 `docs/PILOT_TASKS.md`, 구조는 앞선
-두 과제 디렉토리를 본뜰 것 (template/ + solution/ + grade.py + prompt.txt
-+ relevant_files.txt + CASA 메타 테스트). rename-sweep은 채점기가 pytest
-외에 **옛 이름 잔존 참조 0건 검사**를 추가로 수행해야 한다.
+**W4 (세션 러너 완성)**. 초안 `pilot/run_sessions.py`를 본 수집용으로
+완성: 시작 전 `claude auth status` 게이트, 장기 실행 중 토큰 만료/실패
+세션의 중단·재개(이미 끝난 세션 스킵), 세션 간 대기 옵션, 결과 집계
+포맷 정리. G1 교훈은 "미해결/주의" 절 참조. W5(궤적 지표)와 순서 무관.
 
 ## 작업 분해 (파일럿까지)
 
@@ -17,7 +17,7 @@
 | W1 | buggy-pipeline 템플릿 + 채점기 | **완료** (2026-07-22, PR #2) | `pilot/tasks/buggy-pipeline/` |
 | W1.5 | **수직 슬라이스**: 러너 프로토타입으로 W1 과제 세션 2~3개를 끝까지 (실행→트랜스크립트 수집→casa audit→채점) | **완료** (2026-07-23, PR #3·#4, G1 통과) | 러너 초안 + **게이트 G1 기록** |
 | W2 | plugin-add 템플릿 + 채점기 (+ search-before-write 규칙 구체화) | **완료** (2026-07-23, PR #5) | `pilot/tasks/plugin-add/` |
-| W3 | rename-sweep 템플릿 + 채점기 | 대기 | `pilot/tasks/rename-sweep/` |
+| W3 | rename-sweep 템플릿 + 채점기 | **완료** (2026-07-23, PR #6) | `pilot/tasks/rename-sweep/` |
 | W4 | 세션 러너 완성 (반복 실행, 버전 기록, 트랜스크립트 수집) | 대기 | `pilot/run_sessions.py` |
 | W5 | 궤적 지표 확장 (스텝별 누적 시계열, 궤적 유사도) | 대기 | `src/casa/metrics.py` 확장 |
 | W6 | 집계·분석 (`casa report`: 분산 통계, AUROC@k) | 대기 | `src/casa/cli.py` + ARCHITECTURE 동기화 |
