@@ -23,8 +23,10 @@
   같은 조정에서 테스트 docstring의 형식 예시도 제거(관례 조사 우회로 차단).
   **G2 2차 조정**: README "Supported formats" 표 동기화가 성공 기준에
   포함 — 테스트 루프 밖의 문서 스위프 요소(C 과제의 변별 원리 이식).
-  README 자체에 "keep in sync" 문구가 있어 발견 가능하되 프롬프트는
-  언급하지 않는다.
+  **G2 3차 조정**: README만의 단서로는 양 모델 0/6 (README를 아예 안
+  읽음) → 발견 경로를 필수 편집 파일로 이동: exporters/__init__.py 주석이
+  README 표 갱신을 명시. 이제 기준은 "자기가 편집하는 파일의 지시를
+  읽고 따르는가"를 측정한다. 프롬프트는 여전히 비언급.
 - `prompt.txt` / `relevant_files.txt` — buggy-pipeline과 동일 구조.
 
 메타 테스트(`tests/test_pilot_plugin_add.py`)가 지키는 불변식: 배포 상태
