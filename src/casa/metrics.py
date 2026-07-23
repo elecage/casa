@@ -81,6 +81,94 @@ def tool_error_rate(session: Session) -> float:
     return sum(1 for c in session.tool_calls if c.is_error) / len(session.tool_calls)
 
 
+# --- trajectory-level metrics (RQ2 AUROC@k inputs, RQ3 divergence) -----
+
+
+def step_series(session: Session,
+                relevant_files: list[str] | None = None) -> list[dict[str, Any]]:
+    """One row per tool call with signals cumulative up to that call —
+    the per-step inputs for time-resolved prediction (AUROC@k).
+
+    The final row's cumulative values agree with the whole-session
+    metrics in compute_all() (pinned by tests).
+    """
+    relevant_norm = [str(Path(f)) for f in (relevant_files or [])]
+    seen_files: set[str] = set()
+    rows: list[dict[str, Any]] = []
+    cum_explore = cum_errors = 0
+    first_mutation_at: int | None = None
+
+    for call in session.tool_calls:
+        if call.is_exploration:
+            cum_explore += 1
+        if call.is_error:
+            cum_errors += 1
+        if call.is_mutation and first_mutation_at is None:
+            first_mutation_at = call.index
+        if call.name == "Read":
+            fp = call.input.get("file_path")
+            if isinstance(fp, str):
+                seen_files.add(str(Path(fp)))
+
+        coverage_k = None
+        if relevant_norm:
+            hit = sum(1 for f in relevant_norm
+                      if f in seen_files or any(s.endswith(f) for s in seen_files))
+            coverage_k = round(hit / len(relevant_norm), 4)
+
+        rows.append({
+            "index": call.index,
+            "tool": call.name,
+            "after_compaction": call.after_compaction,
+            "cum_exploration": cum_explore,
+            "cum_files_read": len(seen_files),
+            "cum_coverage": coverage_k,
+            "cum_errors": cum_errors,
+            "cum_error_rate": round(cum_errors / (call.index + 1), 4),
+            "mutated": first_mutation_at is not None,
+        })
+    return rows
+
+
+def tool_sequence(session: Session) -> list[str]:
+    """Coarse action sequence for cross-session comparison. Bash calls
+    carry their leading word ("Bash:git"), other tools their name."""
+    seq = []
+    for call in session.tool_calls:
+        if call.name == "Bash":
+            head = call.bash_command.strip().split()
+            seq.append(f"Bash:{head[0]}" if head else "Bash")
+        else:
+            seq.append(call.name)
+    return seq
+
+
+def normalized_edit_distance(seq_a: list[str], seq_b: list[str]) -> float:
+    """Levenshtein distance over action sequences, normalized to [0, 1]
+    by the longer length. 0.0 = identical trajectories."""
+    if not seq_a and not seq_b:
+        return 0.0
+    prev = list(range(len(seq_b) + 1))
+    for i, a in enumerate(seq_a, 1):
+        cur = [i]
+        for j, b in enumerate(seq_b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1,
+                           prev[j - 1] + (a != b)))
+        prev = cur
+    return round(prev[-1] / max(len(seq_a), len(seq_b)), 4)
+
+
+def prefix_divergence(seq_a: list[str], seq_b: list[str]) -> int:
+    """Index of the first differing action — how many steps two sessions
+    stayed on the same path (RQ3: when do trajectories split?)."""
+    k = 0
+    for a, b in zip(seq_a, seq_b):
+        if a != b:
+            break
+        k += 1
+    return k
+
+
 def compute_all(session: Session, relevant_files: list[str] | None = None) -> dict[str, Any]:
     tool_counts = Counter(c.name for c in session.tool_calls)
     return {

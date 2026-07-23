@@ -26,6 +26,8 @@ def main(argv: list[str] | None = None) -> int:
                          help="Text file with one relevant file path per line (for coverage)")
     p_audit.add_argument("--json", action="store_true", help="Emit JSON instead of markdown")
     p_audit.add_argument("--out", help="Write report to this path instead of stdout")
+    p_audit.add_argument("--trajectory", action="store_true",
+                         help="Include per-step series and tool sequence (JSON only)")
 
     args = parser.parse_args(argv)
 
@@ -37,7 +39,8 @@ def main(argv: list[str] | None = None) -> int:
                 ln.strip() for ln in Path(args.relevant).read_text(encoding="utf-8").splitlines()
                 if ln.strip()
             ]
-        result = audit_session(args.transcript, rules=rules, relevant_files=relevant)
+        result = audit_session(args.transcript, rules=rules, relevant_files=relevant,
+                               trajectory=args.trajectory)
         text = to_json(result) if args.json else to_markdown(result)
         if args.out:
             Path(args.out).parent.mkdir(parents=True, exist_ok=True)

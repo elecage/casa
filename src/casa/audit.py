@@ -15,6 +15,7 @@ def audit_session(
     transcript_path: str | Path,
     rules: list[Rule] | None = None,
     relevant_files: list[str] | None = None,
+    trajectory: bool = False,
 ) -> dict[str, Any]:
     session = parse(transcript_path)
     result: dict[str, Any] = {
@@ -22,6 +23,11 @@ def audit_session(
         "metrics": m.compute_all(session, relevant_files),
         "violations": [],
     }
+    if trajectory:
+        result["trajectory"] = {
+            "steps": m.step_series(session, relevant_files),
+            "tool_sequence": m.tool_sequence(session),
+        }
     if rules:
         violations = evaluate(session, rules)
         result["violations"] = [v.to_dict() for v in violations]
