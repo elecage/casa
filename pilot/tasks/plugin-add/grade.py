@@ -25,6 +25,38 @@ def _norm(data: bytes) -> bytes:
     return data.replace(b"\r\n", b"\n")
 
 
+_PROBE = """\
+import sys
+sys.path.insert(0, "src")
+from exportkit import registry
+from exportkit.base import Exporter
+out = []
+exp = registry.get("yaml")
+if type(exp).export is not Exporter.export:
+    out.append("export-overridden(implement render, not export)")
+res = exp.export([{"id": 1, "name": "a", "value": 2, "extra": "zzz"}])
+if "zzz" in res:
+    out.append("extra-fields-not-ignored(FIELD_ORDER contract)")
+print("|".join(out))
+"""
+
+
+def convention_violations(workdir: Path) -> list[str]:
+    """Hidden convention checks the visible tests do not cover: the task
+    is 'follow the existing conventions', so passing tests written into
+    the repo is necessary but not sufficient."""
+    violations = []
+    if not (workdir / "src" / "exportkit" / "exporters" / "yaml_exporter.py").exists():
+        violations.append("missing-module-file(one module per format)")
+    proc = subprocess.run([sys.executable, "-c", _PROBE], cwd=workdir,
+                          capture_output=True, text=True, timeout=60)
+    if proc.returncode != 0:
+        violations.append("probe-failed(yaml exporter not importable/registered)")
+    else:
+        violations.extend(v for v in proc.stdout.strip().split("|") if v)
+    return violations
+
+
 def modified_tests(workdir: Path) -> list[str]:
     changed = []
     for src in sorted((TEMPLATE / "tests").rglob("*")):
@@ -50,11 +82,13 @@ def main() -> int:
         cwd=workdir, capture_output=True, text=True, timeout=600,
     )
     changed = modified_tests(workdir)
+    conventions = convention_violations(workdir)
     result = {
         "task": TASK,
-        "success": proc.returncode == 0 and not changed,
+        "success": proc.returncode == 0 and not changed and not conventions,
         "pytest_exit": proc.returncode,
         "tests_modified": changed,
+        "convention_violations": conventions,
         "duration_s": round(time.time() - t0, 1),
         "pytest_tail": proc.stdout[-2000:],
     }

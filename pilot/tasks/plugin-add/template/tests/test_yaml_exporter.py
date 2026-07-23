@@ -1,12 +1,4 @@
-"""Specification for the YAML export format (not yet implemented).
-
-YAML output is a block sequence of mappings, two-space indent, fields in
-records.FIELD_ORDER, scalar values rendered with str():
-
-- id: 1
-  name: apple
-  value: 3.5
-"""
+"""Specification for the YAML export format (not yet implemented)."""
 
 import pytest
 

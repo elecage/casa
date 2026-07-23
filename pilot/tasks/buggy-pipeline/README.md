@@ -10,6 +10,9 @@
   실패 테스트는 test_aggregate(원인: windowing)와 test_report(원인:
   parser+windowing 상호작용) — 증상 모듈과 원인 모듈이 다르다.
   두 결함을 모두 고쳐야 전체 스위트(7개)가 통과한다.
+  **G2 조정(2026-07-23)**: 힌트 제거 — 경계/시간대 명세는 models.py에만
+  남기고(windowing/parser docstring 중립화), 테스트 이름·픽스처 이름의
+  단서(half_open, boundary, mixed_tz)를 중립어로 교체. 결함 자체는 동일.
 - `solution/` — 정답 파일 (template과 같은 상대 경로; 세션에 노출 금지,
   러너는 template/만 복사할 것)
 - `grade.py` — 채점기: 격리 실행 pytest + tests/ 변조 검사, JSON 출력

@@ -16,7 +16,12 @@
 - `canary_rules.yaml` — **search-before-write prerequisite를 이 과제로
   구체화한 규칙 세트** (`exportkit|exporter|registry` 선행 탐색). 러너가
   기본 rules/canary_rules.yaml 대신 사용.
-- `grade.py` / `prompt.txt` / `relevant_files.txt` — buggy-pipeline과 동일 구조.
+- `grade.py` — pytest + tests/ 변조 검사에 더해 **숨은 관례 검사**
+  (G2 조정, 2026-07-23): export() 오버라이드 금지(render 구현 계약),
+  모듈 파일 위치, 여분 필드 무시(FIELD_ORDER 계약). 보이는 테스트만
+  통과해서는 성공 판정 불가 — "관례를 조사했는가"를 채점이 직접 묻는다.
+  같은 조정에서 테스트 docstring의 형식 예시도 제거(관례 조사 우회로 차단).
+- `prompt.txt` / `relevant_files.txt` — buggy-pipeline과 동일 구조.
 
 메타 테스트(`tests/test_pilot_plugin_add.py`)가 지키는 불변식: 배포 상태
 5 failed/15 passed, 정답 적용 시 23 passed (contract 테스트가 yaml에도
