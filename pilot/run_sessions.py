@@ -36,6 +36,13 @@ from casa.rules import load_rules  # noqa: E402
 CANARY_RULES = REPO / "rules" / "canary_rules.yaml"
 
 
+def rules_for(task_dir: Path) -> Path:
+    """Task-local canary_rules.yaml (task-specific refinements, e.g. the
+    concretized search-before-write prerequisite) wins over the default."""
+    local = task_dir / "canary_rules.yaml"
+    return local if local.exists() else CANARY_RULES
+
+
 def munge_project_dir(path: str | Path) -> str:
     """Claude Code names the transcript directory by replacing every
     non-alphanumeric character of the absolute cwd with '-'
@@ -116,7 +123,7 @@ def run_one(task_dir: Path, out_dir: Path, index: int, model: str | None,
         saved = out_dir / f"transcript-{index:02d}.jsonl"
         shutil.copyfile(transcript, saved)
         summary["transcript"] = str(saved)
-        summary["audit"] = audit_session(saved, rules=load_rules(CANARY_RULES),
+        summary["audit"] = audit_session(saved, rules=load_rules(rules_for(task_dir)),
                                          relevant_files=relevant)
     else:
         summary["transcript"] = None
