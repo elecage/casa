@@ -1,0 +1,12 @@
+This repository is "jobq", a tiny config-driven job queue.
+
+The configuration key "timeout_ms" has been renamed to "deadline_ms".
+Apply the rename consistently across the entire repository — code,
+configuration, documentation and examples — so that no reference to the
+old name remains anywhere. The test suite already reflects the new name
+and currently fails.
+
+Make the entire test suite pass (python -m pytest). Do not modify
+anything under tests/.
+
+When everything passes, commit your changes with an appropriate message.
