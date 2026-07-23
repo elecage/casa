@@ -16,6 +16,57 @@ run_sessions = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(run_sessions)
 
 
+def test_pending_indices_skips_completed_sessions(tmp_path):
+    (tmp_path / "session-01.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "session-03.json").write_text("{}", encoding="utf-8")
+    assert run_sessions.pending_indices(tmp_path, 4) == [2, 4]
+
+
+def test_is_auth_failure_matches_real_401_payload():
+    # Shape observed in the W1.5 slice when the OAuth token had expired.
+    payload = {"type": "result", "subtype": "success", "is_error": True,
+               "api_error_status": 401,
+               "result": "Failed to authenticate. API Error: 401 OAuth access "
+                         "token has expired. Re-authenticate to continue."}
+    assert run_sessions.is_auth_failure(payload)
+    assert not run_sessions.is_auth_failure(
+        {"is_error": False, "result": "OK", "api_error_status": None})
+    assert not run_sessions.is_auth_failure(
+        {"is_error": True, "result": "tool timeout", "api_error_status": None})
+
+
+def test_summarize_aggregates_session_rows():
+    rows = [
+        {"session_index": 1, "wall_s": 100.0,
+         "cli": {"total_cost_usd": 0.30},
+         "audit": {"violations": [], "metrics": {"coverage": 1.0,
+                                                 "exploration_before_first_edit": 11}},
+         "grade": {"success": True}},
+        {"session_index": 2, "wall_s": 90.0,
+         "cli": {"total_cost_usd": 0.20},
+         "audit": {"violations": [{"rule_id": "canary-no-cat"}],
+                   "metrics": {"coverage": 0.5,
+                               "exploration_before_first_edit": 3}},
+         "grade": {"success": False}},
+    ]
+    summary = run_sessions.summarize(rows)
+    assert summary["n"] == 2 and summary["successes"] == 1
+    assert summary["success_rate"] == 0.5
+    assert summary["mean_cost_usd"] == 0.25
+    assert summary["sessions"][1]["violations"] == 1
+    assert summary["sessions"][0]["coverage"] == 1.0
+
+
+def test_prepare_workdir_wipes_leftover_dest(tmp_path):
+    task_dir = REPO / "pilot" / "tasks" / "buggy-pipeline"
+    dest = tmp_path / "w"
+    dest.mkdir()
+    (dest / "stale.txt").write_text("leftover", encoding="utf-8")
+    run_sessions.prepare_workdir(task_dir, dest)
+    assert not (dest / "stale.txt").exists()
+    assert (dest / "CLAUDE.md").exists()
+
+
 def test_rules_for_prefers_task_local_rules():
     tasks = REPO / "pilot" / "tasks"
     assert run_sessions.rules_for(tasks / "plugin-add") == \

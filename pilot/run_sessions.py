@@ -56,7 +56,10 @@ def transcript_dir_for(workdir: Path) -> Path:
 
 def prepare_workdir(task_dir: Path, dest: Path) -> Path:
     """Copy the task template (never solution/ etc.) and make it a git repo
-    with an initial commit, so the session can follow 'commit your changes'."""
+    with an initial commit, so the session can follow 'commit your changes'.
+    An existing dest (leftover of a crashed session) is wiped first."""
+    if dest.exists():
+        shutil.rmtree(dest)
     shutil.copytree(task_dir / "template", dest)
     run = lambda *cmd: subprocess.run(cmd, cwd=dest, check=True, capture_output=True)
     run("git", "init", "-q", "-b", "main")
@@ -65,6 +68,69 @@ def prepare_workdir(task_dir: Path, dest: Path) -> Path:
     run("git", "-c", "user.name=pilot", "-c", "user.email=pilot@casa.local",
         "commit", "-q", "-m", "initial state")
     return dest
+
+
+def check_auth() -> tuple[bool, str]:
+    """`claude auth status` gate: never start a batch on expired credentials
+    (G1: an expired OAuth token fails every session in seconds)."""
+    proc = subprocess.run("claude auth status", capture_output=True,
+                          text=True, shell=True, env=_child_env())
+    try:
+        status = json.loads(proc.stdout)
+        return bool(status.get("loggedIn")), status.get("email", "?")
+    except json.JSONDecodeError:
+        # Some versions print human-readable text; fall back to a marker.
+        ok = "logged in" in proc.stdout.lower() or "loggedin" in proc.stdout.lower()
+        return ok, "?"
+
+
+def is_auth_failure(cli_payload: dict) -> bool:
+    """True when a session died on authentication (continue-vs-abort call:
+    every later session would fail the same way)."""
+    if cli_payload.get("api_error_status") == 401:
+        return True
+    text = str(cli_payload.get("result", ""))
+    return cli_payload.get("is_error", False) and (
+        "OAuth" in text or "authenticate" in text.lower())
+
+
+def pending_indices(out_dir: Path, n: int) -> list[int]:
+    """Resume support: sessions with an existing summary JSON are done."""
+    return [i for i in range(1, n + 1)
+            if not (out_dir / f"session-{i:02d}.json").exists()]
+
+
+def summarize(rows: list[dict]) -> dict:
+    def _m(row: dict, *keys, default=None):
+        cur = row
+        for key in keys:
+            if not isinstance(cur, dict):
+                return default
+            cur = cur.get(key, default)
+        return cur
+
+    sessions = []
+    for row in rows:
+        sessions.append({
+            "index": row.get("session_index"),
+            "success": bool(_m(row, "grade", "success", default=False)),
+            "wall_s": row.get("wall_s"),
+            "cost_usd": _m(row, "cli", "total_cost_usd"),
+            "violations": len(_m(row, "audit", "violations", default=[]) or []),
+            "coverage": _m(row, "audit", "metrics", "coverage"),
+            "exploration_before_first_edit":
+                _m(row, "audit", "metrics", "exploration_before_first_edit"),
+        })
+    n = len(sessions)
+    successes = sum(1 for s in sessions if s["success"])
+    costs = [s["cost_usd"] for s in sessions if isinstance(s["cost_usd"], (int, float))]
+    return {
+        "n": n,
+        "successes": successes,
+        "success_rate": round(successes / n, 3) if n else None,
+        "mean_cost_usd": round(sum(costs) / len(costs), 3) if costs else None,
+        "sessions": sessions,
+    }
 
 
 def _child_env() -> dict[str, str]:
@@ -140,6 +206,18 @@ def run_one(task_dir: Path, out_dir: Path, index: int, model: str | None,
     return summary
 
 
+def _write_summary(out_dir: Path, n: int) -> dict:
+    rows = []
+    for i in range(1, n + 1):
+        path = out_dir / f"session-{i:02d}.json"
+        if path.exists():
+            rows.append(json.loads(path.read_text(encoding="utf-8")))
+    summary = summarize(rows)
+    (out_dir / "summary.json").write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    return summary
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("task_dir")
@@ -147,30 +225,58 @@ def main() -> int:
     ap.add_argument("--out", default="results/slice")
     ap.add_argument("--model", default=None)
     ap.add_argument("--timeout-min", type=int, default=25)
+    ap.add_argument("--sleep-s", type=int, default=0,
+                    help="pause between sessions")
     args = ap.parse_args()
 
     task_dir = Path(args.task_dir).resolve()
     out_dir = Path(args.out).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    logged_in, email = check_auth()
+    if not logged_in:
+        print("ABORT: claude CLI is not authenticated - run `claude auth login` "
+              "and re-run; finished sessions are kept and will be skipped.",
+              file=sys.stderr)
+        return 2
+
     version = subprocess.run("claude --version", capture_output=True,
                              text=True, shell=True).stdout.strip()
     (out_dir / "meta.json").write_text(json.dumps({
         "claude_version": version, "task": task_dir.name,
-        "sessions": args.sessions, "model": args.model,
+        "sessions": args.sessions, "model": args.model, "account": email,
     }, indent=2), encoding="utf-8")
 
-    ok = 0
-    for i in range(1, args.sessions + 1):
+    todo = pending_indices(out_dir, args.sessions)
+    skipped = args.sessions - len(todo)
+    if skipped:
+        print(f"resume: {skipped} session(s) already done, "
+              f"{len(todo)} to run", flush=True)
+
+    aborted = False
+    for pos, i in enumerate(todo):
         print(f"[{i}/{args.sessions}] running...", flush=True)
         s = run_one(task_dir, out_dir, i, args.model, args.timeout_min * 60)
         success = bool(s.get("grade", {}).get("success"))
-        ok += success
         print(f"  success={success} wall={s['wall_s']}s "
               f"violations={len(s.get('audit', {}).get('violations', []))}",
               flush=True)
-    print(f"done: {ok}/{args.sessions} succeeded -> {out_dir}")
-    return 0
+        if is_auth_failure(s.get("cli", {})):
+            # Every subsequent session would fail identically; keep the
+            # partial batch resumable instead of burning through it.
+            (out_dir / f"session-{i:02d}.json").unlink(missing_ok=True)
+            print("ABORT: authentication expired mid-batch - run "
+                  "`claude auth login`, then re-run to resume.", file=sys.stderr)
+            aborted = True
+            break
+        if args.sleep_s and pos < len(todo) - 1:
+            time.sleep(args.sleep_s)
+
+    summary = _write_summary(out_dir, args.sessions)
+    print(f"{'aborted' if aborted else 'done'}: "
+          f"{summary['successes']}/{summary['n']} recorded sessions succeeded "
+          f"-> {out_dir}")
+    return 2 if aborted else 0
 
 
 if __name__ == "__main__":
