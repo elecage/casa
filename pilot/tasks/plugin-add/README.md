@@ -21,6 +21,10 @@
   모듈 파일 위치, 여분 필드 무시(FIELD_ORDER 계약). 보이는 테스트만
   통과해서는 성공 판정 불가 — "관례를 조사했는가"를 채점이 직접 묻는다.
   같은 조정에서 테스트 docstring의 형식 예시도 제거(관례 조사 우회로 차단).
+  **G2 2차 조정**: README "Supported formats" 표 동기화가 성공 기준에
+  포함 — 테스트 루프 밖의 문서 스위프 요소(C 과제의 변별 원리 이식).
+  README 자체에 "keep in sync" 문구가 있어 발견 가능하되 프롬프트는
+  언급하지 않는다.
 - `prompt.txt` / `relevant_files.txt` — buggy-pipeline과 동일 구조.
 
 메타 테스트(`tests/test_pilot_plugin_add.py`)가 지키는 불변식: 배포 상태

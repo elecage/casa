@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import time
@@ -48,6 +49,12 @@ def convention_violations(workdir: Path) -> list[str]:
     violations = []
     if not (workdir / "src" / "exportkit" / "exporters" / "yaml_exporter.py").exists():
         violations.append("missing-module-file(one module per format)")
+    # README's Supported-formats table is the repo's public reference and
+    # must stay in sync with the registry (stated in the README itself) -
+    # the docs-sweep component the test loop cannot enforce.
+    readme = workdir / "README.md"
+    if not (readme.exists() and re.search(r"\byaml\b", readme.read_text(encoding="utf-8"))):
+        violations.append("readme-formats-table-missing-yaml(docs sweep)")
     proc = subprocess.run([sys.executable, "-c", _PROBE], cwd=workdir,
                           capture_output=True, text=True, timeout=60)
     if proc.returncode != 0:

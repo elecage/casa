@@ -16,12 +16,7 @@ text = registry.get("json").export(records)
 | `csv` | `.csv` |
 | `json` | `.json` |
 | `xml` | `.xml` |
+| `yaml` | `.yaml` |
 
 This table is the public reference for consumers — keep it in sync with
 the registry.
-
-## Tests
-
-```
-python -m pytest
-```

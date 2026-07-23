@@ -34,14 +34,31 @@ def test_shipped_template_fails_as_designed(tmp_path):
     assert "test_yaml_exporter" in proc.stdout
 
 
+SOLUTION_FILES = ("src/exportkit/exporters/yaml_exporter.py",
+                  "src/exportkit/exporters/__init__.py",
+                  "README.md")
+
+
 def test_solution_makes_suite_pass(tmp_path):
+    workdir = _copy_template(tmp_path)
+    _apply(workdir, *SOLUTION_FILES)
+    proc = _run_pytest(workdir)
+    assert proc.returncode == 0, proc.stdout
+    # contract tests parameterize over available(), so yaml joins them
+    assert "23 passed" in proc.stdout
+
+
+def test_forgetting_readme_table_passes_tests_but_fails_grading(tmp_path):
+    # The docs-sweep component: code and tests complete, README format
+    # table left stale -> grading fails outside the test loop.
     workdir = _copy_template(tmp_path)
     _apply(workdir, "src/exportkit/exporters/yaml_exporter.py",
            "src/exportkit/exporters/__init__.py")
     proc = _run_pytest(workdir)
     assert proc.returncode == 0, proc.stdout
-    # contract tests parameterize over available(), so yaml joins them
-    assert "23 passed" in proc.stdout
+    code, result = _grade_result(workdir)
+    assert code == 1 and result["success"] is False
+    assert any("readme-formats-table" in v for v in result["convention_violations"])
 
 
 def test_forgetting_registration_import_still_fails(tmp_path):
@@ -93,7 +110,7 @@ def test_convention_violating_solution_passes_tests_but_fails_grading(tmp_path):
     workdir = _copy_template(tmp_path)
     (workdir / "src" / "exportkit" / "exporters" / "yaml_exporter.py").write_text(
         WRONG_CONVENTION_EXPORTER, encoding="utf-8")
-    _apply(workdir, "src/exportkit/exporters/__init__.py")
+    _apply(workdir, "src/exportkit/exporters/__init__.py", "README.md")
 
     proc = _run_pytest(workdir)
     assert proc.returncode == 0, proc.stdout  # visible tests all pass
@@ -120,15 +137,13 @@ def test_grader_verdicts(tmp_path):
     assert code == 1 and result["success"] is False and not result["tests_modified"]
 
     solved = _copy_template(tmp_path / "solved")
-    _apply(solved, "src/exportkit/exporters/yaml_exporter.py",
-           "src/exportkit/exporters/__init__.py")
+    _apply(solved, *SOLUTION_FILES)
     code, result = grade(solved)
     assert code == 0 and result["success"] is True
     assert result["convention_violations"] == []
 
     tampered = _copy_template(tmp_path / "tampered")
-    _apply(tampered, "src/exportkit/exporters/yaml_exporter.py",
-           "src/exportkit/exporters/__init__.py")
+    _apply(tampered, *SOLUTION_FILES)
     target = tampered / "tests" / "test_yaml_exporter.py"
     target.write_text(
         target.read_text(encoding="utf-8").replace('".yaml"', '".yml"'),
