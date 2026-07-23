@@ -1,0 +1,9 @@
+[project]
+name = "orbitlib"
+version = "0.4.0"
+description = "Minimal two-body orbital mechanics: analytic Kepler solution and numerical propagation."
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
