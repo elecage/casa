@@ -7,3 +7,4 @@ dist/
 build/
 .venv/
 .claude/settings.local.json*
+results/
