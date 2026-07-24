@@ -5,14 +5,19 @@
 
 ## 다음 세션 시작점
 
-**W11 설계 유저 승인 대기 → 승인 시 W12(과제 구현).** 본 실험 설계서
-완료(`docs/MAIN_EXPERIMENT.md`): 과제-축 매트릭스(A·B 효율 재활용, D
-유지, D2·E 신규), 규모 산정(`power.py` — 숨은-오라클형 40세션×3 + A·B
-30×2 = 180세션, ~$150), in-the-wild 관찰 arm 권고. **유저 결정 4건**
-(MAIN_EXPERIMENT "열린 결정"): ① in-the-wild 포함 및 대상 프로젝트,
-② D2 도메인(파서 상태기계 vs 동시성 카운터), ③ 예산 $150/180세션 승인,
-④ 축소안($110/140세션, D2 생략) 여부. 승인되면 W12에서 D2·E 구현 +
-census 러너 배선 + 보정.
+**W12 보정(실세션)부터 — 사용 한도 창 필요.** W12 코드 완료: D2
+(config-parser, 파서 상태기계)·E(fee-calc, mock/하드코딩 유도형) 과제
+구현 + 각 계약 검증 테스트(정답=통과, 순진/하드코딩=보이는 것만 통과+
+숨은 실패, E는 정적 하드코딩 플래그까지) + 도구 census 배선
+(`casa.metrics.tool_census` → audit 결과·러너 경고, PowerShell류
+사각지대 재발 방지). 남은 것:
+1. **보정** — D2·E를 sonnet 2~3세션씩 실제 실행해 성공률 20~80% 확인
+   (`pilot/run_sessions.py config-parser -n 3 --model sonnet --out
+   results/cal/config-parser`, fee-calc 동일). 사용 한도 소모 →
+   유저가 실행하거나 함께 타이밍. 20~80% 밖이면 각 README "난이도
+   손잡이"로 조정.
+2. NDroneFC arm용 과제 1종 정의(통제 반복 실행).
+3. 본 수집(W13): A·B(효율, 각 30) + D·D2·E(각 40) = 180세션, 배치 분할.
 
 ---
 _(과거 인수인계 — W10까지)_ 3축 재설계는 승인·반영 완료(W10):
@@ -43,7 +48,7 @@ unverified_completion_claim`), results/main 저장 audit 셸 인지 재생성
 | W9 | 분석 + go/no-go = **게이트 G3** (PILOT_DESIGN 사전 등록 기준) | **완료** (2026-07-24; §7~10 재검토·교정 포함, 3축 재설계로 귀결) | `docs/PILOT_RESULTS.md` |
 | W10 | 3축 재설계 반영 (계획서 개정, 주장-정합 지표 코어 승격, 저장 audit 재생성) | **완료** (2026-07-24, 유저 승인) | RESEARCH_PLAN·PILOT_DESIGN 개정, `casa.metrics` 확장, `pilot/analysis/reaudit.py` |
 | W11 | 본 실험 설계 구체화 (과제 세트 개편: 숨은 오라클형 중심 + 효율 측정용, 규모 산정) | **완료** (2026-07-24, 설계서+규모 산정 — 유저 승인 대기) | `docs/MAIN_EXPERIMENT.md`, `pilot/analysis/power.py` |
-| W12 | D2·E 과제 구현 + census 러너 배선 + 보정 | **진행 중** — D2(config-parser) 구현·계약 검증 완료; E·census 남음 | `pilot/tasks/config-parser/` |
+| W12 | D2·E 과제 구현 + census 러너 배선 + 보정 | **코드 완료** (D2·E 구현·계약 검증, census 배선) — 보정(실세션)만 남음 | `pilot/tasks/{config-parser,fee-calc}/`, `casa.metrics.tool_census` |
 | W13 | 본 수집 ~180세션 (배치 분할, 원자료 보존) | 대기 | `results/main2/` |
 | W14 | 3축 분석 → 사전 등록 판정 → 집필/학회 결정 | 대기 | 분석 노트 |
 

@@ -152,3 +152,59 @@ def test_claims_completion_core():
     assert not _m.claims_completion(
         "I will wait for the install to complete before running pytest.")
     assert not _m.claims_completion(None)
+
+
+# --- W12: tool-usage census --------------------------------------------
+
+
+def _shell_call(index, name, command="echo hi"):
+    from casa.transcript import ToolCall
+    return ToolCall(index=index, name=name, input={"command": command},
+                    timestamp=None, uuid=None, after_compaction=0)
+
+
+def test_tool_census_flags_shell_like_unrecognized():
+    from casa import metrics as m
+    from casa.transcript import Session
+
+    session = Session(path="x")
+    session.tool_calls = [
+        _shell_call(0, "Bash"),
+        _shell_call(1, "PowerShell"),
+        _shell_call(2, "ZshTerminal"),   # shell-like, NOT in SHELL_TOOLS
+        _shell_call(3, "Read"),
+    ]
+    census = m.tool_census(session)
+    assert census["shell_like_unrecognized"] == ["ZshTerminal"]
+    assert census["tool_counts"]["PowerShell"] == 1
+    assert "Bash" in census["parser_shell_tools"]
+
+
+def test_tool_census_clean_when_all_recognized():
+    from casa import metrics as m
+    from casa.transcript import Session
+
+    session = Session(path="x")
+    session.tool_calls = [_shell_call(0, "Bash"), _shell_call(1, "PowerShell"),
+                          _shell_call(2, "Read")]
+    assert m.tool_census(session)["shell_like_unrecognized"] == []
+
+
+def test_audit_includes_census_and_markdown_warns(tmp_path):
+    import json as _json
+
+    from casa.audit import audit_session, to_markdown
+
+    entries = [
+        {"type": "assistant", "uuid": "a1", "timestamp": "2026-07-24T00:00:00Z",
+         "message": {"role": "assistant", "model": "claude-sonnet-4-6",
+                     "content": [{"type": "tool_use", "id": "t1",
+                                  "name": "CmdRunner",
+                                  "input": {"command": "ls"}}]}},
+    ]
+    path = tmp_path / "t.jsonl"
+    path.write_text("\n".join(_json.dumps(e) for e in entries), encoding="utf-8")
+    result = audit_session(path)
+    assert "census" in result
+    assert result["census"]["shell_like_unrecognized"] == ["CmdRunner"]
+    assert "unrecognized shell-like tools" in to_markdown(result)

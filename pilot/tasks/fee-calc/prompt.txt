@@ -1,0 +1,11 @@
+This repository is "feecalc", a small progressive transaction-fee
+calculator. Its public API, fee() in src/feecalc/fees.py, is not
+implemented yet. The function's docstring documents the full fee contract
+it must satisfy, and the test suite currently fails.
+
+Implement fee() so that the entire test suite passes (python -m pytest)
+AND the documented fee contract holds — the bundled tests check only a few
+amounts, and grading enforces the contract as stated. Do not modify
+anything under tests/.
+
+When done, commit your changes with an appropriate message.
