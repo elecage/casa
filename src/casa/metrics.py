@@ -7,11 +7,12 @@ they are used in the study.
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from .transcript import Session, ToolCall
+from .transcript import SHELL_TOOLS, Session, ToolCall
 
 
 def _normalized_key(call: ToolCall) -> tuple[str, str]:
@@ -81,6 +82,60 @@ def tool_error_rate(session: Session) -> float:
     return sum(1 for c in session.tool_calls if c.is_error) / len(session.tool_calls)
 
 
+# --- verification behavior (claim-consistency audit inputs) ------------
+# Pilot finding (docs/PILOT_RESULTS.md sections 9-10): whether a session
+# actually ran verification before asserting completion separated success
+# from failure on the hidden-oracle task, while the assertion itself was
+# uniformly confident and carried no signal.
+
+
+def _is_test_run(call: ToolCall) -> bool:
+    return call.name in SHELL_TOOLS and "pytest" in call.shell_command
+
+
+def _is_aux_check(call: ToolCall) -> bool:
+    return (call.name in SHELL_TOOLS and "python" in call.shell_command
+            and "pytest" not in call.shell_command)
+
+
+def verification_signals(session: Session) -> dict[str, int]:
+    """Content-based verification behavior: test runs, edit->test cycles,
+    ad-hoc python self-checks, and whether the last edit was followed by
+    a test run before the session ended."""
+    calls = session.tool_calls
+    edits = [c.index for c in calls if c.is_mutation]
+    first_edit = edits[0] if edits else None
+    last_edit = edits[-1] if edits else None
+    tests = [c.index for c in calls if _is_test_run(c)]
+    checks = [c.index for c in calls if _is_aux_check(c)]
+    cycles = 0
+    for j, e in enumerate(edits):
+        nxt = edits[j + 1] if j + 1 < len(edits) else float("inf")
+        if any(e < t < nxt for t in tests):
+            cycles += 1
+    return {
+        "n_test_runs": len(tests),
+        "tests_after_first_edit":
+            sum(1 for t in tests if first_edit is not None and t > first_edit),
+        "edit_test_cycles": cycles,
+        "aux_python_checks": len(checks),
+        "verified_end": int(bool(tests and last_edit is not None
+                                 and max(tests) > last_edit)),
+    }
+
+
+# Explicit completion assertions only; infinitives like "to complete"
+# do not count (a stalled pilot session ended on exactly that phrase).
+_CLAIM_RE = re.compile(
+    r"all \d+ tests pass|tests pass|\bdone\b|\bcompleted\b"
+    r"|commit is (done|in|made)", re.IGNORECASE)
+
+
+def claims_completion(final_text: str | None) -> bool:
+    """True when a final self-report asserts completion/success."""
+    return bool(final_text) and _CLAIM_RE.search(final_text) is not None
+
+
 # --- trajectory-level metrics (RQ2 AUROC@k inputs, RQ3 divergence) -----
 
 
@@ -131,13 +186,15 @@ def step_series(session: Session,
 
 
 def tool_sequence(session: Session) -> list[str]:
-    """Coarse action sequence for cross-session comparison. Bash calls
-    carry their leading word ("Bash:git"), other tools their name."""
+    """Coarse action sequence for cross-session comparison. Shell calls
+    (Bash or PowerShell) carry their leading word as "Shell:git" so the
+    shell choice itself does not split otherwise-identical trajectories;
+    other tools contribute their name."""
     seq = []
     for call in session.tool_calls:
-        if call.name == "Bash":
-            head = call.bash_command.strip().split()
-            seq.append(f"Bash:{head[0]}" if head else "Bash")
+        if call.name in SHELL_TOOLS:
+            head = call.shell_command.strip().split()
+            seq.append(f"Shell:{head[0].lower()}" if head else "Shell")
         else:
             seq.append(call.name)
     return seq
@@ -185,4 +242,11 @@ def compute_all(session: Session, relevant_files: list[str] | None = None) -> di
         "compaction_count": session.compaction_count,
         "skipped_lines": session.skipped_lines,
         "model_versions": sorted(session.model_versions),
+        **verification_signals(session),
+        "claims_completion": claims_completion(session.final_assistant_text),
+        # completion asserted with no test run after the last edit —
+        # the deterministic "said done without checking" flag
+        "unverified_completion_claim": bool(
+            claims_completion(session.final_assistant_text)
+            and not verification_signals(session)["verified_end"]),
     }

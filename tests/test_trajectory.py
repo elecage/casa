@@ -45,7 +45,7 @@ def test_tool_sequence_carries_bash_head():
     session = parse(FIXTURE)
     seq = metrics.tool_sequence(session)
     assert len(seq) == session.n_tool_calls
-    assert "Bash:ls" in seq and "Bash:git" in seq
+    assert "Shell:ls" in seq and "Shell:git" in seq
     assert "Read" in seq and "Edit" in seq
 
 

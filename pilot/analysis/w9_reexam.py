@@ -23,40 +23,18 @@ import statistics
 import sys
 from pathlib import Path
 
+from casa.metrics import verification_signals
 from casa.report import auroc, fisher_exact, mannwhitney_exact
-from casa.transcript import SHELL_TOOLS, parse
+from casa.transcript import parse
 
 
 def verification_metrics(transcript_path: Path) -> dict[str, int]:
-    """Content-based verification signals from one session transcript.
-
-    A "test" is a shell call (Bash OR PowerShell — 44/60 pilot sessions
-    used PowerShell) invoking pytest; an "aux python check" is a
-    non-pytest python invocation (ad-hoc numerical self-checks)."""
-    session = parse(transcript_path)
-    calls = session.tool_calls
-    edits = [c.index for c in calls if c.is_mutation]
-    first_edit = edits[0] if edits else None
-    last_edit = edits[-1] if edits else None
-    tests = [c.index for c in calls
-             if c.name in SHELL_TOOLS and "pytest" in c.shell_command]
-    checks = [c.index for c in calls
-              if c.name in SHELL_TOOLS and "python" in c.shell_command
-              and "pytest" not in c.shell_command]
-    cycles = 0
-    for j, e in enumerate(edits):
-        nxt = edits[j + 1] if j + 1 < len(edits) else float("inf")
-        if any(e < t < nxt for t in tests):
-            cycles += 1
-    return {
-        "n_tests": len(tests),
-        "tests_after_first_edit":
-            sum(1 for t in tests if first_edit is not None and t > first_edit),
-        "edit_test_cycles": cycles,
-        "aux_python_checks": len(checks),
-        "verified_end": int(bool(tests and last_edit is not None
-                                 and max(tests) > last_edit)),
-    }
+    """Shell-aware verification signals for one transcript. Thin wrapper
+    over casa.metrics.verification_signals (promoted to core in W10);
+    keeps this script's historical "n_tests" key name."""
+    signals = dict(verification_signals(parse(transcript_path)))
+    signals["n_tests"] = signals.pop("n_test_runs")
+    return signals
 
 
 VERIF_FEATURES = ("n_tests", "tests_after_first_edit", "edit_test_cycles",

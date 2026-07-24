@@ -47,3 +47,33 @@ def test_verification_metrics_edit_test_cycles(tmp_path):
     assert m == {"n_tests": 1, "tests_after_first_edit": 1,
                  "edit_test_cycles": 1, "aux_python_checks": 1,
                  "verified_end": 0}
+
+
+# --- reaudit script -----------------------------------------------------
+
+spec_r = importlib.util.spec_from_file_location(
+    "reaudit", ROOT / "pilot" / "analysis" / "reaudit.py")
+reaudit = importlib.util.module_from_spec(spec_r)
+spec_r.loader.exec_module(reaudit)
+
+
+def test_reaudit_rewrites_stored_audit_block(tmp_path):
+    task_dir = tmp_path / "faketask"
+    task_dir.mkdir()
+    (task_dir / "transcript-01.jsonl").write_text(
+        FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+    (task_dir / "session-01.json").write_text(json.dumps({
+        "task": "faketask", "session_index": 1,
+        "audit": {"metrics": {"stale": True}, "violations": ["stale"]},
+    }), encoding="utf-8")
+
+    n = reaudit.reaudit_dir(task_dir, tasks_root=tmp_path,
+                            default_rules=ROOT / "rules" / "canary_rules.yaml")
+    assert n == 1
+    updated = json.loads((task_dir / "session-01.json").read_text(encoding="utf-8"))
+    audit = updated["audit"]
+    assert audit["reaudit"]["shell_aware"] is True
+    assert "claims_completion" in audit["metrics"]
+    assert audit["metrics"].get("stale") is None
+    # fixture session uses `cat notes.txt` -> the no-cat canary must fire
+    assert any(v["rule_id"] == "canary-no-cat" for v in audit["violations"])

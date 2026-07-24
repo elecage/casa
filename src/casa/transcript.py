@@ -105,6 +105,9 @@ class Session:
     model_versions: set[str] = field(default_factory=set)
     first_timestamp: str | None = None
     last_timestamp: str | None = None
+    # Text of the last assistant message that contained text — the
+    # session's final self-report, input to the claim-consistency audit.
+    final_assistant_text: str | None = None
 
     @property
     def n_tool_calls(self) -> int:
@@ -158,6 +161,11 @@ def parse(path: str | Path) -> Session:
                 msg = entry.get("message")
                 if isinstance(msg, dict) and isinstance(msg.get("model"), str):
                     session.model_versions.add(msg["model"])
+                texts = [item.get("text") for item in _iter_content(msg)
+                         if item.get("type") == "text"
+                         and isinstance(item.get("text"), str)]
+                if texts:
+                    session.final_assistant_text = "\n".join(texts)
                 for item in _iter_content(msg):
                     if item.get("type") == "tool_use":
                         call = ToolCall(
