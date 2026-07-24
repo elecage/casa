@@ -9,7 +9,7 @@ rules:
   - id: canary-no-cat
     type: prohibit
     kind: prohibition
-    tool: Bash
+    tool: Shell
     pattern: "(^|[;&|]\\s*)cat\\s+\\S"
     severity: low
     category: style
@@ -30,7 +30,7 @@ rules:
   - id: canary-no-grep-cmd
     type: prohibit
     kind: prohibition
-    tool: Bash
+    tool: Shell
     pattern: "(^|[;&|]\\s*)grep\\b"
     severity: low
     category: style
@@ -51,7 +51,7 @@ rules:
   - id: canary-no-add-all
     type: prohibit
     kind: prohibition
-    tool: Bash
+    tool: Shell
     pattern: "git add\\s+(-A\\b|--all\\b|\\.($|\\s))"
     severity: medium
     category: workflow
@@ -61,8 +61,8 @@ rules:
   - id: canary-status-before-commit
     type: require_before
     kind: obligation
-    trigger: { tool: Bash, pattern: "git commit" }
-    prerequisite: { tool: Bash, pattern: "git (status|diff)" }
+    trigger: { tool: Shell, pattern: "git commit" }
+    prerequisite: { tool: Shell, pattern: "git (status|diff)" }
     severity: medium
     category: workflow
     action: log
@@ -72,7 +72,7 @@ rules:
   - id: canary-no-echo-redirect
     type: prohibit
     kind: prohibition
-    tool: Bash
+    tool: Shell
     pattern: "echo\\s+.*>\\s*\\S+\\.(py|js|ts|md|json|yaml|yml|txt)"
     severity: medium
     category: style
@@ -82,8 +82,8 @@ rules:
   - id: canary-test-before-commit
     type: require_before
     kind: obligation
-    trigger: { tool: Bash, pattern: "git commit" }
-    prerequisite: { tool: Bash, pattern: "pytest|npm test|cargo test|go test" }
+    trigger: { tool: Shell, pattern: "git commit" }
+    prerequisite: { tool: Shell, pattern: "pytest|npm test|cargo test|go test" }
     severity: medium
     category: workflow
     action: log
