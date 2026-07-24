@@ -5,10 +5,23 @@
 
 ## 다음 세션 시작점
 
-**→ W13 축 전환: 아키텍처 복잡성 과제 설계·구현.** 수집 전면 보류(유저
-"모두 보류, 설계 먼저", 2026-07-25). **다음 할 일 = `docs/ARCH_TASK_DESIGN.md`
-승인 → 구현(템플릿+숨은 스위트+채점기+`coverage_before_first_edit`, 테스트
-동반 PR) → sonnet 2~3세션 보정(20~80% + 편집 전 커버리지 분산 확인).**
+**→ W13 축 전환: 아키텍처 복잡성 과제 `layered-ledger` 구현 완료, 다음은
+보정.** 설계 승인(PR #38)·구현 완료(이 브랜치). **다음 할 일 = sonnet 2~3
+세션 보정** — 성공률 20~80% 진입 + `coverage_before_first_edit`(편집 전
+교차모듈 커버리지) 분산 확인. 커맨드: `.venv\Scripts\python.exe
+pilot/run_sessions.py pilot/tasks/layered-ledger -n 3 --model sonnet --out
+results/cal/layered-ledger`. 포화면 손잡이(관통 계층 수·불변식 발견성,
+ARCH_TASK_DESIGN §5) 조정 후 재보정. 보정 통과 후 본 수집 규모 power.py
+재산정.
+
+**구현물 (`pilot/tasks/layered-ledger/`):** 계층형 원장(money→validation→
+domain→serialize→repository→api) + 미구현 `domain.split_with_fee`. 숨은
+오라클(나머지 보존·단일 반올림·정수 규율·검증 게이트, 전부 결정론 정수
+비교), 레퍼런스 해답, naive 대조(보이는-통과·숨은-실패 실증). 신규 지표
+`casa.metrics.coverage_before_first_edit`(H-arch 조기 신호) + compute_all
+배선. 테스트: `tests/test_layered_ledger_task.py`(레퍼런스 통과·naive 분리·
+템플릿 미구현), `tests/test_trajectory.py`(지표). 로컬 검증 완료(레퍼런스
+success·오탐0, naive visible통과·hidden실패·float division 플래그).
 
 **왜 전환했나 (orbit baseline 소견 → 구성 타당도):** orbit sonnet n=60
 완주 결과 — 성공 5/60(8.3%), 실패 55건 **전부 보이는-통과·숨은-실패**(전부

@@ -209,6 +209,27 @@ def step_series(session: Session,
     return rows
 
 
+def coverage_before_first_edit(session: Session,
+                               relevant_files: list[str] | None) -> float | None:
+    """Fraction of relevant files read *before* the first mutating call —
+    the architecture-native early signal (H-arch): did the session survey
+    the modules its change must respect before touching code?
+
+    None when coverage is not applicable (no relevant_files). If the session
+    never mutates, this equals the whole-session coverage (it read that much
+    and never edited).
+    """
+    if not relevant_files:
+        return None
+    cov = 0.0
+    for row in step_series(session, relevant_files):
+        if row["mutated"]:
+            break
+        if row["cum_coverage"] is not None:
+            cov = row["cum_coverage"]
+    return cov
+
+
 def tool_sequence(session: Session) -> list[str]:
     """Coarse action sequence for cross-session comparison. Shell calls
     (Bash or PowerShell) carry their leading word as "Shell:git" so the
@@ -260,6 +281,8 @@ def compute_all(session: Session, relevant_files: list[str] | None = None) -> di
         "exploration_before_first_edit": exploration_before_first_edit(session),
         "files_read_count": len(files_read(session)),
         "coverage": coverage(session, relevant_files),
+        "coverage_before_first_edit":
+            coverage_before_first_edit(session, relevant_files),
         "max_repetition": max_repetition(session),
         "consecutive_repetition": consecutive_repetition(session),
         "tool_error_rate": round(tool_error_rate(session), 4),

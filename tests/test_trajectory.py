@@ -41,6 +41,22 @@ def test_step_series_is_cumulative_and_marks_first_mutation():
     assert series[0]["cum_coverage"] is None
 
 
+def test_coverage_before_first_edit():
+    session = parse(FIXTURE)
+    series = metrics.step_series(session, relevant_files=RELEVANT)
+    pre = metrics.coverage_before_first_edit(session, relevant_files=RELEVANT)
+
+    # equals the cumulative coverage at the last row before the first edit
+    last_pre = [r for r in series if not r["mutated"]][-1]
+    assert pre == last_pre["cum_coverage"] == 0.5
+    # never exceeds whole-session coverage, and is exposed by compute_all
+    assert pre <= metrics.coverage(session, RELEVANT)
+    summary = metrics.compute_all(session, relevant_files=RELEVANT)
+    assert summary["coverage_before_first_edit"] == pre
+    # not applicable without a relevant list
+    assert metrics.coverage_before_first_edit(session, None) is None
+
+
 def test_tool_sequence_carries_bash_head():
     session = parse(FIXTURE)
     seq = metrics.tool_sequence(session)
