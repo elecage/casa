@@ -5,38 +5,39 @@
 
 ## 다음 세션 시작점
 
-**→ W13 본 수집 실행 중.** 규모 확정(2026-07-24, 유저 "풀 ~230"), orbit
-sonnet 배치부터 시작함. 배치는 백그라운드 실행 — 러너가 5시간 한도 도달 시
-중단·재개(완료 세션 자동 스킵). **재개 방법: 아래 "본 수집 배치 계획"의
-해당 커맨드를 그대로 다시 실행**하면 미완 인덱스만 이어서 돈다.
+**→ W13 축 전환: 아키텍처 복잡성 과제 설계·구현.** 수집 전면 보류(유저
+"모두 보류, 설계 먼저", 2026-07-25). **다음 할 일 = `docs/ARCH_TASK_DESIGN.md`
+승인 → 구현(템플릿+숨은 스위트+채점기+`coverage_before_first_edit`, 테스트
+동반 PR) → sonnet 2~3세션 보정(20~80% + 편집 전 커버리지 분산 확인).**
 
-**본 수집 배치 계획 (규모 확정 = 유저 "풀 ~230", 2026-07-24):**
+**왜 전환했나 (orbit baseline 소견 → 구성 타당도):** orbit sonnet n=60
+완주 결과 — 성공 5/60(8.3%), 실패 55건 **전부 보이는-통과·숨은-실패**(전부
+위치오차 e=0.9), **허위완료 96%(53/55)이고 그 전부가 검증 후 주장**(정합축
+강신호). 그러나 **궤적 분석: 조기판별 실패** — 자체검증 aux-check가 성패를
+가르지만 100% 첫 편집 이후·중후반이라 AUROC@k는 k≤8에서 무신호(0.50),
+k=16에서야 0.86. 원인 = orbit이 **단일 파일 수치 퍼즐**이라 CASA 간판 신호
+(교차모듈 커버리지)가 죽고 판별이 후반 자체검증 하나로 쪼그라듦. 유저 실경험
+(아키텍처 복잡성에서 실패)과 구성 불일치. → **달성·조기판별 축을 아키텍처
+과제로 이관**(결정 로그 2026-07-25). orbit sonnet 60은 **정합축 데이터 +
+"자체완결 수치과제는 조기판별 약함" 대조**로 보존(results/main2/orbit-sonnet).
 
-| 순서 | 과제 | 모델 | n | 커맨드 out | 상태 |
-|---|---|---|---|---|---|
-| 1 | orbit-propagator | sonnet | 60 | `results/main2/orbit-sonnet` | 진행 중 |
-| 2 | orbit-propagator | haiku | 60 | `results/main2/orbit-haiku` | 대기 |
-| 3 | plugin-add | sonnet | 30 | `results/main2/plugin-add` | 대기 |
-| 4 | buggy-pipeline | sonnet | 20 | `results/main2/buggy-pipeline` | 대기 |
-| 5 | config-parser | sonnet | 20 | `results/main2/config-parser` | 대기 |
-| 6 | fee-calc | sonnet | 20 | `results/main2/fee-calc` | 대기 |
-| 7 | stable-roots | sonnet | 20 | `results/main2/stable-roots` | 대기 |
+**보류된 수집 배치 계획 (2026-07-24 "풀 ~230" — 축 전환으로 재검토 대상):**
+
+| 과제 | 모델 | n | out | 상태 |
+|---|---|---|---|---|
+| orbit-propagator | sonnet | 60 | `results/main2/orbit-sonnet` | **완료(보존, 정합·대조)** |
+| orbit-propagator | haiku | 60 | `results/main2/orbit-haiku` | 보류 |
+| plugin-add | sonnet | 30 | `results/main2/plugin-add` | 보류(효율축, 피벗과 무관 — 재개 가능) |
+| buggy-pipeline/config-parser/fee-calc/stable-roots | sonnet | 각20 | `results/main2/<task>` | 보류(효율축) |
+| **아키텍처 과제(신설)** | sonnet | 보정 후 산정 | `results/main2/<new>` | **설계 중(ARCH_TASK_DESIGN.md)** |
 
 커맨드 형식(재개 겸용): `.venv\Scripts\python.exe pilot/run_sessions.py
 pilot/tasks/<task> -n <N> --model <sonnet|haiku> --out results/main2/<out>`.
-시작 전 `claude auth status` 확인. 배치 완료 후 다음 순서로 진행.
+러너 429 중단·재개(완료 세션 스킵) 보유. 효율 배치는 피벗과 독립이라
+언제든 재개 가능(유저는 "설계 먼저"로 지금은 정지).
 
-**남은 W13 할 일:** (a) 배치 1~7 완주, (b) NDroneFC arm 과제 1종 정의 +
-수집, (c) 집계 `casa report results/main2/* --tasks-root pilot/tasks`,
-(d) 3축 분석 → 사전 등록 판정(§6 MAIN_EXPERIMENT).
-
-**규모 근거:** orbit 120세션(양계층) → 합산 실패 ~80건, 허위완료·AUROC
-검정력 충분(풀 쌍 ~2000 ≫ power.py 요구 1000). 효율 5과제는 성공 세션
-토큰 스프레드 + B의 조기신호 Spearman 앵커만 필요해 얇게. NDroneFC는
-별도 과제 정의 선행이라 이번 7배치엔 미포함.
-
-**W9~W12 전부 완료·머지(PR #23~36).** 설계·결정·과제·보정이 모두 끝났고,
-본 수집 실행 단계다.
+**W9~W12 완료·머지(PR #23~37).** W13은 규모 확정→orbit sonnet 60 수집
+→baseline 분석→축 전환 결정까지 진행됨.
 
 **지금까지 확립된 것 (요약; 상세는 docs/MAIN_EXPERIMENT.md):**
 - 결과변수 3축 = 실제 달성 / 능력·효율(토큰·턴; wall-clock 금지) /
@@ -89,7 +90,7 @@ stable-roots,fee-calc-haiku,stable-roots-haiku,orbit-haiku}/` — 각 n=3.
 | W10 | 3축 재설계 반영 (계획서 개정, 주장-정합 지표 코어 승격, 저장 audit 재생성) | **완료** (2026-07-24, 유저 승인) | RESEARCH_PLAN·PILOT_DESIGN 개정, `casa.metrics` 확장, `pilot/analysis/reaudit.py` |
 | W11 | 본 실험 설계 구체화 (과제 세트 개편: 숨은 오라클형 중심 + 효율 측정용, 규모 산정) | **완료** (2026-07-24, 설계서+규모 산정 — 유저 승인 대기) | `docs/MAIN_EXPERIMENT.md`, `pilot/analysis/power.py` |
 | W12 | D2·E·F 과제 구현 + census 배선 + 양계층 보정 | **완료** (2026-07-24, PR #28~35). D2 config-parser·E fee-calc·F stable-roots 구현; census(`tool_census`); sonnet·haiku 4.5 보정 → 트랩 3종 두 계층 포화, orbit만 실패(허위완료 재현). 지형 확정 → MAIN_EXPERIMENT §8 | `pilot/tasks/{config-parser,fee-calc,stable-roots}/`, `casa.metrics` |
-| W13 | 본 수집 (orbit 양계층 n=60 + 효율 5과제 각 20~30) + 3축 분석 | **진행 중** (2026-07-24 규모 확정, orbit-sonnet 배치 시작) | `results/main2/` |
+| W13 | 본 수집 + 3축 분석 → **축 전환**(아키텍처 복잡성 과제) | **진행 중** (orbit sonnet 60 완료·분석 → 조기판별 실패로 아키텍처 과제 설계로 피벗, 수집 보류) | `results/main2/`, `docs/ARCH_TASK_DESIGN.md` |
 | W-later | sonnet 실패 달성 과제(다중 스케일 절벽형, orbit 외) | 추적 (유저 요구) | `pilot/tasks/<new>/` |
 | W13 | 본 수집 ~180세션 (배치 분할, 원자료 보존) | 대기 | `results/main2/` |
 | W14 | 3축 분석 → 사전 등록 판정 → 집필/학회 결정 | 대기 | 분석 노트 |
@@ -197,6 +198,16 @@ n 증가로 판정 (사후 조작 방지, 결정 로그 기록) / 노벨티 워�
 
 ## 결정 로그 (뒤집으려면 유저와 상의)
 
+- 2026-07-25 **달성·조기판별 축을 아키텍처 복잡성 과제로 전환** (유저).
+  근거: orbit sonnet n=60 baseline 궤적 분석이 조기판별 실패(자체검증이
+  후반 신호, AUROC@k≤8 무신호)를 보였고, 이는 orbit이 단일 파일 수치
+  퍼즐이라 CASA 간판 신호(교차모듈 커버리지)가 죽은 인공물. 유저 실경험은
+  아키텍처 복잡성에서 실패 → 구성 타당도 불일치. **목적제작 아키텍처 과제
+  신설**(계층형 원장+교차 불변식 숨은 오라클; `docs/ARCH_TASK_DESIGN.md`),
+  orbit은 정합축·대조로 강등·보존. **수집 전면 보류(설계 먼저).** 효율
+  배치는 피벗과 독립이나 유저 지시로 함께 정지. NDroneFC arm(로그된 외적
+  타당도 vehicle)은 이 아키텍처 방향의 실제-레포 짝으로 유지. 뒤집기 전
+  ARCH_TASK_DESIGN 승인 절차 참조.
 - 2026-07-24 **W13 본 수집 규모 확정 = "풀 ~230"** (유저 선택). 배분:
   orbit sonnet 60 + orbit haiku 60(척추 — 달성·정합·허위완료) + 효율
   5과제(plugin-add 30, buggy-pipeline·config-parser·fee-calc·stable-roots
