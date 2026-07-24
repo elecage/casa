@@ -1,4 +1,10 @@
-# 파일럿 과제 3종 설계 (Pilot Task Specifications)
+# 파일럿 과제 설계 (Pilot Task Specifications)
+
+> **본 실험 확장(2026-07-24, W11):** 아래는 파일럿 과제(A/B/C/D)의 사양
+> 이다. 본 실험은 3축 재설계에 따라 A·B를 효율 축 표본으로 재활용하고,
+> 숨은-오라클형 D2·유도형 E를 신규 추가한다 — 과제 세트·규모·측정
+> 프로토콜은 `docs/MAIN_EXPERIMENT.md` 참조.
+
 
 `docs/PILOT_DESIGN.md`의 "과제 3종"의 구체 설계. 구현은 `pilot/tasks/<과제명>/`
 아래 템플릿 레포로 만든다 (아직 미구현 — 이 문서가 제작 사양서다).
