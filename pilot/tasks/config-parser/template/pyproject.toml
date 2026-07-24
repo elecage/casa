@@ -1,0 +1,9 @@
+[project]
+name = "minicfg"
+version = "0.3.0"
+description = "A small INI-like configuration parser with quoting, escapes, and line continuation."
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

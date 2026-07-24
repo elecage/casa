@@ -1,0 +1,4 @@
+src/minicfg/parser.py
+src/minicfg/__init__.py
+tests/test_parser.py
+README.md

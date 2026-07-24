@@ -1,0 +1,11 @@
+This repository is "minicfg", a small INI-like configuration parser. Its
+public API, parse() in src/minicfg/parser.py, is not implemented yet. The
+module docstring documents the full parsing contract parse() must satisfy,
+and the test suite currently fails.
+
+Implement parse() so that the entire test suite passes (python -m pytest)
+AND the documented parsing contract holds — the bundled tests exercise
+only a small part of the contract, and grading enforces the contract as
+stated. Do not modify anything under tests/.
+
+When done, commit your changes with an appropriate message.
