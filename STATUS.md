@@ -5,37 +5,41 @@
 
 ## 다음 세션 시작점
 
-**과제 재조정 유저 결정 대기 — 정정된 진단(사용 한도 12세션 소모 후).**
-보정: config-parser 3/3, fee-calc 3/3, **stable-roots 3/3**. 세 트랩
-과제 전부 포화. stable-roots(=orbit식 상쇄 트랩)까지 포화한 게 결정적:
-sonnet은 "계약 읽고 알려진 기법 적용"은 실패하지 않는다. orbit이 실패한
-진짜 이유는 지식 트랩이 아니라 **지속 노력+검증 요구**(적분기 튜닝+해석해
-자가검증; 보이는 테스트≠계약)다. 따라서 달성·허위완료 축 과제는 "트랩"이
-아니라 **orbit류 노력형**이어야 한다(MAIN_EXPERIMENT §8). 세 트랩 과제는
-효율 축 표본으로 확정 전용. **약모델 arm 검증 완료 → 본 수집(W13) 설계 확정 단계.** haiku 4.5
-검증(§8): fee-calc 3/3·stable-roots 3/3 **통과** — "haiku가 트랩 과제를
-실패한다" 전제 거짓(두 계층 다 천장). 분리는 **orbit에서만**: haiku
-1/3(sonnet 27% 대비 더 실패), 실패 2건 모두 허위 완료("Done!...RK4/
-Velocity Verlet"). → arm B 실질 = **orbit을 두 모델 계층으로 돌려
-gradient+허위완료 대조**. 확정 수집 설계:
-- **달성·정합·허위완료**: orbit만. sonnet n=40~60 + haiku n=40~60.
-- **효율**: A/B/parser/fee/roots, sonnet(+haiku 교차) 각 ~20~30.
-- 규모는 power.py 재적용(orbit 두 계층 실패 표본으로 AUROC).
-남은 것: (1) W13 수집 규모 확정 + 실행(사용 한도 창 분할), (2) NDroneFC
-arm 과제 정의. **미해결(추적):** sonnet 실패 달성 과제 = 다중 스케일
-절벽형 신규(orbit 외; §8 후보 도메인) 추후 제작.
+**→ W13 본 수집 규모 확정 + 실행부터.** W9~W12 전부 완료·머지(PR #23~35).
+설계·결정·과제·보정이 모두 끝났고, 다음 세션은 본 수집 실행 단계다.
 
----
-_(과거 인수인계 — W10까지)_ 3축 재설계는 승인·반영 완료(W10):
-계획서 개정(RESEARCH_PLAN 결과변수 절 + RQ4 신설, PILOT_DESIGN 개정 절
-— **본 실험 판정 기준이 2026-07-24자로 사전 등록됨**), 주장-정합 지표
-코어 승격(`casa.metrics.verification_signals / claims_completion /
-unverified_completion_claim`), results/main 저장 audit 셸 인지 재생성
-완료. W11에서 할 일: 과제 세트 개편(숨은 오라클형 확장 — A·B는 효율
-축 표본으로 재활용 가능, D 계열 신규 1~2종), mock 유도형 과제(외부
-의존성을 주고 mock으로 때우고 싶게) 검토, 규모 산정(주장-정합 AUROC
-0.7 판정에 필요한 n), in-the-wild arm(유저 실제 프로젝트 세션 관찰)
-포함 여부 — 설계안을 만들어 유저 승인 후 수집.
+**지금까지 확립된 것 (요약; 상세는 docs/MAIN_EXPERIMENT.md):**
+- 결과변수 3축 = 실제 달성 / 능력·효율(토큰·턴; wall-clock 금지) /
+  주장-증거 정합(허위 완료·검증행동·하드코딩). casa 코어 지표로 구현됨
+  (`casa.metrics`: verification_signals, claims_completion,
+  unverified_completion_claim, tool_census).
+- **과제 지형 (sonnet·haiku 4.5 각 보정 완료):**
+  - orbit(다중 스케일) = **유일하게 실패하는 과제.** sonnet 27%,
+    haiku 1/3; 두 계층 실패 모두 허위 완료 재현. → 달성·정합·허위완료
+    축 담당.
+  - config-parser·fee-calc·stable-roots·A·B = 두 계층 다 포화(3/3),
+    토큰 ×1.7~1.8 분산. → **효율 축 전용.**
+  - "약모델이면 실패" 전제 거짓: haiku 4.5도 완전명세 자체완결 과제는
+    통과. 분리는 오직 다중 스케일에서.
+
+**다음 세션 할 일 (W13):**
+1. 본 수집 규모 확정(유저와): orbit sonnet n=40~60 + haiku n=40~60
+   (달성·정합·허위완료), 효율 5과제 각 ~20~30. power.py로 재산정.
+2. 실행: `pilot/run_sessions.py <task_dir> -n <N> --model <sonnet|haiku>
+   --out results/main2/<task>-<model>`. **사용 한도(Max 5시간 창) 제약**
+   — 배치 분할, 러너가 429서 중단·재개(완료 세션 자동 스킵). 시작 전
+   `claude auth status` 확인.
+3. 집계: `casa report results/main2/* --tasks-root pilot/tasks`.
+4. NDroneFC arm 과제 정의(통제 반복 실행 — 실제 레포 외적 타당도).
+
+**미해결(추적, 유저 요구):** sonnet 실패 달성 과제 추후 제작 = **다중
+스케일 절벽형**(orbit 외 — 강성 반응계/경계층 PDE/특이적분; §8 후보).
+일반 노력형 ODE는 sonnet·haiku 다 통과하므로 불가(진자 실측). 채택 전
+"순진 균일 이산화 실패 / 세심 적응 통과" 실측 필수.
+
+**보정 산출물 (로컬, gitignore):** `results/cal/{config-parser,fee-calc,
+stable-roots,fee-calc-haiku,stable-roots-haiku,orbit-haiku}/` — 각 n=3.
+본 수집은 `results/main2/`에 분리 저장 예정.
 
 ## 작업 분해 (파일럿까지)
 
@@ -54,7 +58,9 @@ unverified_completion_claim`), results/main 저장 audit 셸 인지 재생성
 | W9 | 분석 + go/no-go = **게이트 G3** (PILOT_DESIGN 사전 등록 기준) | **완료** (2026-07-24; §7~10 재검토·교정 포함, 3축 재설계로 귀결) | `docs/PILOT_RESULTS.md` |
 | W10 | 3축 재설계 반영 (계획서 개정, 주장-정합 지표 코어 승격, 저장 audit 재생성) | **완료** (2026-07-24, 유저 승인) | RESEARCH_PLAN·PILOT_DESIGN 개정, `casa.metrics` 확장, `pilot/analysis/reaudit.py` |
 | W11 | 본 실험 설계 구체화 (과제 세트 개편: 숨은 오라클형 중심 + 효율 측정용, 규모 산정) | **완료** (2026-07-24, 설계서+규모 산정 — 유저 승인 대기) | `docs/MAIN_EXPERIMENT.md`, `pilot/analysis/power.py` |
-| W12 | D2·E 과제 구현 + census 러너 배선 + 보정 | **코드 완료; 보정서 포화 발견** (D2·E 각 3/3 성공·허위완료 0 → 달성·정합 축 표본 부족, 재조정 유저 결정 대기) | `pilot/tasks/{config-parser,fee-calc}/`, MAIN_EXPERIMENT §8 |
+| W12 | D2·E·F 과제 구현 + census 배선 + 양계층 보정 | **완료** (2026-07-24, PR #28~35). D2 config-parser·E fee-calc·F stable-roots 구현; census(`tool_census`); sonnet·haiku 4.5 보정 → 트랩 3종 두 계층 포화, orbit만 실패(허위완료 재현). 지형 확정 → MAIN_EXPERIMENT §8 | `pilot/tasks/{config-parser,fee-calc,stable-roots}/`, `casa.metrics` |
+| W13 | 본 수집 (orbit 양계층 n=40~60 + 효율 5과제) + 3축 분석 | 대기 (규모 확정+실행) | `results/main2/` |
+| W-later | sonnet 실패 달성 과제(다중 스케일 절벽형, orbit 외) | 추적 (유저 요구) | `pilot/tasks/<new>/` |
 | W13 | 본 수집 ~180세션 (배치 분할, 원자료 보존) | 대기 | `results/main2/` |
 | W14 | 3축 분석 → 사전 등록 판정 → 집필/학회 결정 | 대기 | 분석 노트 |
 
