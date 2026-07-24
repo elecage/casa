@@ -21,12 +21,34 @@ from typing import Any, Iterator
 
 READ_TOOLS = {"Read", "Grep", "Glob", "LS", "NotebookRead", "WebFetch", "WebSearch"}
 WRITE_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
+# Tools whose input.command is a shell command line. Claude Code on Windows
+# exposes a PowerShell tool alongside Bash; sessions freely mix the two
+# (44/60 pilot sessions used PowerShell), so both must be treated as shells
+# or shell-level metrics silently undercount.
+SHELL_TOOLS = {"Bash", "PowerShell"}
 
-# Bash commands that count as exploration rather than mutation.
-_BASH_EXPLORE_PREFIXES = (
+# Shell commands that count as exploration rather than mutation.
+# Matched case-insensitively; includes PowerShell cmdlets and their
+# common aliases (dir/type/gci/gc/sls map to read-only cmdlets).
+_SHELL_EXPLORE_PREFIXES = (
     "ls", "cat", "head", "tail", "grep", "rg", "find", "fd", "tree",
     "git log", "git show", "git diff", "git status", "wc", "file", "stat",
+    "get-childitem", "get-content", "get-item", "select-string",
+    "test-path", "dir", "type ", "gci", "gc ", "sls",
 )
+
+# Leading segments that only change directory before the real command
+# (e.g. `cd "x" && pytest`, `Set-Location y; python z`).
+_CD_PREFIXES = ("cd ", "cd\t", "set-location ", "pushd ")
+
+
+def _effective_command(cmd: str) -> str:
+    """The first command segment that is not a directory change."""
+    for sep in ("&&", ";"):
+        parts = [p.strip() for p in cmd.split(sep)]
+        if len(parts) > 1 and parts[0].lower().startswith(_CD_PREFIXES):
+            return _effective_command(sep.join(parts[1:]).strip())
+    return cmd.strip()
 
 
 @dataclass
@@ -40,18 +62,23 @@ class ToolCall:
     is_error: bool = False    # set when a matching tool_result reports an error
 
     @property
-    def bash_command(self) -> str:
-        if self.name == "Bash":
+    def shell_command(self) -> str:
+        if self.name in SHELL_TOOLS:
             cmd = self.input.get("command", "")
             return cmd if isinstance(cmd, str) else ""
         return ""
+
+    # Backwards-compatible alias (pre-PowerShell name).
+    @property
+    def bash_command(self) -> str:
+        return self.shell_command
 
     @property
     def is_exploration(self) -> bool:
         if self.name in READ_TOOLS:
             return True
-        cmd = self.bash_command.strip()
-        return bool(cmd) and cmd.startswith(_BASH_EXPLORE_PREFIXES)
+        cmd = _effective_command(self.shell_command)
+        return bool(cmd) and cmd.lower().startswith(_SHELL_EXPLORE_PREFIXES)
 
     @property
     def is_mutation(self) -> bool:
@@ -59,8 +86,8 @@ class ToolCall:
 
     def searchable_text(self) -> str:
         """Text a rule regex is matched against."""
-        if self.name == "Bash":
-            return self.bash_command
+        if self.name in SHELL_TOOLS:
+            return self.shell_command
         try:
             return json.dumps(self.input, ensure_ascii=False, sort_keys=True)
         except (TypeError, ValueError):

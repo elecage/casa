@@ -22,16 +22,19 @@ from typing import Any
 
 import yaml
 
-from .transcript import Session, ToolCall
+from .transcript import SHELL_TOOLS, Session, ToolCall
 
 
 @dataclass
 class Matcher:
-    tool: str          # exact tool name, or "*"
+    tool: str          # exact tool name, "Shell" (any shell tool), or "*"
     pattern: str       # regex, searched (not fullmatch)
 
     def matches(self, call: ToolCall) -> bool:
-        if self.tool != "*" and self.tool != call.name:
+        if self.tool == "Shell":
+            if call.name not in SHELL_TOOLS:
+                return False
+        elif self.tool != "*" and self.tool != call.name:
             return False
         try:
             return re.search(self.pattern, call.searchable_text()) is not None

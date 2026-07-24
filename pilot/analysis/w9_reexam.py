@@ -24,13 +24,14 @@ import sys
 from pathlib import Path
 
 from casa.report import auroc, fisher_exact, mannwhitney_exact
-from casa.transcript import parse
+from casa.transcript import SHELL_TOOLS, parse
 
 
 def verification_metrics(transcript_path: Path) -> dict[str, int]:
     """Content-based verification signals from one session transcript.
 
-    A "test" is a Bash call invoking pytest; an "aux python check" is a
+    A "test" is a shell call (Bash OR PowerShell — 44/60 pilot sessions
+    used PowerShell) invoking pytest; an "aux python check" is a
     non-pytest python invocation (ad-hoc numerical self-checks)."""
     session = parse(transcript_path)
     calls = session.tool_calls
@@ -38,10 +39,10 @@ def verification_metrics(transcript_path: Path) -> dict[str, int]:
     first_edit = edits[0] if edits else None
     last_edit = edits[-1] if edits else None
     tests = [c.index for c in calls
-             if c.name == "Bash" and "pytest" in c.bash_command]
+             if c.name in SHELL_TOOLS and "pytest" in c.shell_command]
     checks = [c.index for c in calls
-              if c.name == "Bash" and "python" in c.bash_command
-              and "pytest" not in c.bash_command]
+              if c.name in SHELL_TOOLS and "python" in c.shell_command
+              and "pytest" not in c.shell_command]
     cycles = 0
     for j, e in enumerate(edits):
         nxt = edits[j + 1] if j + 1 < len(edits) else float("inf")
