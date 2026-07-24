@@ -31,3 +31,17 @@ pinned by `tests/test_stable_roots_task.py`. `solution/` and
 If calibration is outside 20–80%: soften by relaxing REL_TOL in the hidden
 suite or shrinking the ill-conditioning (smaller |b|); harden by tightening
 REL_TOL or larger |b|. Set from measured session outcomes, never guessed.
+
+## Calibration result (2026-07-24, sonnet, n=3)
+
+**3/3 success** (out_tok 3771/5855/6408 ≈ ×1.7 spread, turns 8/16/19).
+Saturated. All three sessions explicitly recognised the cancellation and
+wrote the stable form — one even commented "Numerically stable ... avoiding
+catastrophic cancellation" and used Vieta. The quadratic-cancellation
+pitfall is a first-chapter numerical-methods example sonnet knows cold, so
+this trap — unlike orbit — is a *known technique*, not sustained effort.
+Confirms the sharper W12 finding (MAIN_EXPERIMENT §8): sonnet does not fail
+"read the contract, apply a known method" tasks; only tasks whose contract
+demands genuine iteration+verification (orbit: tune the integrator, verify
+against the analytic solution) produce achievement variance and false
+completion. Repurpose as an efficiency-axis sample.
