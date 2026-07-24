@@ -96,6 +96,69 @@ def pooled_auroc(groups: list[tuple[list[float], list[bool]]]) -> float | None:
     return (wins + 0.5 * ties) / pairs
 
 
+def fisher_exact(a: int, b: int, c: int, d: int) -> float:
+    """Two-sided Fisher exact p for the 2x2 table [[a, b], [c, d]] by
+    hypergeometric enumeration (sum of tables no more probable than the
+    observed one). Deterministic, exact for the small n of this study."""
+    n = a + b + c + d
+    r1, c1 = a + b, a + c
+    def hyper(x: int) -> float:
+        return (math.comb(c1, x) * math.comb(n - c1, r1 - x)) / math.comb(n, r1)
+    p_obs = hyper(a)
+    lo, hi = max(0, r1 + c1 - n), min(r1, c1)
+    return min(1.0, sum(hyper(x) for x in range(lo, hi + 1)
+                        if hyper(x) <= p_obs + 1e-12))
+
+
+def mannwhitney_exact(xs: list[float], ys: list[float]) -> tuple[float, float]:
+    """(U statistic of xs, two-sided exact p) by full enumeration of group
+    assignments; two-sided via |U - mean| deviation, ties count 1/2.
+    Intended for the small batches of this study (comb(n, k) blows up)."""
+    from itertools import combinations
+    pooled = list(xs) + list(ys)
+    n, k = len(pooled), len(xs)
+    def ustat(idx: tuple[int, ...]) -> float:
+        chosen = set(idx)
+        grp = [pooled[i] for i in idx]
+        oth = [pooled[i] for i in range(n) if i not in chosen]
+        return (sum(1 for g in grp for o in oth if g > o)
+                + 0.5 * sum(1 for g in grp for o in oth if g == o))
+    u_obs = ustat(tuple(range(k)))
+    mean_u = k * (n - k) / 2
+    dev_obs = abs(u_obs - mean_u)
+    total = extreme = 0
+    for idx in combinations(range(n), k):
+        total += 1
+        if abs(ustat(idx) - mean_u) >= dev_obs - 1e-9:
+            extreme += 1
+    return u_obs, extreme / total
+
+
+def spearman(xs: list[float], ys: list[float]) -> float:
+    """Spearman rank correlation with average ranks for ties. 0.0 when
+    either variable is constant."""
+    def rank(values: list[float]) -> list[float]:
+        order = sorted(range(len(values)), key=lambda i: values[i])
+        ranks = [0.0] * len(values)
+        i = 0
+        while i < len(order):
+            j = i
+            while j + 1 < len(order) and values[order[j + 1]] == values[order[i]]:
+                j += 1
+            avg = (i + j) / 2 + 1
+            for t in range(i, j + 1):
+                ranks[order[t]] = avg
+            i = j + 1
+        return ranks
+
+    rx, ry = rank(xs), rank(ys)
+    mx, my = statistics.fmean(rx), statistics.fmean(ry)
+    num = sum((a - mx) * (b - my) for a, b in zip(rx, ry))
+    den = math.sqrt(sum((a - mx) ** 2 for a in rx)
+                    * sum((b - my) ** 2 for b in ry))
+    return num / den if den else 0.0
+
+
 def logistic_loo_probs(xs: list[float], labels: list[bool]) -> list[float] | None:
     """Leave-one-out predicted probabilities from a univariate logistic
     model fit by Newton iterations. Deterministic; None if degenerate."""

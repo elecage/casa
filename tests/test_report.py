@@ -129,3 +129,35 @@ def test_report_cli(tmp_path):
     assert code == 0
     data = json.loads(out.read_text(encoding="utf-8"))
     assert data["n_sessions"] == 4
+
+
+def test_fisher_exact_known_values():
+    # Fisher's classic tea-tasting table [[3,1],[1,3]]: two-sided p ~ 0.4857
+    assert abs(rp.fisher_exact(3, 1, 1, 3) - 0.4857) < 1e-3
+    # perfectly separated 10/10: p = 2 / C(20,10)
+    assert abs(rp.fisher_exact(10, 0, 0, 10) - 2 / 184756) < 1e-12
+    # no association at all
+    assert rp.fisher_exact(5, 5, 5, 5) == 1.0
+    # pilot C batch comparison (1/3 vs 13/15) is NOT significant
+    assert 0.10 < rp.fisher_exact(1, 2, 13, 2) < 0.11
+
+
+def test_mannwhitney_exact_known_values():
+    # complete separation of 3 vs 3: only 2 of C(6,3)=20 assignments as extreme
+    u, p = rp.mannwhitney_exact([1, 2, 3], [4, 5, 6])
+    assert u == 0.0
+    assert abs(p - 0.1) < 1e-12
+    # identical groups: U at its mean, p = 1
+    u, p = rp.mannwhitney_exact([1, 2], [1, 2])
+    assert p == 1.0
+    # ties counted 1/2
+    u, _ = rp.mannwhitney_exact([1, 1], [1, 2])
+    assert u == 1.0
+
+
+def test_spearman_known_values():
+    assert rp.spearman([1, 2, 3, 4], [10, 20, 30, 40]) == 1.0
+    assert rp.spearman([1, 2, 3, 4], [40, 30, 20, 10]) == -1.0
+    assert rp.spearman([1, 2, 3, 4], [7, 7, 7, 7]) == 0.0
+    # monotone but nonlinear is still rho = 1
+    assert rp.spearman([1, 2, 3, 4], [1, 8, 27, 64]) == 1.0
