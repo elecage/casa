@@ -89,6 +89,30 @@ def tool_error_rate(session: Session) -> float:
 # uniformly confident and carried no signal.
 
 
+# A tool whose name looks shell-like but is not in SHELL_TOOLS is exactly
+# the failure that hid PowerShell activity from the pilot audit — the
+# census flags it so a parser blind spot never again passes silently.
+_SHELLISH = re.compile(
+    r"bash|shell|powershell|pwsh|cmd|terminal|console", re.IGNORECASE)
+
+
+def tool_census(session: Session) -> dict[str, Any]:
+    """Tool-usage census for pre-audit validation. `shell_like_unrecognized`
+    lists tools whose names look like shells but are not treated as shells
+    (SHELL_TOOLS) — a non-empty list means the audit may be undercounting
+    shell activity and must not be trusted until the parser is updated."""
+    counts = Counter(c.name for c in session.tool_calls)
+    unrecognized = sorted(
+        name for name in counts
+        if _SHELLISH.search(name) and name not in SHELL_TOOLS)
+    return {
+        "tool_counts": dict(counts),
+        "distinct_tools": sorted(counts),
+        "shell_like_unrecognized": unrecognized,
+        "parser_shell_tools": sorted(SHELL_TOOLS),
+    }
+
+
 def _is_test_run(call: ToolCall) -> bool:
     return call.name in SHELL_TOOLS and "pytest" in call.shell_command
 

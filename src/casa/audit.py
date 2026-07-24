@@ -21,6 +21,7 @@ def audit_session(
     result: dict[str, Any] = {
         "transcript": str(transcript_path),
         "metrics": m.compute_all(session, relevant_files),
+        "census": m.tool_census(session),
         "violations": [],
     }
     if trajectory:
@@ -64,6 +65,12 @@ def to_markdown(result: dict[str, Any]) -> str:
         f"- Compaction events: {met['compaction_count']}",
         f"- Model version(s): {', '.join(met['model_versions']) or 'unknown'}",
     ]
+    census = result.get("census")
+    if census and census.get("shell_like_unrecognized"):
+        lines.append(
+            f"- **⚠ unrecognized shell-like tools: "
+            f"{', '.join(census['shell_like_unrecognized'])}** — audit may "
+            f"undercount shell activity; update parser before trusting it.")
     vs = result.get("violation_summary")
     if vs is not None:
         lines += ["", "## Rule violations", ""]

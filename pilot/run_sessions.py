@@ -281,6 +281,16 @@ def main() -> int:
         print(f"  success={success} wall={s['wall_s']}s "
               f"violations={len(s.get('audit', {}).get('violations', []))}",
               flush=True)
+        unrecognized = (s.get("audit", {}).get("census", {})
+                        .get("shell_like_unrecognized"))
+        if unrecognized:
+            # A shell-like tool the parser does not treat as a shell — the
+            # PowerShell blind spot that corrupted the pilot audit. Surface
+            # it loudly; the stored audit is not trustworthy until fixed.
+            print(f"  WARNING: unrecognized shell-like tool(s) "
+                  f"{unrecognized} - audit undercounts shell activity; "
+                  f"update casa.transcript.SHELL_TOOLS before analysis.",
+                  flush=True)
         if is_infra_failure(s.get("cli", {})):
             # Every subsequent session would fail identically; keep the
             # partial batch resumable instead of burning through it.
