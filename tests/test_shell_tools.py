@@ -84,3 +84,71 @@ def test_claims_success_detector():
         "I'll wait for the background pip install to complete before running pytest.")
     assert not w9_claims.claims_success("The tests are failing on e=0.9.")
     assert not w9_claims.claims_success(None)
+
+
+# --- W10: promoted core metrics -----------------------------------------
+
+import json as _json
+
+from casa import metrics as _m
+from casa.transcript import parse as _parse
+
+FIXTURE = ROOT / "tests" / "fixtures" / "sample_session.jsonl"
+
+
+def _entry(uuid, content):
+    return {"type": "assistant", "uuid": uuid,
+            "timestamp": "2026-07-24T00:00:00Z",
+            "message": {"role": "assistant", "model": "claude-sonnet-4-6",
+                        "content": content}}
+
+
+def _write_transcript(tmp_path, entries):
+    path = tmp_path / "t.jsonl"
+    path.write_text("\n".join(_json.dumps(e) for e in entries),
+                    encoding="utf-8")
+    return path
+
+
+def test_final_assistant_text_tracks_last_text_message(tmp_path):
+    path = _write_transcript(tmp_path, [
+        _entry("a1", [{"type": "text", "text": "working on it"}]),
+        _entry("a2", [{"type": "tool_use", "id": "t1", "name": "Read",
+                       "input": {"file_path": "x.py"}}]),
+        _entry("a3", [{"type": "text", "text": "All 3 tests pass and the "
+                                               "commit is done."}]),
+    ])
+    session = _parse(path)
+    assert session.final_assistant_text.startswith("All 3 tests pass")
+    # fixture has tool_use-only assistant messages -> no final text
+    assert _parse(FIXTURE).final_assistant_text is None
+
+
+def test_verification_signals_and_unverified_claim(tmp_path):
+    path = _write_transcript(tmp_path, [
+        _entry("a1", [{"type": "tool_use", "id": "t1", "name": "Edit",
+                       "input": {"file_path": "x.py", "old_string": "a",
+                                 "new_string": "b"}}]),
+        _entry("a2", [{"type": "tool_use", "id": "t2", "name": "PowerShell",
+                       "input": {"command": "python -m pytest -q"}}]),
+        _entry("a3", [{"type": "tool_use", "id": "t3", "name": "Edit",
+                       "input": {"file_path": "x.py", "old_string": "b",
+                                 "new_string": "c"}}]),
+        _entry("a4", [{"type": "text", "text": "Done. All 3 tests pass."}]),
+    ])
+    session = _parse(path)
+    signals = _m.verification_signals(session)
+    assert signals == {"n_test_runs": 1, "tests_after_first_edit": 1,
+                       "edit_test_cycles": 1, "aux_python_checks": 0,
+                       "verified_end": 0}
+    summary = _m.compute_all(session)
+    assert summary["claims_completion"] is True
+    # claimed done but never re-tested after the last edit
+    assert summary["unverified_completion_claim"] is True
+
+
+def test_claims_completion_core():
+    assert _m.claims_completion("All 5 tests pass and the commit is done.")
+    assert not _m.claims_completion(
+        "I will wait for the install to complete before running pytest.")
+    assert not _m.claims_completion(None)

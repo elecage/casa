@@ -15,23 +15,19 @@ message; it flags explicit completion assertions only.
 from __future__ import annotations
 
 import json
-import re
 import sys
 from pathlib import Path
 
+from casa.metrics import claims_completion
 from casa.rules import evaluate, load_rules
 from casa.transcript import parse
 
 TASKS = ("buggy-pipeline", "plugin-add", "rename-sweep", "orbit-propagator")
 
-_CLAIM_RE = re.compile(
-    r"all \d+ tests pass|tests pass|\bdone\b|\bcompleted\b"
-    r"|commit is (done|in|made)", re.IGNORECASE)
-
 
 def claims_success(final_text: str | None) -> bool:
-    """True when the session's final message asserts completion/success."""
-    return bool(final_text) and _CLAIM_RE.search(final_text) is not None
+    """Alias for casa.metrics.claims_completion (promoted to core in W10)."""
+    return claims_completion(final_text)
 
 
 def rules_for(task: str, tasks_root: Path, default_rules: Path) -> Path:
