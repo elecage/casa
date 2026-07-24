@@ -93,9 +93,12 @@ def test_no_float_leak():
 
 
 def test_validation_gate():
+    # A Money amount and the rate flow through validation.py, which raises
+    # ValidationError; the count n has no gate function in the module, so
+    # any ValueError (ValidationError is one) counts as rejecting it.
     with pytest.raises(ValidationError):
         split_with_fee(Money(-100), 3, 250)     # negative principal
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValueError):
         split_with_fee(Money(10000), 0, 250)    # non-positive n
     with pytest.raises(ValidationError):
         split_with_fee(Money(10000), 3, 20000)  # rate out of range

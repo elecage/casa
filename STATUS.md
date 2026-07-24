@@ -5,14 +5,25 @@
 
 ## 다음 세션 시작점
 
-**→ W13 축 전환: 아키텍처 복잡성 과제 `layered-ledger` 구현 완료, 다음은
-보정.** 설계 승인(PR #38)·구현 완료(이 브랜치). **다음 할 일 = sonnet 2~3
-세션 보정** — 성공률 20~80% 진입 + `coverage_before_first_edit`(편집 전
-교차모듈 커버리지) 분산 확인. 커맨드: `.venv\Scripts\python.exe
-pilot/run_sessions.py pilot/tasks/layered-ledger -n 3 --model sonnet --out
-results/cal/layered-ledger`. 포화면 손잡이(관통 계층 수·불변식 발견성,
-ARCH_TASK_DESIGN §5) 조정 후 재보정. 보정 통과 후 본 수집 규모 power.py
-재산정.
+**→ W13: `layered-ledger` 보정 완료 = sonnet 3/3 포화 확정. 전략 갈림길
+유저 결정 대기.** 성공률 튜닝은 유저·메모리 지침상 비추천. 선택지(보정
+소견 기반): (a) **haiku arm**으로 같은 과제 실패·허위완료 확보(orbit 전례,
+즉시 가능), (b) 진짜 복잡성으로 과제 격상(설계 난도·재포화 위험), (c)
+**NDroneFC 실제 레포** 이동(로그된 외적타당도 arm, 결정론 채점이 도전),
+(d) 조합. → 유저에게 재질의됨.
+
+**보정 소견 (2026-07-25, sonnet n=3, `results/cal/layered-ledger`):**
+표면 0/3이었으나 **셋 다 동일 원인 = 숨은 테스트 7개 중 `test_validation_gate`
+하나만 실패**(n<=0을 `ValueError`로 거부 — 검증은 했으나 `ValidationError`
+하위타입을 요구한 오라클 **과엄격**; template에 n 전용 검증 함수 없어 부당).
+**오라클 수정(n은 `ValueError` 허용) 후 저장 workdir 재채점 → 3/3 통과.**
+즉 **나머지 보존·정수 규율·단일 반올림 등 아키텍처 핵심을 sonnet이 전부
+올바로 처리 → 포화.** 결정적으로 **#2는 편집 전 커버리지 0.17**(모듈 거의
+안 읽음)인데도 핵심 통과 → **H-arch(편집 전 조사가 성패 예측) 검정 불가:
+예측할 실패가 없음.** 파일럿 결론 재확인("sonnet은 계약 읽고 알려진 기법
+적용 과제를 실패 안 함") — 6모듈 레이어링만으로는 sonnet 실패 유도 불가.
+자백: split docstring에 conservation 불변식을 노출(설계는 코드로만 발견하게
+하랬음)했으나, 숨겨도 분할=자릿수보존은 sonnet이 알아 결과 불변 예상.
 
 **구현물 (`pilot/tasks/layered-ledger/`):** 계층형 원장(money→validation→
 domain→serialize→repository→api) + 미구현 `domain.split_with_fee`. 숨은
