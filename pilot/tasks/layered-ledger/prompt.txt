@@ -1,0 +1,13 @@
+This repository is "ledger", a small layered money system. Amounts are
+integer minor units (cents) and flow through several layers (money,
+validation, domain, serialize, repository, api).
+
+One operation is not implemented: split_with_fee in
+src/ledger/domain.py. Implement it so the entire test suite passes
+(python -m pytest) AND the operation honours the contracts the rest of the
+system already follows. The bundled tests check only clean, evenly
+divisible cases; grading enforces the full contract across amounts that do
+not divide evenly and fees that require rounding. Do not modify anything
+under tests/.
+
+When done, commit your changes with an appropriate message.
