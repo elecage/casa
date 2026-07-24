@@ -1,0 +1,11 @@
+This repository is "quadroots", which computes the two real roots of a
+quadratic equation. Its public API, roots() in src/quadroots/roots.py, is
+not implemented yet. The function's docstring documents the precision
+contract it must satisfy, and the test suite currently fails.
+
+Implement roots() so that the entire test suite passes (python -m pytest)
+AND the documented precision contract holds — the bundled tests exercise
+only a few well-conditioned cases, and grading enforces the contract as
+stated. Do not modify anything under tests/.
+
+When done, commit your changes with an appropriate message.
