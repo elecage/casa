@@ -161,8 +161,43 @@ def _child_env() -> dict[str, str]:
     return env
 
 
+def venv_bin_dir(venv: Path) -> Path:
+    """The Scripts/ (Windows) or bin/ (POSIX) directory of a venv."""
+    return venv / ("Scripts" if os.name == "nt" else "bin")
+
+
+def ensure_task_venv(task_dir: Path, out_dir: Path) -> Path | None:
+    """Tasks with ML/native deps ship template/requirements.txt; create a
+    per-batch venv once (out_dir/.taskvenv) with those deps and return its
+    bin dir, so the session's `python` resolves to an interpreter that has
+    them. Stdlib tasks (no requirements.txt) return None. The venv is reused
+    across every session in the batch, not recreated per session."""
+    req = task_dir / "template" / "requirements.txt"
+    if not req.exists():
+        return None
+    venv = out_dir / ".taskvenv"
+    bind = venv_bin_dir(venv)
+    py = bind / ("python.exe" if os.name == "nt" else "python")
+    if not py.exists():
+        print(f"task venv: creating + installing {req.name} ...", flush=True)
+        subprocess.run([sys.executable, "-m", "venv", str(venv)],
+                       check=True, capture_output=True)
+        subprocess.run([str(py), "-m", "pip", "install", "-q", "-r", str(req)],
+                       check=True, capture_output=True, timeout=1800)
+    return bind
+
+
+def _session_env(venv_bin: Path | None = None) -> dict[str, str]:
+    """Child env for a session; prepends a task venv's bin dir to PATH so the
+    session's bare `python`/`pytest` use the task interpreter."""
+    env = _child_env()
+    if venv_bin is not None:
+        env["PATH"] = str(venv_bin) + os.pathsep + env.get("PATH", "")
+    return env
+
+
 def run_headless(workdir: Path, prompt: str, model: str | None,
-                 timeout_s: int) -> dict:
+                 timeout_s: int, venv_bin: Path | None = None) -> dict:
     # The prompt goes through stdin, never the command line: on Windows the
     # command runs via the shell (npm .cmd shim), and cmd.exe mangles
     # multi-line arguments. The command string itself carries flags only.
@@ -172,7 +207,7 @@ def run_headless(workdir: Path, prompt: str, model: str | None,
     proc = subprocess.run(cmd, cwd=workdir, input=prompt,
                           capture_output=True, text=True,
                           encoding="utf-8", errors="replace",
-                          timeout=timeout_s, env=_child_env(), shell=True)
+                          timeout=timeout_s, env=_session_env(venv_bin), shell=True)
     try:
         payload = json.loads(proc.stdout.strip().splitlines()[-1])
     except (json.JSONDecodeError, IndexError):
@@ -183,7 +218,7 @@ def run_headless(workdir: Path, prompt: str, model: str | None,
 
 
 def run_one(task_dir: Path, out_dir: Path, index: int, model: str | None,
-            timeout_s: int) -> dict:
+            timeout_s: int, venv_bin: Path | None = None) -> dict:
     prompt = (task_dir / "prompt.txt").read_text(encoding="utf-8")
     relevant = [ln.strip() for ln in
                 (task_dir / "relevant_files.txt").read_text(encoding="utf-8").splitlines()
@@ -191,7 +226,7 @@ def run_one(task_dir: Path, out_dir: Path, index: int, model: str | None,
     workdir = prepare_workdir(task_dir, out_dir / f"work-{index:02d}")
 
     t0 = time.time()
-    cli = run_headless(workdir, prompt, model, timeout_s)
+    cli = run_headless(workdir, prompt, model, timeout_s, venv_bin)
     wall_s = round(time.time() - t0, 1)
 
     summary: dict = {"task": task_dir.name, "session_index": index,
@@ -262,9 +297,11 @@ def main() -> int:
 
     version = subprocess.run("claude --version", capture_output=True,
                              text=True, shell=True).stdout.strip()
+    venv_bin = ensure_task_venv(task_dir, out_dir)
     (out_dir / "meta.json").write_text(json.dumps({
         "claude_version": version, "task": task_dir.name,
         "sessions": args.sessions, "model": args.model, "account": email,
+        "task_venv": str(venv_bin) if venv_bin else None,
     }, indent=2), encoding="utf-8")
 
     todo = pending_indices(out_dir, args.sessions)
@@ -276,7 +313,7 @@ def main() -> int:
     aborted = False
     for pos, i in enumerate(todo):
         print(f"[{i}/{args.sessions}] running...", flush=True)
-        s = run_one(task_dir, out_dir, i, args.model, args.timeout_min * 60)
+        s = run_one(task_dir, out_dir, i, args.model, args.timeout_min * 60, venv_bin)
         success = bool(s.get("grade", {}).get("success"))
         print(f"  success={success} wall={s['wall_s']}s "
               f"violations={len(s.get('audit', {}).get('violations', []))}",

@@ -123,3 +123,33 @@ def test_prepare_workdir_copies_template_only_and_commits(tmp_path):
     status = subprocess.run(["git", "status", "--porcelain"], cwd=workdir,
                             capture_output=True, text=True)
     assert status.stdout.strip() == ""
+
+
+def test_ensure_task_venv_none_without_requirements(tmp_path):
+    # buggy-pipeline is a stdlib task (no template/requirements.txt) -> None,
+    # and no venv is created.
+    task_dir = REPO / "pilot" / "tasks" / "buggy-pipeline"
+    assert run_sessions.ensure_task_venv(task_dir, tmp_path) is None
+    assert not (tmp_path / ".taskvenv").exists()
+
+
+def test_venv_bin_dir_per_os():
+    import os
+    from pathlib import Path
+    got = run_sessions.venv_bin_dir(Path("x") / ".taskvenv")
+    assert got.name == ("Scripts" if os.name == "nt" else "bin")
+
+
+def test_session_env_prepends_task_venv_to_path(tmp_path):
+    import os
+    base = run_sessions._session_env(None)
+    assert base == run_sessions._child_env()          # no venv -> unchanged
+    binp = tmp_path / "Scripts"
+    env = run_sessions._session_env(binp)
+    assert env["PATH"].split(os.pathsep)[0] == str(binp)
+
+
+def test_ml_shift_task_has_requirements():
+    # the ML arm task DOES ship requirements -> ensure_task_venv would build.
+    req = REPO / "pilot" / "tasks" / "ml-shift" / "template" / "requirements.txt"
+    assert req.exists() and "scikit-learn" in req.read_text(encoding="utf-8")
