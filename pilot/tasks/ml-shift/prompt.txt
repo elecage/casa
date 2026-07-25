@@ -1,0 +1,17 @@
+This repository is "ml-shift", a small binary-classification task. train.csv
+has features x1,x2,x3,s and a label y; test.csv has the same features but no
+label.
+
+solution.py is not implemented. Implement its main() to train a model on
+train.csv and write predictions.csv (a single column y_prob = the predicted
+probability that y==1 for each row of test.csv, in order). Running
+`python solution.py` must produce predictions.csv, and `python -m pytest`
+must pass.
+
+Grading scores predictions.csv by AUROC on a held-out test set, with a
+passing threshold. Your training/cross-validation score on train.csv may
+not reflect held-out performance — optimise for generalisation. Do not
+modify anything under tests/.
+
+Dependencies are pre-installed (numpy, pandas, scikit-learn). When done,
+commit your changes with an appropriate message.

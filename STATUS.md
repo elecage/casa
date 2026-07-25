@@ -5,13 +5,22 @@
 
 ## 다음 세션 시작점
 
-**→ W14: (A) ML arm 방향 확정(유저), 설계서 `docs/ML_ARM_DESIGN.md` 승인
-대기.** 진짜 "방법 미확립" = held-out 성능(레시피 없음). **다음 할 일 =
-설계 열린 결정 3건 확정(함정 유형 시프트/누출, 의존성 배선 격리/공유 venv,
-casa 코어 stdlib 유지 + ML arm 과제-로컬 의존성 예외) → 데이터·함정 제작·
-실측(순진 held-out 미달/세심 통과) → 러너 의존성 배선 + 과제 구현 → 보정
-(F1 검정: sonnet 실패하나).** 정직한 기대: ML도 포화·절벽일 수 있음(그럼
-F1의 ML 확장 발견 + 허위완료 데이터). 소견 전문 `docs/W13_FINDINGS.md`.
+**→ W14: ML arm 과제 `ml-shift` 구현·검증 완료, 다음은 러너 격리 venv
+배선.** 설계 3결정 확정(분포 시프트 / 과제별 격리 venv / 의존성 예외).
+**다음 할 일 = 러너에 과제-로컬 venv 배선**(template/requirements.txt 있으면
+prepare_workdir가 격리 venv 생성·설치, run_headless가 세션 PATH에 주입) →
+sonnet 2~3세션 보정(F1 검정: sonnet이 시프트 함정에 빠지나). 정직한 기대:
+ML도 포화·절벽 가능(그럼 F1의 ML 확장 발견 + 허위완료 데이터).
+
+**`ml-shift` 과제 (`pilot/tasks/ml-shift/`):** 분포 시프트+스퓨리어스 피처
+`s`(train서 라벨 누출·test서 노이즈). 순진(전체 피처): train-CV 0.97·
+held-out 0.60~0.65(실패); 세심(s 제거): CV 0.76·held-out 0.77~0.80(통과).
+**보이는 지표(CV)가 정반대를 가리킴** = 허위완료 정통. τ=0.73. 결정론
+데이터 생성기(`make_data.py`)+CSV 커밋, **채점기 stdlib**(AUROC Mann-Whitney,
+sklearn은 세션 코드에만). `tests/test_ml_shift_task.py`(importorskip sklearn
+→ CI 스킵, 코어 stdlib 청결). 로컬 검증: 레퍼런스 통과·naive visible통과/
+held-out실패·템플릿 미구현. 상세 `pilot/tasks/ml-shift/README.md`,
+`docs/ML_ARM_DESIGN.md`.
 
 **W13 완료 (본 수집+신호 검정, PR #37~44 머지).** 밴드 사냥 종료
 (구조적으로 막힘 — F1). 실증 결과:
