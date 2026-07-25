@@ -204,10 +204,18 @@ def run_headless(workdir: Path, prompt: str, model: str | None,
     cmd = "claude -p --output-format json --dangerously-skip-permissions"
     if model:
         cmd += f" --model {model}"
-    proc = subprocess.run(cmd, cwd=workdir, input=prompt,
-                          capture_output=True, text=True,
-                          encoding="utf-8", errors="replace",
-                          timeout=timeout_s, env=_session_env(venv_bin), shell=True)
+    try:
+        proc = subprocess.run(cmd, cwd=workdir, input=prompt,
+                              capture_output=True, text=True,
+                              encoding="utf-8", errors="replace",
+                              timeout=timeout_s, env=_session_env(venv_bin), shell=True)
+    except subprocess.TimeoutExpired:
+        # One over-long session must not crash the whole batch: record it as
+        # a (task-level) timeout failure and let the loop continue. This is
+        # NOT an infra failure, so is_infra_failure stays False and the run
+        # proceeds to the next session.
+        return {"timed_out": True, "is_error": True, "exit_code": -1,
+                "result": f"session exceeded {timeout_s}s timeout"}
     try:
         payload = json.loads(proc.stdout.strip().splitlines()[-1])
     except (json.JSONDecodeError, IndexError):

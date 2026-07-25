@@ -153,3 +153,11 @@ def test_ml_shift_task_has_requirements():
     # the ML arm task DOES ship requirements -> ensure_task_venv would build.
     req = REPO / "pilot" / "tasks" / "ml-shift" / "template" / "requirements.txt"
     assert req.exists() and "scikit-learn" in req.read_text(encoding="utf-8")
+
+
+def test_timeout_payload_is_not_infra_failure():
+    # A single over-long session (subprocess timeout) is a task-level failure,
+    # not an infra abort: the batch must continue, not stop.
+    payload = {"timed_out": True, "is_error": True, "exit_code": -1,
+               "result": "session exceeded 1500s timeout"}
+    assert run_sessions.is_infra_failure(payload) is False
