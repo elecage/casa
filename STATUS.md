@@ -5,25 +5,25 @@
 
 ## 다음 세션 시작점
 
-**→ W13: 새 spine 과제 `schedule` 구현 완료, 다음은 보정.** 난이도 기준을
-"목표 명확·방법론 미확립"으로 채택(결정 로그 2026-07-25). **다음 할 일 =
-sonnet 2~3세션 보정** — `.venv\Scripts\python.exe pilot/run_sessions.py
-pilot/tasks/schedule -n 3 --model sonnet --out results/cal/schedule`. 성공률
-20~80% + 실패 시 "보이는-통과·숨은-실패" 확인. 포화면 손잡이(목표 여유·
-적대성·통과 인스턴스 수, README) 조정. 그 다음 haiku 보정 → 본 수집.
+**→ W13: 본 수집 + 신호 검정 완료, 소견 `docs/W13_FINDINGS.md`에 정리.
+다음 = 방향 결정(유저).** 밴드 사냥 종료(구조적으로 막힘 — F1). 실증 결과:
+(F1) 조건별 achievement는 거의 결정론적(schedule-haiku 28/30 동일 품질,
+~50% 튜닝 불가), (F2) 변동은 효율·허위완료에 삶, (F3) 검증 신호는 실재하나
+약·비일관(풀링 AUROC 0.66), (F4) 세션 독립성 방어. **다음 세션 선택지:**
+(a) **(A) ML arm 설계** — sonnet도 실패하는 진짜 "방법 미확립"(held-out
+성능, 의존성·컴퓨트·시드 machinery 신설), (b) **집필 착수** — 정직판 척추
+(F1~F3, 제약 결과 포함)로 워크숍/논문, (c) 검증 신호를 더 두껍게(ledger-
+haiku 스케일 등). 유저 결정 대기.
 
-**병행: haiku ledger arm(n=30) 백그라운드 수집 중** (`results/main2/
-layered-ledger-haiku`, 13/13 성공 = ledger 포화 haiku도 확인). 재개 커맨드:
-`... pilot/tasks/layered-ledger -n 30 --model haiku --out results/main2/
-layered-ledger-haiku`. 이 arm은 "ledger는 두 계층 다 포화" 대조 데이터로
-마무리(조기신호 결판은 실패 부족으로 불가 — schedule로 이동).
+**수집 완료물 (로컬 gitignore):** `results/main2/{orbit-sonnet(n60,5성공),
+layered-ledger-haiku(n30,26성공), schedule-haiku(n30,1성공)}`, `results/cal/
+{schedule(sonnet3/3), layered-ledger(sonnet3/3)}` 등. 재현 분석:
+`pilot/analysis/{session_independence,signal_validation}.py` (+테스트).
 
-**`schedule` 과제 (`pilot/tasks/schedule/`):** makespan 최소화(N작업→M기계).
-보이는=쉬운 인스턴스(순진 통과), 숨은=적대적 인스턴스(순진 LPT가 OPT 초과
-→ 2-opt 개선 필요). 목표=정확 OPT(빌드시 브루트포스 검증: LPT는 6개 전부
-초과, 참조 LPT+2-opt는 6개 전부 OPT 도달). 결정론·stdlib·RNG 없음.
-`tests/test_schedule_task.py`로 분리 고정. 검증-적정성 신호(완료 전 큰/
-다양 인스턴스 자체검증 여부)를 실패가 실재하는 과제에서 측정 예정.
+**확정된 과제 3종** (`pilot/tasks/{orbit-propagator,layered-ledger,
+schedule}`): orbit=다중스케일 수치(유일 sonnet 실패), ledger=아키텍처 계약
+(포화, 대조), schedule=makespan 방법-미확립 시도(sonnet 포화·haiku 바닥 —
+achievement가 계층 가름). 전부 결정론 숨은 오라클.
 
 **분석 초점 (haiku n=30 완료 시):**
 - **읽기 조기신호 사망 확인**: `coverage_before_first_edit`·핵심부분집합·
@@ -252,6 +252,14 @@ n 증가로 판정 (사후 조작 방지, 결정 로그 기록) / 노벨티 워�
 
 ## 결정 로그 (뒤집으려면 유저와 상의)
 
+- 2026-07-25 **밴드 사냥 종료 + "조건별 achievement 결정론성"을 발견으로
+  수용** (유저). 근거: schedule-haiku 30세션 총 최적성 갭 [0,2,8×28] =
+  28/30 동일 품질, 손잡이로 ~50% 도달 불가(OPT+1 7% → OPT+2 100% 절벽).
+  → 조기 성공 예측의 대상 분산이 조건 내엔 거의 없음. 실효 신호는 효율·
+  허위완료(F2), 단 검증 지표는 약·비일관(F3, 풀링 AUROC 0.66). 기존 혼합
+  조건(orbit-sonnet·ledger-haiku)으로 검정 완료, 새 밴드 수집 안 함.
+  전문 `docs/W13_FINDINGS.md`. 성공률 튜닝 지양 지침([[dont-fixate-on-
+  success-rate]])과 정합.
 - 2026-07-25 **난이도 기준 = "목표 명확·방법론 미확립"** (유저 제안·채택).
   근거: 포화 과제(trap 3종·ledger)의 공통점은 방법이 확립됨(검색-후-적용)
   → 강모델 실패 안 함. orbit만 실패한 건 방법 미확립(다중 스케일 → 적응
