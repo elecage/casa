@@ -74,13 +74,23 @@ def auroc(labels: list[int], scores: list[float]) -> float:
     return (sum_pos - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
 
 
+def _solution_python(workdir: Path) -> str:
+    """Interpreter for a fallback solution.py run: the batch task venv
+    (out_dir/.taskvenv, sibling of workdir) if present, else this python."""
+    for sub in ("Scripts/python.exe", "bin/python"):
+        cand = workdir.parent / ".taskvenv" / sub
+        if cand.exists():
+            return str(cand)
+    return sys.executable
+
+
 def ensure_predictions(workdir: Path) -> None:
     """The session's solution.py writes predictions.csv; regenerate only if
     the session left none (grade the session's own artifact when present)."""
     if (workdir / "predictions.csv").exists():
         return
     if (workdir / "solution.py").exists():
-        subprocess.run([sys.executable, "solution.py"], cwd=workdir,
+        subprocess.run([_solution_python(workdir), "solution.py"], cwd=workdir,
                        capture_output=True, text=True, timeout=1500)
 
 

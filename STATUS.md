@@ -5,12 +5,20 @@
 
 ## 다음 세션 시작점
 
-**→ W14: ML arm 과제 `ml-shift` 구현·검증 완료, 다음은 러너 격리 venv
-배선.** 설계 3결정 확정(분포 시프트 / 과제별 격리 venv / 의존성 예외).
-**다음 할 일 = 러너에 과제-로컬 venv 배선**(template/requirements.txt 있으면
-prepare_workdir가 격리 venv 생성·설치, run_headless가 세션 PATH에 주입) →
-sonnet 2~3세션 보정(F1 검정: sonnet이 시프트 함정에 빠지나). 정직한 기대:
-ML도 포화·절벽 가능(그럼 F1의 ML 확장 발견 + 허위완료 데이터).
+**→ W14: ML arm `ml-shift` 구현 + 러너 격리 venv 배선 완료, 다음은 보정.**
+설계 3결정 확정(분포 시프트 / 과제별 격리 venv / 의존성 예외). **다음 할 일
+= sonnet 2~3세션 보정** — `.venv\Scripts\python.exe pilot/run_sessions.py
+pilot/tasks/ml-shift -n 3 --model sonnet --out results/cal/ml-shift`. **F1
+검정: sonnet이 시프트 함정에 빠지나**(전체 피처 → held-out 실패)가 이 arm의
+핵심 질문. 정직한 기대: ML도 포화·절벽 가능(그럼 F1의 ML 확장 발견 +
+허위완료 데이터). 배치 첫 실행 시 러너가 `out_dir/.taskvenv` 1회 생성·설치
+(~1-2분) 후 세션 PATH 주입.
+
+**러너 venv 배선 (`pilot/run_sessions.py`):** `ensure_task_venv`(template/
+requirements.txt 있으면 out_dir/.taskvenv 1회 생성·설치, 배치 내 재사용),
+`_session_env`(세션 PATH에 venv bin 주입). stdlib 과제는 None(무변경).
+grade.py는 fallback 재실행 시 `.taskvenv` python 탐지. `tests/test_runner.py`
++4(무-requirements→None, PATH 주입, os별 bin, ml-shift requirements 존재).
 
 **`ml-shift` 과제 (`pilot/tasks/ml-shift/`):** 분포 시프트+스퓨리어스 피처
 `s`(train서 라벨 누출·test서 노이즈). 순진(전체 피처): train-CV 0.97·
