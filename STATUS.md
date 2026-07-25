@@ -5,12 +5,25 @@
 
 ## 다음 세션 시작점
 
-**→ W13: haiku arm(선택 a) 스케일 수집 중 (n=30, `results/main2/
-layered-ledger-haiku`).** 완료 후 할 일 = **읽기 기반 조기신호 vs 검증-
-적정성 신호를 나란히 분석**(둘 다 저장 트랜스크립트서 사후 계산). 배치는
-백그라운드, 429 중단 시 같은 커맨드로 재개. 재개 커맨드: `.venv\Scripts\
-python.exe pilot/run_sessions.py pilot/tasks/layered-ledger -n 30 --model
-haiku --out results/main2/layered-ledger-haiku`.
+**→ W13: 새 spine 과제 `schedule` 구현 완료, 다음은 보정.** 난이도 기준을
+"목표 명확·방법론 미확립"으로 채택(결정 로그 2026-07-25). **다음 할 일 =
+sonnet 2~3세션 보정** — `.venv\Scripts\python.exe pilot/run_sessions.py
+pilot/tasks/schedule -n 3 --model sonnet --out results/cal/schedule`. 성공률
+20~80% + 실패 시 "보이는-통과·숨은-실패" 확인. 포화면 손잡이(목표 여유·
+적대성·통과 인스턴스 수, README) 조정. 그 다음 haiku 보정 → 본 수집.
+
+**병행: haiku ledger arm(n=30) 백그라운드 수집 중** (`results/main2/
+layered-ledger-haiku`, 13/13 성공 = ledger 포화 haiku도 확인). 재개 커맨드:
+`... pilot/tasks/layered-ledger -n 30 --model haiku --out results/main2/
+layered-ledger-haiku`. 이 arm은 "ledger는 두 계층 다 포화" 대조 데이터로
+마무리(조기신호 결판은 실패 부족으로 불가 — schedule로 이동).
+
+**`schedule` 과제 (`pilot/tasks/schedule/`):** makespan 최소화(N작업→M기계).
+보이는=쉬운 인스턴스(순진 통과), 숨은=적대적 인스턴스(순진 LPT가 OPT 초과
+→ 2-opt 개선 필요). 목표=정확 OPT(빌드시 브루트포스 검증: LPT는 6개 전부
+초과, 참조 LPT+2-opt는 6개 전부 OPT 도달). 결정론·stdlib·RNG 없음.
+`tests/test_schedule_task.py`로 분리 고정. 검증-적정성 신호(완료 전 큰/
+다양 인스턴스 자체검증 여부)를 실패가 실재하는 과제에서 측정 예정.
 
 **분석 초점 (haiku n=30 완료 시):**
 - **읽기 조기신호 사망 확인**: `coverage_before_first_edit`·핵심부분집합·
@@ -239,6 +252,15 @@ n 증가로 판정 (사후 조작 방지, 결정 로그 기록) / 노벨티 워�
 
 ## 결정 로그 (뒤집으려면 유저와 상의)
 
+- 2026-07-25 **난이도 기준 = "목표 명확·방법론 미확립"** (유저 제안·채택).
+  근거: 포화 과제(trap 3종·ledger)의 공통점은 방법이 확립됨(검색-후-적용)
+  → 강모델 실패 안 함. orbit만 실패한 건 방법 미확립(다중 스케일 → 적응
+  스텝 고안·검증). 유저 일반화: 목표는 객관적이나 방법이 레시피가 아닌
+  과제라야 역량·노력 변동+허위완료가 생김. 실현: **(B) stdlib 휴리스틱
+  먼저**(결정론·의존성0로 기준 검증) → 되면 **(A) ML 모델 개발**로 격상
+  (유저 실경험 근접, 시드·컴퓨트·의존성 machinery 신설). 첫 과제=`schedule`
+  (makespan, held-out 적대 인스턴스, 목표=OPT). layered-ledger는 대체(달성·
+  조기판별 spine에서 내림), orbit·ledger는 대조로 보존.
 - 2026-07-25 **세션 간 독립성 검정 = 방법론 방어로 확립** (유저: 논문
   threats-to-validity 핵심). "반복 실행 시 세션 간 상태 공유로 결과가
   수렴하면 세션 간 변동성이 인공물"이라는 위협을 구조(격리)+행동(수렴
