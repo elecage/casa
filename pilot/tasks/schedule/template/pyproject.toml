@@ -1,0 +1,9 @@
+[project]
+name = "scheduler"
+version = "0.1.0"
+description = "Makespan scheduling on identical machines."
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

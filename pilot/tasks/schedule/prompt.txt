@@ -1,0 +1,13 @@
+This repository is "scheduler". It assigns jobs (with integer processing
+times) to M identical machines, trying to minimise the makespan — the
+largest total processing time on any single machine.
+
+The public API, schedule() in src/scheduler/schedule.py, is not implemented
+yet, and the test suite currently fails. Implement schedule() so the entire
+test suite passes (python -m pytest) AND it produces near-optimal makespans.
+The bundled tests use small, easy instances; grading also evaluates harder,
+adversarial instances against a near-optimal target, so an assignment that
+is merely valid is not enough. The obvious longest-first greedy assignment
+falls short on the hard instances. Do not modify anything under tests/.
+
+When done, commit your changes with an appropriate message.
