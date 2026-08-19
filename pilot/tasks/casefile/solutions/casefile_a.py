@@ -32,6 +32,7 @@ FIXED_COLUMNS = {
     "id": (0, 6), "site": (7, 14), "inspected_at": (15, 31),
     "inspector": (32, 40), "status": (41, 46), "note": (47, None),
 }
+CONFLICT_FIELDS = ("inspector", "status", "note")
 
 
 def parse_instant(text):
@@ -39,6 +40,12 @@ def parse_instant(text):
     text = (text or "").strip()
     if not text:
         return None
+    # Python 3.10's fromisoformat rejects a trailing Z; 3.11 accepts it. The
+    # UTC-normalising variant writes exactly that, so without this line the
+    # reference passes on one interpreter and fails on another — which is how
+    # CI caught it: variant A scored 11/12 on 3.10 and 12/12 on 3.13.
+    if text.endswith(("Z", "z")):
+        text = text[:-1] + "+00:00"
     try:
         stamp = datetime.fromisoformat(text)
     except ValueError:
@@ -58,6 +65,11 @@ def render_time(instant, utc=None):
 def render_id(raw, source, prefixed=None):
     use_prefix = ID_PREFIXED if prefixed is None else prefixed
     return f"{source}:{raw}" if use_prefix else raw
+
+
+def natural_key(record):
+    """The identifier without a source prefix — stable across conventions."""
+    return str(record.get(ID_FIELD, "")).rsplit(":", 1)[-1]
 
 
 def read_csv(path):
@@ -109,9 +121,34 @@ def normalise(row, source, prefixed=None):
     return record, instant
 
 
+def within_range(instant, since, until):
+    start, end = parse_instant(since), parse_instant(until)
+    if start and instant < start:
+        return False
+    if end and instant > end:
+        return False
+    return True
+
+
 def build(args):
-    records, quarantine, audit = [], [], []
+    records, quarantine, audit, conflicts = [], [], [], []
     merge_index = {}
+
+    out = Path(args.out)
+    if getattr(args, "append", False) and out.exists():
+        # Incremental update: whatever is already in the case file stays.
+        try:
+            for record in json.loads(out.read_text(encoding="utf-8")):
+                # Key on the instant, never on the rendered string: variant B
+                # writes +09:00 where A writes Z, and the same inspection must
+                # merge under both.
+                stamp = parse_instant(record.get("inspected_at"))
+                key = (natural_key(record), record.get("site"),
+                       stamp.astimezone(timezone.utc) if stamp else None)
+                merge_index[key] = record
+                records.append(record)
+        except (OSError, ValueError):
+            pass
 
     def ingest(rows, source, prefixed=None):
         kept = 0
@@ -123,9 +160,19 @@ def build(args):
                     "source": source, "reason": extra,
                 })
                 continue
+            if not within_range(extra, getattr(args, "since", None),
+                                getattr(args, "until", None)):
+                continue
             key = (row["id"], row["site"], extra.astimezone(timezone.utc))
             if key in merge_index:
                 merged = merge_index[key]
+                for field in CONFLICT_FIELDS:
+                    if merged.get(field) != record.get(field):
+                        conflicts.append({
+                            ID_FIELD: merged.get(ID_FIELD), "site": record["site"],
+                            "field": field, "kept": merged.get(field),
+                            "seen": record.get(field), "source": source,
+                        })
                 if source not in merged["sources"]:
                     merged["sources"].append(source)
             else:
@@ -140,14 +187,26 @@ def build(args):
         ingest(read_fixed(args.fixed), Path(args.fixed).name,
                prefixed=ID_PREFIXED_FIXED)
 
-    out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(records, ensure_ascii=False, indent=2),
                    encoding="utf-8")
     (out.parent / "quarantine.json").write_text(
         json.dumps(quarantine, ensure_ascii=False, indent=2), encoding="utf-8")
+    (out.parent / "conflicts.json").write_text(
+        json.dumps(conflicts, ensure_ascii=False, indent=2), encoding="utf-8")
     (out.parent / "audit.log").write_text(
         "\n".join(audit) + f"\nrecords={len(records)}\n", encoding="utf-8")
+
+    split = getattr(args, "split_by_site", None)
+    if split:
+        target = Path(split)
+        target.mkdir(parents=True, exist_ok=True)
+        by_site = {}
+        for record in records:
+            by_site.setdefault(record["site"], []).append(record)
+        for site, rows in by_site.items():
+            (target / f"{site}.json").write_text(
+                json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def report(args):
@@ -170,6 +229,10 @@ def main():
     b.add_argument("--csv")
     b.add_argument("--fixed")
     b.add_argument("--out", required=True)
+    b.add_argument("--append", action="store_true")
+    b.add_argument("--since")
+    b.add_argument("--until")
+    b.add_argument("--split-by-site", dest="split_by_site")
     b.set_defaults(func=build)
     r = sub.add_parser("report")
     r.add_argument("--in", dest="inp", required=True)

@@ -2,3 +2,4 @@ R-1002 north   2026-03-01T02:40 lee      fail  cracked seal
 R-1001 east    2026-03-03T05:00 yoon     pass
 R-2001 west    2026-03-04T23:30 han      pass  night shift
 R-2002 west    2026-03-05T01:00          fail  no inspector
+R-1003 south   2026-03-02T05:05 PARK     pass  re-entered
