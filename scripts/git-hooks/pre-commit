@@ -19,6 +19,9 @@ else
   exit 1
 fi
 
+"$py" harness/check_records.py || exit 1
+"$py" harness/check_task_design.py || exit 1
+
 "$py" -m pytest -q || {
   echo "pre-commit: tests failed - commit aborted (CLAUDE.md: no failing commits)." >&2
   exit 1
