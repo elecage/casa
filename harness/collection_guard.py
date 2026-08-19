@@ -37,12 +37,20 @@ SHELL_TOOLS = {"Bash", "PowerShell"}
 # `\bpy\b`가 `.py` 확장자의 py에 그대로 걸렸다. 그래서 러너를 텍스트로
 # 언급하기만 한 명령(이 기능의 PR 본문이 첫 피해자였다)까지 차단됐다.
 # 지금은 인터프리터 토큰 바로 뒤에 러너 경로가 오는 경우만 본다.
+# 수집을 실행하는 러너들. **새 러너를 만들면 여기에 추가해야 한다** —
+# 실제로 `run_chain.py`를 만들었을 때 이 목록이 `run_sessions.py`만 알고 있어
+# 새 러너가 잠금을 그냥 통과했다. tests/test_harness.py가 pilot/run_*.py를
+# 전수 대조해 그 재발을 막는다.
+RUNNERS = ("run_sessions.py", "run_chain.py")
+
 _COLLECTION_RUN = re.compile(
     r"(?:^|[\s;|&(])"  # 명령 시작 위치
     r"[^\s;|&]*"  # .venv/Scripts/ 같은 경로 접두사 (선택)
     r"(?:python3?|py)(?:\.exe)?"  # 인터프리터 토큰
     r"(?:\s+-\S+)*"  # -u, -3 같은 플래그 (선택)
-    r"\s+[^\s;|&]*run_sessions\.py",
+    r"\s+[^\s;|&]*(?:"
+    + "|".join(name.replace(".", r"\.") for name in RUNNERS)
+    + r")",
     re.IGNORECASE,
 )
 

@@ -355,6 +355,7 @@ stable-roots,fee-calc-haiku,stable-roots-haiku,orbit-haiku}/` — 각 n=3.
 | W27 | 다세션 과제 `casefile` 마일스톤 명세 (설계 검문 통과) | **설계 완료·구현 대기** (2026-08-19) | `pilot/tasks/casefile/DESIGN.md` |
 | W28 | `casefile` 템플릿·채점기·레퍼런스 3벌 (A·B 둘 다 만점 실증) | **완료** (2026-08-19) | `pilot/tasks/casefile/`, `tests/test_casefile_task.py` (+10) |
 | W29 | 사슬 러너 (작업 디렉토리 인계·예산 훅·경계 채점·재개) | **완료** (2026-08-19) | `pilot/run_chain.py`, `pilot/chain_budget.py`, `tests/test_run_chain.py` (+16) |
+| W30 | 수집 잠금 해제(보정 범위 한정) + 잠금 구멍 수정 + casefile 보정 수집 | **진행 중** (2026-08-19, 유저 승인) | `harness/gates.json`, `harness/collection_guard.py`, `results/chain/casefile` |
 | W-later | sonnet 실패 달성 과제(다중 스케일 절벽형, orbit 외) | 추적 (유저 요구) | `pilot/tasks/<new>/` |
 | W13 | 본 수집 ~180세션 (배치 분할, 원자료 보존) | 대기 | `results/main2/` |
 | W14 | 3축 분석 → 사전 등록 판정 → 집필/학회 결정 | 대기 | 분석 노트 |
@@ -461,6 +462,20 @@ n 증가로 판정 (사후 조작 방지, 결정 로그 기록) / 노벨티 워�
 반드시 stdin으로(명령줄 전달 시 cmd.exe가 여러 줄 인자를 파괴).
 
 ## 결정 로그 (뒤집으려면 유저와 상의)
+
+- 2026-08-19 **수집 잠금 해제 — casefile 사슬 보정 범위에 한해** (유저 승인).
+  해제 조건 둘이 다 충족됐다. ① **채점 방법 확정 + 실증**: 마일스톤 오라클 +
+  정합 검사, 그리고 해석 A로 일관한 해답과 B로 일관한 해답이 **둘 다 8/8·위반
+  0**, 규약을 섞은 대조 해답은 8/8인데 위반 1. ② 유저 승인.
+  **범위는 `harness/gates.json`의 `scope`에 적었다** — 사슬 3 × 세션 6, 예산
+  60호출. 이 범위 밖 수집은 별도 승인 사항이고, 보정이 끝나면 결과를 보고 본
+  수집 여부를 정하며 방향이 바뀌면 다시 잠근다.
+  **해제하며 잠금의 구멍을 하나 발견해 고쳤다**: 가드가 `run_sessions.py`만
+  알고 있어서 **새로 만든 `run_chain.py`는 잠금을 그냥 통과했다.** 러너 목록을
+  상수로 빼고, `pilot/run_*.py`를 전수 대조하는 테스트를 넣어 다음 러너가
+  같은 식으로 새는 것을 막았다. 잠긴 상태에서 두 러너 다 차단됨을 확인.
+  교훈: 가드는 만든 시점의 세계만 안다. 새 경로가 생기면 가드도 같이 넓혀야
+  하고, 그걸 사람이 기억하게 두면 안 된다.
 
 - 2026-08-19 **사슬 러너 구현 — 세션 예산은 훅으로 강제한다**
   (`pilot/run_chain.py`, `pilot/chain_budget.py`). CLI에 턴 상한 플래그가
