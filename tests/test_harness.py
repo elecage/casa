@@ -67,6 +67,17 @@ def test_collection_run_is_recognised(command):
 @pytest.mark.parametrize(
     "command",
     [
+        ".venv/Scripts/python.exe -u pilot/run_sessions.py x",
+        "py -3 pilot/run_sessions.py pilot/tasks/orbit-propagator -n 2",
+    ],
+)
+def test_collection_run_is_recognised_with_flags(command):
+    assert collection_guard.is_collection_run("Bash", {"command": command})
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
         "cat pilot/run_sessions.py",
         "grep -n ensure_task_venv pilot/run_sessions.py",
         ".venv/Scripts/python.exe pilot/analysis/ability_early.py results/main2/orbit-sonnet",
@@ -76,6 +87,32 @@ def test_collection_run_is_recognised(command):
 )
 def test_non_collection_commands_pass(command):
     assert not collection_guard.is_collection_run("Bash", {"command": command})
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        # 오탐 1: `.py` 확장자의 py를 인터프리터로 오인했다. 이 기능의 PR
+        # 본문이 첫 피해자였다 — 러너를 설명하기만 해도 차단됐다.
+        'gh pr create --body "수집 잠금은 pilot/run_sessions.py 실행을 차단한다"',
+        "ls -la pilot/run_sessions.py",
+        # 오탐 2: 커밋 메시지가 실행 형태를 인용했을 뿐인데 걸렸다. 그 수정
+        # 커밋이 두 번째 피해자였다.
+        'git commit -m "우회 구멍이었다: find -exec python run_sessions.py"',
+        'echo "실행법은 python pilot/run_sessions.py <task> -n 30 이다"',
+    ],
+)
+def test_merely_mentioning_the_runner_is_not_blocked(command):
+    assert not collection_guard.is_collection_run("Bash", {"command": command})
+
+
+def test_quoted_path_is_still_a_real_invocation():
+    """산문은 지우되 인용된 '경로'는 남긴다 — 공백 유무로 가른다."""
+    assert collection_guard.is_collection_run(
+        "Bash", {"command": 'python "pilot/run_sessions.py" -n 5'}
+    )
+    assert collection_guard.strip_prose_quotes('a "긴 산문 이다" b') == "a   b"
+    assert collection_guard.strip_prose_quotes('a "짧은것" b') == 'a "짧은것" b'
 
 
 def test_non_shell_tools_are_never_blocked():

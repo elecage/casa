@@ -31,14 +31,42 @@ for _s in (sys.stdout, sys.stderr):
 
 SHELL_TOOLS = {"Bash", "PowerShell"}
 
-_RUNNER = re.compile(r"run_sessions\.py")
-_PYTHON = re.compile(r"\bpy(?:thon3?)?(?:\.exe)?\b", re.IGNORECASE)
-# 읽기 전용 조회는 통과시킨다 (cat/grep 등으로 러너를 열어보는 경우).
-_READ_ONLY = re.compile(
-    r"^\s*(?:cat|head|tail|sed|awk|grep|rg|less|more|wc|nl|type|ls|find|git"
-    r"|Get-Content|Select-String|Get-ChildItem)\b",
+# 파이썬 인터프리터가 러너를 **인자로 받아 실행**하는 형태만 잡는다.
+#
+# 첫 판은 "run_sessions.py가 들어 있고 어딘가에 py가 있으면" 이었는데, 그
+# `\bpy\b`가 `.py` 확장자의 py에 그대로 걸렸다. 그래서 러너를 텍스트로
+# 언급하기만 한 명령(이 기능의 PR 본문이 첫 피해자였다)까지 차단됐다.
+# 지금은 인터프리터 토큰 바로 뒤에 러너 경로가 오는 경우만 본다.
+_COLLECTION_RUN = re.compile(
+    r"(?:^|[\s;|&(])"  # 명령 시작 위치
+    r"[^\s;|&]*"  # .venv/Scripts/ 같은 경로 접두사 (선택)
+    r"(?:python3?|py)(?:\.exe)?"  # 인터프리터 토큰
+    r"(?:\s+-\S+)*"  # -u, -3 같은 플래그 (선택)
+    r"\s+[^\s;|&]*run_sessions\.py",
     re.IGNORECASE,
 )
+
+
+_QUOTED = re.compile(r"'[^']*'|\"[^\"]*\"", re.DOTALL)
+
+
+def strip_prose_quotes(command: str) -> str:
+    """따옴표 안의 **산문**을 지운다. 그건 실행이 아니라 데이터다.
+
+    커밋 메시지나 PR 본문이 러너 실행 형태를 인용하기만 해도 차단되는 일이
+    실제로 있었다(이 가드의 수정 커밋이 두 번째 피해자였다). 반대로 인용된
+    **경로**(`python "pilot/run_sessions.py"`)는 진짜 실행이므로 남긴다.
+    가르는 기준은 따옴표 안에 공백이 있는가 — 산문에는 있고 경로에는 없다.
+
+    알려진 빈틈: 공백이 든 경로를 따옴표로 감싼 실행은 놓친다. 잠금은
+    실수를 막는 장치이지 우회를 막는 장치가 아니므로 감수한다.
+    """
+
+    def repl(m: re.Match[str]) -> str:
+        inner = m.group(0)[1:-1]
+        return " " if re.search(r"\s", inner) else m.group(0)
+
+    return _QUOTED.sub(repl, command)
 
 
 def is_collection_run(tool_name: str, tool_input: dict) -> bool:
@@ -48,11 +76,7 @@ def is_collection_run(tool_name: str, tool_input: dict) -> bool:
     command = tool_input.get("command")
     if not isinstance(command, str):
         return False
-    if not _RUNNER.search(command):
-        return False
-    if _READ_ONLY.match(command):
-        return False
-    return bool(_PYTHON.search(command))
+    return bool(_COLLECTION_RUN.search(strip_prose_quotes(command)))
 
 
 def block_message(entry: dict) -> str:
