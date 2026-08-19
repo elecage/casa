@@ -1,0 +1,5 @@
+record_id,site,inspected_at,inspector,status,note
+R-1001,north,2026-03-01T09:15:00+09:00,kim,pass,
+R-1002,north,2026-03-01T11:40:00+09:00,lee,fail,cracked seal
+R-1003,south,2026-03-02T14:05:00+09:00,park,pass,
+R-1005,south,,choi,pass,missing time

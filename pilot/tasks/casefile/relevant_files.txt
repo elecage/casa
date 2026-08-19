@@ -1,0 +1,6 @@
+README.md
+schema/record.md
+schema/fixed_width.md
+casefile.py
+data/site_a.csv
+data/site_b.txt
