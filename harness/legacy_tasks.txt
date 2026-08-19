@@ -1,0 +1,14 @@
+# 하네스 도입(2026-08-19) 이전에 만들어진 과제 — DESIGN.md 검문 면제.
+# 이 11개가 바로 "전부 함수 하나 구현"인 그 집합이다. 면제는 소급 적용을
+# 피하기 위한 것이지 승인이 아니다. 새 과제는 이 목록에 추가하지 말 것.
+buggy-pipeline
+config-parser
+fee-calc
+layered-ledger
+ml-shift
+orbit-propagator
+plugin-add
+rename-sweep
+schedule
+stable-roots
+tabular-b

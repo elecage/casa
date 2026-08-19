@@ -39,6 +39,25 @@ transcripts (JSONL) and hooks. No model internals, no server access.
   accurate, and commit or explicitly note any uncommitted work there.
 - Do not re-litigate logged decisions; ask the user before reversing one.
 
+## Session harness (guardrails on this repo's own sessions)
+
+`harness/` holds machine-enforced guardrails for **our** dev sessions — do not
+confuse it with `hooks/`, which is the instrument that audits the sessions we
+*study*. It exists because the prompt-level rules above did not hold on their
+own: a 7-session collection batch sat unrecorded for three weeks despite the
+same-commit rule. Read `harness/README.md` before changing anything under it.
+
+- `harness/gates.json` is the lock state. While `collection.state` is
+  `locked`, running `pilot/run_sessions.py` is blocked at the tool-call level.
+  **Never flip it to `open` without user approval**, and record the reason in
+  the STATUS.md decision log in the same commit.
+- New tasks under `pilot/tasks/` need a `DESIGN.md` answering
+  `harness/TASK_DESIGN_RUBRIC.md` in full; the pre-commit hook rejects them
+  otherwise. The 11 pre-existing tasks are grandfathered in
+  `harness/legacy_tasks.txt` — that list must not grow.
+- Report in plain language: internal labels (RQ2, F1, W15) and undefined
+  statistics terms trigger a Stop-hook block once per session.
+
 ## Working rules
 
 - Always use the project venv at `.venv/` for every Python command (install,
