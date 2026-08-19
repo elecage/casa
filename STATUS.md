@@ -353,6 +353,7 @@ stable-roots,fee-calc-haiku,stable-roots-haiku,orbit-haiku}/` — 각 n=3.
 | W25 | 끊기 대 계속 평가 + **손익분기 도출** + 다세션 arm 설계 | **분석 완료·arm 승인 대기** (2026-08-19) | `pilot/analysis/restart_eval.py`, `docs/RESTART_EVAL_RESULTS.md`, `docs/MULTISESSION_ARM.md`, 테스트 +5 |
 | W26 | 다세션 arm **설계 확정** (채점·인수인계 측정·규모·소재·조건) | **확정·잠금 해제 승인 대기** (2026-08-19, 유저 결정) | `docs/MULTISESSION_ARM.md` 7절 |
 | W27 | 다세션 과제 `casefile` 마일스톤 명세 (설계 검문 통과) | **설계 완료·구현 대기** (2026-08-19) | `pilot/tasks/casefile/DESIGN.md` |
+| W28 | `casefile` 템플릿·채점기·레퍼런스 3벌 (A·B 둘 다 만점 실증) | **완료** (2026-08-19) | `pilot/tasks/casefile/`, `tests/test_casefile_task.py` (+10) |
 | W-later | sonnet 실패 달성 과제(다중 스케일 절벽형, orbit 외) | 추적 (유저 요구) | `pilot/tasks/<new>/` |
 | W13 | 본 수집 ~180세션 (배치 분할, 원자료 보존) | 대기 | `results/main2/` |
 | W14 | 3축 분석 → 사전 등록 판정 → 집필/학회 결정 | 대기 | 분석 노트 |
@@ -459,6 +460,19 @@ n 증가로 판정 (사후 조작 방지, 결정 로그 기록) / 노벨티 워�
 반드시 stdin으로(명령줄 전달 시 cmd.exe가 여러 줄 인자를 파괴).
 
 ## 결정 로그 (뒤집으려면 유저와 상의)
+
+- 2026-08-19 **`casefile` 채점기 구현 — 설계의 결정적 성질이 실증됐다.**
+  `pilot/tasks/casefile/{template,grade.py,solutions}`. **해석 A로 일관한
+  해답과 B로 일관한 해답이 둘 다 마일스톤 8/8·정합 위반 0으로 만점**이고,
+  규약을 섞은 대조 해답은 **마일스톤은 8/8인데 위반 1**, 시작 템플릿은 0/8이다.
+  A와 B가 둘 다 만점인 것이 핵심 — 한쪽만 통과하면 채점기가 몰래 정답을
+  요구한다는 뜻이고 "어느 쪽을 골랐는지는 채점하지 않는다"가 무너진다.
+  구현 중 추가된 것: **C4 식별자 필드 이름**(`record_id`/`case_id`) — 절반만
+  적용된 이름 변경이 정합 검사 대상이 된다. M1·M2는 `sources` 필드와 시각을
+  요구하도록 조였다(원본 그대로 흘리면 점수를 주던 것을 막음 — 조이기 전
+  템플릿이 1/8이었다). 테스트 10개가 이 성질들을 고정한다.
+  **하네스 두 개가 실제로 작동했다**: 설계 검문이 casefile을 검사해 통과시켰고,
+  카나리아 규칙이 작업 중 `rm -rf`를 차단했다.
 
 - 2026-08-19 **다세션 과제 `casefile` 설계 — 핵심 장치는 "규약 결정이 사슬을
   관통한다"** (`pilot/tasks/casefile/DESIGN.md`). 기능 구현이 아니라 **초반에
