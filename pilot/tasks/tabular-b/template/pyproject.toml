@@ -1,0 +1,8 @@
+[project]
+name = "tabular-b"
+version = "0.1.0"
+description = "Binary classification on tabular features."
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
