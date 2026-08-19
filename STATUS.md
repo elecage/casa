@@ -8,18 +8,23 @@
 **→ W14: ML arm `ml-shift` sonnet 보정 완료(2/3). 다음 할 일 = 힌트
 제거판 n=3 프로브 → 그 결과로 본 수집 조건 확정.**
 
-**다음 명령 (프롬프트 힌트 제거판 프로브):** `pilot/tasks/ml-shift`를 중립
-이름 사본(예: `pilot/tasks/tabular-b`)으로 만들고 (i) 저장소·프롬프트에서
-"shift"/"ml-shift" 이름 제거, (ii) `prompt.txt`의 "Your training/cross-
-validation score on train.csv may not reflect held-out performance —
-optimise for generalisation" 문장 삭제(대신 "채점은 held-out AUROC" 사실만
-남김), 나머지 동일. 그 뒤
-`.venv\Scripts\python.exe pilot/run_sessions.py pilot/tasks/tabular-b -n 3
---model sonnet --out results/cal/tabular-b` (~$1.6, ~20분).
-판정: 성공률이 눈에 띄게 떨어지면 중립판을 본 수집 조건으로 채택(+"힌트
-한 문장이 달성을 가른다"를 발견으로 보고), 거의 같으면 현행 `ml-shift`
-유지하고 힌트 논란은 이 기록으로 방어. **그 다음** 본 수집 sonnet n=30
-(≈$16, 사용 한도 때문에 분할), haiku 대조는 그 후 판단.
+**힌트 제거판 `tabular-b` 제작 완료 (2026-08-19).**
+`pilot/tasks/tabular-b/` — 데이터·오라클·τ(0.73)·레퍼런스·naive 전부
+`ml-shift`와 **바이트 동일**(테스트로 고정), **차이는 문구뿐**: 저장소명
+중립화, prompt·template README·solution 독스트링의 "optimise for
+generalisation"/CV 경고 문장 삭제, pyproject description 중립화. 남긴 것 =
+"채점은 held-out AUROC + 임계"(채점 절차 사실은 알려야 gotcha가 아님).
+함정(`s`)은 이제 train/test 분포 비교로만 발견 가능. 세션이 보는 표면에
+힌트 단어가 다시 들어오면 `tests/test_tabular_b_task.py`가 깨진다(ml-shift
+표면에는 실제로 걸림 = 비공허 검사 확인).
+
+**다음 명령 (프로브):** `.venv\Scripts\python.exe pilot/run_sessions.py
+pilot/tasks/tabular-b -n 3 --model sonnet --out results/cal/tabular-b`
+(~$1.6, ~20분).
+판정(선등록): 성공률이 눈에 띄게 떨어지면 중립판을 본 수집 조건으로 채택
+(+"힌트 한 문장이 달성을 가른다"를 발견으로 보고), 거의 같으면 현행
+`ml-shift` 유지하고 힌트 논란은 이 기록으로 방어. **그 다음** 본 수집
+sonnet n=30 (≈$16, 사용 한도 때문에 분할), haiku 대조는 그 후 판단.
 
 **보정 결과 (2026-07-25 18:05~18:20, sonnet, `results/cal/ml-shift`, 미기록
 분 소급 기재 2026-08-19):** 2/3 통과. held-out AUROC = **0.6423(실패, `s`
