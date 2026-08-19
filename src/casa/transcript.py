@@ -6,18 +6,41 @@ unparseable lines and unfamiliar fields are counted and skipped.
 
 Extracted event stream (in file order):
   - ToolCall: every `tool_use` content item in assistant messages
-  - tool errors: `tool_result` items with is_error truthy
+  - tool results: body text, length and hash of the matching `tool_result`
+    (see "Result bodies" below), plus the is_error flag
   - compaction markers: entries with isCompactSummary, or type == "summary"
     appearing after the first message (leading "summary" lines are session
     titles, not compaction)
+
+Result bodies
+-------------
+Progress judgement (docs/PROGRESS_RULE.md) asks whether a call produced
+anything new, which cannot be answered from the call's *input* alone: two
+identical `pytest` invocations differ only in what they printed. So the
+result body is kept.
+
+Bodies are unbounded in principle (a `cat` of a large file), so `result_text`
+is capped at `max_result_chars` and `result_truncated` records that it was
+cut. `result_hash` is taken over the *full* body before truncation, so exact
+identity comparisons stay correct even for outputs past the cap.
+
+Observed shapes (2026-08-19, one 634-line session): 129 results carried a
+plain string body, 2 carried a list of content blocks. Both are handled;
+anything else yields None rather than raising.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
+
+# Cap on the retained result body per call. Generous enough that ordinary
+# command output survives whole, small enough that loading ~130 sessions for
+# batch analysis does not blow up memory.
+MAX_RESULT_CHARS = 200_000
 
 READ_TOOLS = {"Read", "Grep", "Glob", "LS", "NotebookRead", "WebFetch", "WebSearch"}
 WRITE_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
@@ -60,6 +83,16 @@ class ToolCall:
     uuid: str | None
     after_compaction: int     # number of compaction events seen before this call
     is_error: bool = False    # set when a matching tool_result reports an error
+    # --- result of the call, filled in when a matching tool_result arrives ---
+    result_text: str | None = None    # body, truncated to MAX_RESULT_CHARS
+    result_len: int = 0               # length of the *full* body, in characters
+    result_hash: str | None = None    # sha256 of the full body, before truncation
+    result_truncated: bool = False
+
+    @property
+    def has_result(self) -> bool:
+        """False when no tool_result was matched (e.g. a session cut mid-call)."""
+        return self.result_hash is not None
 
     @property
     def shell_command(self) -> str:
@@ -124,7 +157,37 @@ def _iter_content(message: Any) -> Iterator[dict]:
                 yield item
 
 
-def parse(path: str | Path) -> Session:
+def _result_body(item: dict) -> str | None:
+    """Body text of a tool_result, across the shapes the format uses.
+
+    A plain string is the common case. A list of content blocks appears for
+    mixed results (text plus images); the text blocks are joined and the rest
+    ignored. Unknown shapes give None — never an exception.
+    """
+    content = item.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = [
+            block["text"]
+            for block in content
+            if isinstance(block, dict) and isinstance(block.get("text"), str)
+        ]
+        return "\n".join(parts) if parts else None
+    return None
+
+
+def _attach_result(call: ToolCall, body: str, max_result_chars: int) -> None:
+    call.result_len = len(body)
+    call.result_hash = hashlib.sha256(body.encode("utf-8", "replace")).hexdigest()
+    if max_result_chars >= 0 and len(body) > max_result_chars:
+        call.result_text = body[:max_result_chars]
+        call.result_truncated = True
+    else:
+        call.result_text = body
+
+
+def parse(path: str | Path, max_result_chars: int = MAX_RESULT_CHARS) -> Session:
     session = Session(path=str(path))
     pending: dict[str, ToolCall] = {}  # tool_use_id -> ToolCall awaiting result
     saw_message = False
@@ -185,9 +248,16 @@ def parse(path: str | Path) -> Session:
                 saw_message = True
                 session.n_user_messages += 1
                 for item in _iter_content(entry.get("message")):
-                    if item.get("type") == "tool_result":
-                        tuid = item.get("tool_use_id")
-                        if item.get("is_error") and isinstance(tuid, str) and tuid in pending:
-                            pending[tuid].is_error = True
+                    if item.get("type") != "tool_result":
+                        continue
+                    tuid = item.get("tool_use_id")
+                    if not isinstance(tuid, str) or tuid not in pending:
+                        continue
+                    call = pending[tuid]
+                    if item.get("is_error"):
+                        call.is_error = True
+                    body = _result_body(item)
+                    if body is not None:
+                        _attach_result(call, body, max_result_chars)
 
     return session

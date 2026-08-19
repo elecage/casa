@@ -21,8 +21,12 @@
 
 ### 다음에 할 일 (순서대로, 전부 수집 잠금 유지)
 
-0. **파서 확장** — 도구 결과 본문을 보존한다(현재는 `is_error` 한 비트만
-   꺼내고 버린다). 1·2 양쪽의 선행 조건.
+0. ~~파서 확장~~ → **완료 (2026-08-19).** `ToolCall`에 `result_text`·
+   `result_len`·`result_hash`·`result_truncated`·`has_result` 추가. 해시는
+   **자르기 전 전체 본문**에 대해 계산한다(접두사가 같은 긴 출력 둘이 충돌하면
+   "증거가 바뀌었다"로 오독된다). 실측: 실제 세션 3개에서 호출 469/319/320건
+   중 결과 확보 468/317/319, **상한(20만 자)에 걸린 결과 0건**(최대 44,806자),
+   5MB 트랜스크립트에서 보관 메모리 0.4MB, 건너뛴 줄 0.
 1. **진전 규칙 구현** — 설계 확정됨(`docs/PROGRESS_RULE.md`, 안 5 = 앎·산출·
    증거 세 갈래) + 파생 신호(진전 없는 연속 길이, 증거 정지, 되돌림, 조사
    마비).
@@ -309,6 +313,7 @@ stable-roots,fee-calc-haiku,stable-roots-haiku,orbit-haiku}/` — 각 n=3.
 | W18 | 비교 논문(arXiv 2608.02464) 정밀 분석·갭 7개 특정 + **외부 앱 형태 확정** | **완료** (2026-08-19, 유저 결정) | `docs/COMPARISON_RUNTIME_MONITOR.md`, `docs/ARCHITECTURE.md`, `docs/BADNESS_SIGNALS.md` |
 | W19 | **진전 판정 규칙 확정**(세 갈래) + 끊기 대 계속 검증 설계 | **설계 완료·구현 대기** (2026-08-19, 유저 승인) | `docs/PROGRESS_RULE.md`, `docs/RESTART_EVALUATION.md` |
 | W20 | **경보 규칙 사전 등록** (규칙 7개·외부 출처 문턱·예측·실패 기준 봉인) | **설계 완료·구현 대기** (2026-08-19, 유저 지시) | `docs/ALARM_RULE.md` |
+| W21 | 구현 0단계: 파서가 도구 결과 본문을 보존 | **완료** (2026-08-19) | `src/casa/transcript.py`, `tests/test_transcript_results.py` (+10) |
 | W-later | sonnet 실패 달성 과제(다중 스케일 절벽형, orbit 외) | 추적 (유저 요구) | `pilot/tasks/<new>/` |
 | W13 | 본 수집 ~180세션 (배치 분할, 원자료 보존) | 대기 | `results/main2/` |
 | W14 | 3축 분석 → 사전 등록 판정 → 집필/학회 결정 | 대기 | 분석 노트 |
