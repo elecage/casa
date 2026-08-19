@@ -30,6 +30,13 @@ import tempfile
 import re
 from pathlib import Path
 
+# The report carries whatever a session's own program printed, which may not
+# survive a legacy console codepage. Losing a whole chain's grades to an
+# encode error on the way *out* has happened once; it must not happen again.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 TASK = "casefile"
 TASK_DIR = Path(__file__).resolve().parent
 TEMPLATE = TASK_DIR / "template"

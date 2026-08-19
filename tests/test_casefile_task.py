@@ -164,3 +164,26 @@ def test_reference_parses_a_trailing_z():
     assert got is not None and got.utcoffset().total_seconds() == 0
     assert module.parse_instant("2026-03-01T09:15:00+09:00") is not None
     assert module.parse_instant("") is None
+
+
+def test_grader_survives_non_utf8_output_from_the_session(tmp_path):
+    """Regression: a whole chain's grades were lost to an encode error.
+
+    A session's own program can print bytes that are not valid UTF-8. Those
+    reach the grader's report, and on a legacy console codepage printing the
+    report raised — so every session in that chain graded as None.
+    """
+    import shutil as sh
+
+    work = tmp_path / "w"
+    sh.copytree(TASK / "template", work)
+    (work / "casefile.py").write_bytes(
+        b"import sys\n"
+        b"sys.stdout.buffer.write(b'\xa1\xa1 broken bytes\n')\n"
+    )
+    done = subprocess.run([sys.executable, str(TASK / "grade.py"), str(work)],
+                          capture_output=True, text=True,
+                          encoding="utf-8", errors="replace")
+    assert done.returncode == 0, done.stderr[-400:]
+    result = json.loads(done.stdout)
+    assert result["milestone_score"] == 0
