@@ -144,3 +144,23 @@ def test_sample_data_carries_an_id_collision_across_sources():
     fixed_text = (TASK / "template" / "data" / "site_b.txt").read_text(encoding="utf-8")
     assert "R-1001,north" in csv_text
     assert "R-1001 east" in fixed_text, "same id, different site, other source"
+
+
+def test_reference_parses_a_trailing_z():
+    """Regression: Python 3.10's fromisoformat rejects `Z`, 3.11 accepts it.
+
+    CI found it — variant A (which writes `...Z`) scored 11/12 on 3.10 and
+    12/12 on 3.13. A reference that passes on one interpreter and fails on
+    another makes every later comparison unreliable.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "casefile_ref", SOLUTIONS / "casefile_a.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    got = module.parse_instant("2026-03-01T00:15:00Z")
+    assert got is not None and got.utcoffset().total_seconds() == 0
+    assert module.parse_instant("2026-03-01T09:15:00+09:00") is not None
+    assert module.parse_instant("") is None

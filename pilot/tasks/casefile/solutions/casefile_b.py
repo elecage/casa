@@ -40,6 +40,12 @@ def parse_instant(text):
     text = (text or "").strip()
     if not text:
         return None
+    # Python 3.10's fromisoformat rejects a trailing Z; 3.11 accepts it. The
+    # UTC-normalising variant writes exactly that, so without this line the
+    # reference passes on one interpreter and fails on another — which is how
+    # CI caught it: variant A scored 11/12 on 3.10 and 12/12 on 3.13.
+    if text.endswith(("Z", "z")):
+        text = text[:-1] + "+00:00"
     try:
         stamp = datetime.fromisoformat(text)
     except ValueError:
