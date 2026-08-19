@@ -77,9 +77,15 @@ def grade(task_dir: Path, workdir: Path) -> dict:
     try:
         done = subprocess.run(
             [sys.executable, str(task_dir / "grade.py"), str(workdir)],
-            capture_output=True, text=True, encoding="utf-8", timeout=600)
+            capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=600)
         return json.loads(done.stdout)
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, OSError) as exc:
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, TypeError,
+            OSError) as exc:
+        # A session's own program can emit bytes that are not UTF-8; without
+        # errors="replace" the reader thread dies and stdout comes back None,
+        # which killed a whole chain mid-run. One ungradeable session must
+        # never take the chain with it.
         return {"parse_error": True, "detail": str(exc)[:300]}
 
 

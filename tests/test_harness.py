@@ -346,3 +346,22 @@ def test_report_check_does_not_block_a_continued_turn():
         }
     )
     assert res.returncode == 0
+
+
+def test_every_pilot_runner_is_covered_by_the_lock():
+    """A new runner must not slip past the collection lock.
+
+    This happened: `run_chain.py` was added and the guard still only knew
+    about `run_sessions.py`, so chain collection bypassed the lock entirely.
+    Deriving the check from the filesystem makes the next one fail loudly.
+    """
+    runners = {p.name for p in (ROOT / "pilot").glob("run_*.py")}
+    assert runners, "no runners found — the glob is wrong, not the guard"
+    assert runners <= set(collection_guard.RUNNERS), (
+        f"러너가 잠금 목록에 없다: {sorted(runners - set(collection_guard.RUNNERS))}")
+
+
+@pytest.mark.parametrize("runner", ["run_sessions.py", "run_chain.py"])
+def test_each_runner_is_recognised_as_collection(runner):
+    command = f".venv/Scripts/python.exe pilot/{runner} pilot/tasks/casefile -n 3"
+    assert collection_guard.is_collection_run("Bash", {"command": command})
