@@ -188,8 +188,8 @@ class ProgressTracker:
     _edit_history: dict[str, list[tuple[str, str]]] = field(default_factory=dict)
     _write_states: dict[str, list[str]] = field(default_factory=dict)
     _untrusted_paths: set[str] = field(default_factory=set)
-    # evidence memory — never reset
-    _last_check: dict[str, str | None] = field(default_factory=dict)
+    # evidence memory — never reset, keyed on the result not the command
+    _seen_checks: set[str] = field(default_factory=set)
     # bookkeeping
     _compactions: int = 0
     structured_mutations: int = 0
@@ -328,16 +328,22 @@ class ProgressTracker:
                                             else "shell-write")
 
     def _score_verification(self, call: ToolCall, verdict: ProgressVerdict) -> None:
-        key = _query_key(call)
+        """Evidence is keyed on the *result*, not on the command.
+
+        Keying on the command let a session vary its check slightly — a
+        different `-k` selector each time — and collect the same answer over
+        and over while every run scored as fresh evidence. That is the same
+        hole already closed on the error axis: the information is what came
+        back, not what was typed.
+        """
         digest = normalized_hash(call.result_text)
-        if key not in self._last_check:
-            self._last_check[key] = digest
+        if digest is None:
+            verdict.reason = verdict.reason or "check-no-result"
+            return
+        if digest not in self._seen_checks:
+            self._seen_checks.add(digest)
             verdict.evidence = 1
-            verdict.reason = verdict.reason or "first-check"
-        elif digest is not None and digest != self._last_check[key]:
-            self._last_check[key] = digest
-            verdict.evidence = 1
-            verdict.reason = verdict.reason or "changed-check"
+            verdict.reason = verdict.reason or "new-check-result"
         else:
             verdict.reason = verdict.reason or "same-check"
 

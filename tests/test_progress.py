@@ -185,7 +185,20 @@ def test_changed_check_is_evidence():
     t = ProgressTracker()
     t.observe(shell(0, "pytest", result="3 failed"))
     better = t.observe(shell(1, "pytest", result="1 failed"))
-    assert better.evidence == 1 and better.reason == "changed-check"
+    assert better.evidence == 1 and better.reason == "new-check-result"
+
+
+def test_varying_the_check_command_does_not_manufacture_evidence():
+    """Evidence is keyed on the result, not the command.
+
+    Keying on the command let a session change its `-k` selector each round,
+    collect the same answer every time, and score fresh evidence on each —
+    the same hole already closed on the error axis.
+    """
+    t = ProgressTracker()
+    verdicts = [t.observe(shell(i, f"pytest -k t{i}", result="3 failed"))
+                for i in range(4)]
+    assert [v.evidence for v in verdicts] == [1, 0, 0, 0]
 
 
 # ------------------------------------------------ the shape we exist to catch
