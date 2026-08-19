@@ -1,12 +1,14 @@
 {
   "_comment": "세션 하네스의 잠금 상태. 사람이 읽고 고치는 파일이며, 커밋된다. 상태를 바꾸는 커밋은 사유를 STATUS.md 결정 로그에도 남긴다.",
   "collection": {
-    "state": "locked",
+    "state": "open",
     "since": "2026-08-20",
-    "reason": "casefile 사슬 보정이 끝났고 결과가 본 수집을 지지하지 않는다. 12세션 전부 6/8 동일 점수, 같은 두 항목 실패, 세션 간 진척 전부 0. 변동이 없는 원인은 기계가 아니라 과제다 - 첫 세션이 다 끝내고, 남은 세션에 목표가 없고, 남은 두 항목은 100%가 걸리는 함정이라 변별력이 0이다. 이대로 본 수집하면 같은 평탄선을 30배로 얻는다. 전문 docs/CHAIN_CALIBRATION.md.",
-    "unlock_requires": "과제 설계를 고쳐 (1) 여섯 세션 분량의 일감, (2) 뒤 세션이 볼 목표, (3) 100%가 아닌 변별 지점을 확보한 뒤 재보정하고, 유저 승인을 STATUS.md 결정 로그에 기록한 다음 state를 open으로 바꾼다.",
-    "blocks": "pilot/run_sessions.py 또는 pilot/run_chain.py 실행 (러너 목록은 harness/collection_guard.py의 RUNNERS).",
-    "history": "2026-08-19 보정 범위로 개방 -> 2026-08-20 보정 완료 후 재잠금."
+    "scope": "casefile 백로그판 재보정 (사슬 3 x 세션 6, 예산 60호출). 이 범위 밖의 수집은 별도 승인 사항이다.",
+    "reason": "해제 조건 충족. 1차 보정이 평탄선을 보였고 원인(같은 프롬프트 반복 + 일감 부족)을 진단해 과제를 개정했다. 백로그 방식, 마일스톤 12, 허위 표기율 측정. 레퍼런스 재검증에서 A와 B가 둘 다 12/12에 위반 0, 섞은 것이 12/12에 위반 1. 유저 승인 2026-08-20.",
+    "relock_when": "재보정이 끝나면 결과를 보고 본 수집 여부를 결정한다. 사전 예측 3개 대조 후 판단.",
+    "unlock_requires": "(충족됨) 과제 개정 + 레퍼런스 재검증 + 유저 승인. locked로 되돌릴 때도 사유를 STATUS.md 결정 로그에 남긴다.",
+    "blocks": "잠겨 있을 때 pilot/run_sessions.py 또는 pilot/run_chain.py 실행 (러너 목록은 harness/collection_guard.py의 RUNNERS).",
+    "history": "2026-08-19 1차 보정용 개방 -> 2026-08-20 평탄선으로 재잠금 -> 2026-08-20 백로그판 재보정용 재개방."
   },
   "report_check": {
     "state": "on",
