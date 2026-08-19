@@ -88,6 +88,7 @@ def run(workdir: Path, args: list[str]) -> tuple[int, str]:
     try:
         done = subprocess.run([sys.executable, "casefile.py", *args],
                               cwd=workdir, capture_output=True, text=True,
+                              encoding="utf-8", errors="replace",
                               timeout=TIMEOUT)
         return done.returncode, (done.stdout + done.stderr)[-800:]
     except subprocess.TimeoutExpired:

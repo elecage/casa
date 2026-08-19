@@ -188,3 +188,19 @@ def test_completed_sessions_stops_at_the_first_gap(tmp_path):
     for i in (1, 2, 4):
         (tmp_path / f"session-c01s{i:02d}.json").write_text("{}", encoding="utf-8")
     assert run_chain.completed_sessions(tmp_path, 1) == 2
+
+
+def test_ungradeable_session_does_not_kill_the_chain(tmp_path, monkeypatch):
+    """A session's own output can contain non-UTF-8 bytes.
+
+    Without errors="replace" the subprocess reader thread dies and stdout
+    comes back None — which took down a whole six-session chain mid-run.
+    """
+    import subprocess as sp
+
+    class Broken:
+        stdout = None
+
+    monkeypatch.setattr(sp, "run", lambda *a, **k: Broken())
+    out = run_chain.grade(tmp_path, tmp_path)
+    assert out["parse_error"] is True
