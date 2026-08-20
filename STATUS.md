@@ -50,6 +50,10 @@
 1. **무대 저장소** — 동작하는 `usagectl`, 시작 시 초록 테스트, 함정 11개
    배치. **넓게 짓는다**(관련 파일 70개 상당, 어댑터·리포트 절 여럿).
    기계적 반복이 되지 않게 어댑터마다 사정을 다르게 한다.
+   **코어는 2026-08-20에 됐다** — 어댑터 셋, 리포트 절 넷, 보이는 테스트
+   18개 초록, 함정 재료 T3~T10 배치. `tests/test_release_traps_template.py`가
+   함정이 조용히 지워지는 것을 막는다. **남은 것은 넓이 확장**(현재 관련
+   파일 21개 → 70개 상당)**과 T1·T2·T11 재료 배치**.
 2. **함정 탐지기 11개 + 세 상태 판정** — 안 빠짐 / 빠졌다가 회복 / 빠진 채
    종료. 회복 판정 규칙이 미결이다(`docs/PROCESS_TRAPS.md` 마지막 절).
 3. **레퍼런스 궤적 3벌** — 함정 전부 회피 / 두 개에 빠졌다 회복 / 여럿에
@@ -199,7 +203,8 @@
 | W34 | 실험을 둘로 가름 + 과제 설계 전환 1차 시도 `release-drift` | **1차 반려 → 재설계 완료** (2026-08-20). 실험 분리는 유효, 과제는 결과 채점이라 반려 | `docs/TWO_EXPERIMENTS.md` |
 | W34b | **과정 채점으로 재설계** — 함정 목록 10종 + 무대 `release-traps` + 앵커·설계 검문에 "결과로 정의 금지" 기계 강제 | **설계 완료·구현 대기** (2026-08-20, 유저 지적) | `docs/PROCESS_TRAPS.md`, `pilot/tasks/release-traps/DESIGN.md`, `harness/anchor.md`, `harness/TASK_DESIGN_RUBRIC.md` 8번 |
 | W34d | 기존 220세션 함정 발생률 실측 (친숙도 가설 사전 등록 → 지지되지 않음, 길이 관찰) | **완료** (2026-08-20) | `src/casa/traps.py`, `pilot/analysis/trap_rates.py`, `docs/TRAP_RATES_RETRO.md` |
-| W35 | `release-traps` 구현 (무대·함정 탐지기 10·세 상태 판정·레퍼런스 궤적 3벌) | 대기 — **무대 크기 재결정 선행** | `pilot/tasks/release-traps/` |
+| W35a | 회복 판정 규칙 + 관문 계측 (유저 승인 5건) | **완료** (2026-08-20) | `docs/RECOVERY_RULE.md`, 설계 검문 8번 |
+| W35 | `release-traps` 구현 (무대·함정 탐지기 11·세 상태 판정·레퍼런스 궤적 3벌) | **진행 중** — 코어 완료(2026-08-20), 넓이 확장·채점기·스냅숏 러너·레퍼런스 궤적 남음 | `pilot/tasks/release-traps/`, `tests/test_release_traps_template.py` |
 | W-later | sonnet 실패 달성 과제(다중 스케일 절벽형, orbit 외) | 추적 (유저 요구) | `pilot/tasks/<new>/` |
 | W13 | 본 수집 ~180세션 (배치 분할, 원자료 보존) | 대기 | `results/main2/` |
 | W14 | 3축 분석 → 사전 등록 판정 → 집필/학회 결정 | 대기 | 분석 노트 |
