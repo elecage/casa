@@ -232,11 +232,27 @@ README는 반올림을, 스키마는 버림을 요구한다. 둘 다 만족시�
 
 ## 7. 기술적 실패 분리
 채점기가 산출물 없음·시간 초과·동일 호출 반복을 별도 코드로 내보낸다.
+
+## 8. 과정 채점
+세션 점수는 최종 산출물이 아니라 빠진 함정 수로 매긴다. 있는 함수를 다시
+구현하는 함정과 조기 포기 함정을 심었고, 안 빠짐·회복·빠진 채 종료를
+따로 기록한다. 통과/실패는 부수 기록으로만 남긴다.
 """
 
 
 def test_filled_design_passes():
     assert check_design_ok(FILLED)
+
+
+def test_process_scoring_section_is_required():
+    """8번(과정 채점)이 없으면 거부된다.
+
+    이 항목이 없던 동안 검문은 과제가 결과 채점으로 되돌아가는 것을 막지
+    못했고, 2026-08-20에 실제로 되돌아갔다.
+    """
+    without = FILLED[: FILLED.index("## 8. 과정 채점")] + '"""'
+    problems = check_task_design.check_design(without)
+    assert any("8." in p for p in problems)
 
 
 def check_design_ok(text: str) -> bool:
