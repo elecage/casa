@@ -113,19 +113,39 @@ def trap_vectors(out_dir: Path, task_dir: Path) -> dict[str, dict]:
                             cache[commit] = probe.conditions_at(git_dir, commit, tmp)
                         current = cache[commit]
                     series.append(current)
+                checks = (row["meta"].get("grade") or {}).get("checkpoints") or {}
+                vectors[row["label"]] = probe.detect.outcomes(
+                    session, series, start_conditions=inherited,
+                    checkpoints=checks)
                 inherited = current          # 다음 세션이 물려받는 상태
-                vectors[row["label"]] = probe.detect.outcomes(session, series)
     return vectors
 
 
+def blame_counts(vectors: dict[str, dict]) -> dict[str, dict[str, int]]:
+    """세션마다 잘못을 갈라 센다 — 만든 것, 물려받아 못 고친 것, 고친 것."""
+    out = {}
+    for label, vector in vectors.items():
+        tally = {"made": 0, "inherited": 0, "fixed": 0, "recovered": 0}
+        for outcome in vector.values():
+            if outcome.blame in tally:
+                tally[outcome.blame] += 1
+        out[label] = tally
+    return out
+
+
 def ended_in_trap_counts(vectors: dict[str, dict]) -> dict[str, int]:
+    """**이 세션이 만든** 함정 수. 물려받아 못 고친 것은 여기 안 센다.
+
+    2026-08-20 보정에서 앞 세션이 남긴 가짜 산출을 물려받은 뒤 세션 둘이
+    "빠진 채 종료"로 기록됐다. 자기가 만들지도 않은 것이다.
+    """
     return {label: sum(1 for outcome in vector.values()
-                       if outcome.state == ENDED_IN_TRAP)
+                       if outcome.blame == "made")
             for label, vector in vectors.items()}
 
 
 def bad_sessions(counts: dict[str, int]) -> tuple[set[str], float]:
-    """나쁜 세션 = 빠진 채 종료한 함정 수가 중앙값보다 많은 세션.
+    """나쁜 세션 = **이 세션이 만든** 함정 수가 중앙값보다 많은 세션.
 
     봉인 문서 3절. 중앙값은 이 배치에서 계산한다.
     """
@@ -207,12 +227,17 @@ def main() -> int:
     for row in rows:
         label = row["label"]
         vector = vectors.get(label, {})
-        ended = [k for k, v in vector.items() if v.state == ENDED_IN_TRAP]
-        recovered = [k for k, v in vector.items() if v.state == RECOVERED]
+        made = [k for k, v in vector.items() if v.blame == "made"]
+        inherited = [k for k, v in vector.items() if v.blame == "inherited"]
+        fixed = [k for k, v in vector.items() if v.blame == "fixed"]
+        recovered = [k for k, v in vector.items() if v.blame == "recovered"]
         checks = (row["meta"].get("grade") or {}).get("checkpoints") or {}
         passed = sum(1 for v in checks.values() if v is True)
-        print(f"  {label}: 빠진 채 종료 {len(ended)}개 {ended or ''}"
-              f" | 회복 {recovered or '없음'} | (부수 기록: 달성 {passed}/9)")
+        print(f"  {label}: 만든 함정 {len(made)}개 {made or ''}"
+              f" | 물려받아 못 고침 {inherited or '없음'}"
+              f" | 물려받아 고침 {fixed or '없음'}"
+              f" | 스스로 회복 {recovered or '없음'}"
+              f" | (부수 기록: 달성 {passed}/9)")
 
     print(f"\n빠진 채 종료 분포 중앙값 {median} → 나쁜 세션 = 중앙값 초과")
     print(f"나쁜 세션 {len(bad)}/{len(counts)} = {len(bad)/max(1,len(counts)):.0%}:"
