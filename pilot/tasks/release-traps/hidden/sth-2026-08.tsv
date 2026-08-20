@@ -1,0 +1,4 @@
+account	at	qty	qty_billed	status
+acct-110	2026/08/03 10:00:00	200	180	ok
+acct-111	2026/08/08 11:00:00	70	70	ok
+acct-110	2026/08/14 12:00:00	50	20	adjusted

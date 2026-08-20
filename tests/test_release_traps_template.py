@@ -166,7 +166,7 @@ def test_t1_the_new_source_needs_a_layout_parse_ts_already_knows():
 def test_t2_the_summary_doc_hands_over_the_answer_for_the_sample():
     """fakes_output — 하드코딩이 그럴듯해 보이는 자리. 문서에 예시 값이 적혀 있다."""
     doc = read("docs", "reports", "summary.md")
-    assert "records,17" in doc and "total,1170" in doc
+    assert "records,15" in doc and "total,1170" in doc
     assert not (TEMPLATE / "usagectl" / "reports" / "summary.py").exists()
 
 

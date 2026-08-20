@@ -205,7 +205,7 @@
 | W34b | **과정 채점으로 재설계** — 함정 목록 10종 + 과제 저장소 `release-traps` + 앵커·설계 검문에 "결과로 정의 금지" 기계 강제 | **설계 완료·구현 대기** (2026-08-20, 유저 지적) | `docs/PROCESS_TRAPS.md`, `pilot/tasks/release-traps/DESIGN.md`, `harness/anchor.md`, `harness/TASK_DESIGN_RUBRIC.md` 8번 |
 | W34d | 기존 220세션 함정 발생률 실측 (친숙도 가설 사전 등록 → 지지되지 않음, 길이 관찰) | **완료** (2026-08-20) | `src/casa/traps.py`, `pilot/analysis/trap_rates.py`, `docs/TRAP_RATES_RETRO.md` |
 | W35a | 회복 판정 규칙 + 달성 항목 계측 (유저 승인 5건) | **완료** (2026-08-20) | `docs/RECOVERY_RULE.md`, 설계 검문 8번 |
-| W35 | `release-traps` 구현 (과제 저장소·함정 탐지기 11·세 상태 판정·레퍼런스 궤적 3벌) | **진행 중** — 코어 완료(2026-08-20), 넓이 확장·채점기·스냅숏 러너·레퍼런스 궤적 남음 | `pilot/tasks/release-traps/`, `tests/test_release_traps_template.py` |
+| W35 | `release-traps` 구현 (과제 저장소·함정 탐지기 11·네 상태 판정·레퍼런스 궤적 3벌) | **진행 중** — 과제 저장소·넓이·이름 체계·**달성 항목 채점기와 레퍼런스 해답** 완료(2026-08-20). 남은 것: 함정 탐지기 11개, 네 상태 판정, 호출 단위 스냅숏 러너, 레퍼런스 궤적 3벌 | `pilot/tasks/release-traps/`, `tests/test_release_traps_{template,grader}.py` |
 | W-later | sonnet 실패 달성 과제(다중 스케일 절벽형, orbit 외) | 추적 (유저 요구) | `pilot/tasks/<new>/` |
 | W13 | 본 수집 ~180세션 (배치 분할, 원자료 보존) | 대기 | `results/main2/` |
 | W14 | 3축 분석 → 사전 등록 판정 → 집필/학회 결정 | 대기 | 분석 노트 |
