@@ -90,7 +90,7 @@ def resolve(series: list[bool | None], *, reached: bool = True,
     """호출별 "지금 빠져 있는가" 열을 네 상태 중 하나로 접는다.
 
     `reached`가 거짓이면 나머지는 보지 않는다 — 기회에 닿지 않은 세션을
-    "안 빠졌다"로 적으면, 저장소가 넓을수록 세션이 훌륭해 보이는 가짜
+    "안 빠졌다"로 적으면, 저장소가 손댈 자리가 많을수록 세션이 훌륭해 보이는 가짜
     결과가 나온다.
     """
     undecidable = sum(1 for v in series if v is None)
