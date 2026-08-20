@@ -1,4 +1,4 @@
-# eta
+# sjs
 
 한 줄에 객체 하나(JSON Lines). 다른 원천과 달리 상태 필드 이름이
 `status`가 아니라 `state`다.

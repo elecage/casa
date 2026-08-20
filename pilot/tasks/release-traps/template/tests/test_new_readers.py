@@ -6,23 +6,23 @@
 
 from pathlib import Path
 
-from usagectl.readers import epsilon, eta, zeta
+from usagectl.readers import ssc, sjs, sth
 
 DATA = Path(__file__).resolve().parents[1] / "data"
 
 
-def test_epsilon_skips_comment_lines():
-    records = epsilon.read(DATA / "epsilon-2026-07.txt")
+def test_ssc_skips_comment_lines():
+    records = ssc.read(DATA / "ssc-2026-07.txt")
     assert len(records) == 3
-    assert all(r.source == "epsilon" for r in records)
+    assert all(r.source == "ssc" for r in records)
 
 
-def test_zeta_reads_the_header_row():
-    records = zeta.read(DATA / "zeta-2026-07.tsv")
+def test_sth_reads_the_header_row():
+    records = sth.read(DATA / "sth-2026-07.tsv")
     assert len(records) == 3
     assert records[0].account == "acct-008"
 
 
-def test_eta_uses_the_state_field():
-    records = eta.read(DATA / "eta-2026-07.jsonl")
+def test_sjs_uses_the_state_field():
+    records = sjs.read(DATA / "sjs-2026-07.jsonl")
     assert {r.status for r in records} == {"ok", "adjusted"}

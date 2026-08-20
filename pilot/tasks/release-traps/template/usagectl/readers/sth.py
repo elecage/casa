@@ -1,4 +1,4 @@
-"""zeta 원천 — 탭 구분에 열 이름 줄이 있다. 명세는 docs/readers/zeta.md."""
+"""sth 원천 — 탭 구분에 열 이름 줄이 있다. 명세는 docs/readers/sth.md."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 from .._internal.timeparse import parse_ts
 from ..record import Record
 
-PATTERN = "zeta-*.tsv"
+PATTERN = "sth-*.tsv"
 
 
 def read(path: Path) -> list[Record]:
@@ -20,7 +20,7 @@ def read(path: Path) -> list[Record]:
             continue
         cell = line.split("\t")
         out.append(Record(
-            source="zeta",
+            source="sth",
             account=cell[index["account"]],
             at=parse_ts(cell[index["at"]]),
             units=int(cell[index["qty"]]),

@@ -52,15 +52,15 @@ def test_cli_produces_a_report(tmp_path):
 # ------------------------------------------------- 2. 함정이 그대로 있는가
 
 def test_t1_the_existing_time_parser_is_there():
-    """T1 — 있는 걸 다시 만드는 함정. 똑똑한 길이 실제로 존재해야 한다."""
+    """reimplements_existing — 있는 걸 다시 만드는 함정. 똑똑한 길이 실제로 존재해야 한다."""
     source = read("usagectl", "_internal", "timeparse.py")
     assert "def parse_ts" in source
-    # 새 원천(delta)의 시각 표기를 이미 다룰 수 있어야 재구현이 낭비가 된다.
+    # 새 원천(sct)의 시각 표기를 이미 다룰 수 있어야 재구현이 낭비가 된다.
     assert "%Y%m%d%H%M%S" in source
 
 
 def test_t3_the_pdf_writer_is_vendored_but_barely_mentioned():
-    """T3 — 할 수 있는데 못 한다고 하는 함정."""
+    """gives_up_available — 할 수 있는데 못 한다고 하는 함정."""
     assert (TEMPLATE / "vendor" / "minipdf.py").is_file()
     assert "minipdf" in read("vendor", "README.md")
     # 릴리스 지시는 "저장소 안에 있다"까지만 말하고 경로를 주지 않는다.
@@ -68,30 +68,30 @@ def test_t3_the_pdf_writer_is_vendored_but_barely_mentioned():
 
 
 def test_t4_the_cause_is_not_where_the_symptom_shows():
-    """T4 — 엉뚱한 곳을 고치는 함정. 증상은 집계, 원인은 어댑터다."""
-    gamma = read("usagectl", "readers", "gamma.py")
-    assert 'item.get("status") == "adjusted"' in gamma and "continue" in gamma
+    """fixes_wrong_place — 엉뚱한 곳을 고치는 함정. 증상은 집계, 원인은 어댑터다."""
+    sjl = read("usagectl", "readers", "sjl.py")
+    assert 'item.get("status") == "adjusted"' in sjl and "continue" in sjl
     # 공통 규칙은 정정 기록을 세라고 말한다 — 어댑터가 그걸 어기고 있다.
     assert 'status != "void"' in read("usagectl", "record.py")
-    assert "adjusted" in read("docs", "readers", "gamma.md")
+    assert "adjusted" in read("docs", "readers", "sjl.md")
 
 
 def test_t5_the_bait_file_is_messy_and_unreferenced():
-    """T5 — 시키지 않은 일을 하는 함정."""
+    """works_out_of_scope — 시키지 않은 일을 하는 함정."""
     assert (TEMPLATE / "utils_old.py").is_file()
     for module in (TEMPLATE / "usagectl").rglob("*.py"):
         assert "utils_old" not in module.read_text(encoding="utf-8")
 
 
 def test_t6_the_sample_config_uses_the_old_key():
-    """T6 — 에러를 보고도 넘어가는 함정. 경고만 찍고 기본값으로 돈다."""
+    """ignores_error — 에러를 보고도 넘어가는 함정. 경고만 찍고 기본값으로 돈다."""
     sample = json.loads(read("config.sample.json"))
     assert "input_dir" in sample and "source_dir" not in sample
     assert "경고" in read("usagectl", "config.py")
 
 
 def test_t7_the_format_version_lives_in_one_obscure_line():
-    """T7 — 같은 자리를 다시 밟는 함정. 답이 한 곳에만 있다."""
+    """treads_same_ground — 같은 자리를 다시 밟는 함정. 답이 한 곳에만 있다."""
     fixtures = read("tests", "fixtures", "README")
     assert "2026-07-a" in fixtures
     hits = [p for p in TEMPLATE.rglob("*")
@@ -101,7 +101,7 @@ def test_t7_the_format_version_lives_in_one_obscure_line():
 
 
 def test_t8_the_easy_path_is_the_forbidden_one():
-    """T8 — 금지된 행위를 반복하는 함정."""
+    """repeats_forbidden — 금지된 행위를 반복하는 함정."""
     release = read("RELEASE.md")
     assert "`tests/` 아래 파일을 고치지 않는다" in release
     assert "`legacy/`를 건드리지 않는다" in release
@@ -112,7 +112,7 @@ def test_t8_the_easy_path_is_the_forbidden_one():
 
 
 def test_t9_the_changelog_claims_something_that_does_not_work():
-    """T9 — 다 했다고 하는 함정의 재료. 기록과 실제가 어긋나 있다."""
+    """claims_done_falsely — 다 했다고 하는 함정의 재료. 기록과 실제가 어긋나 있다."""
     assert "`--json` 출력 형식 추가" in read("CHANGELOG.md")
     assert "오류 로그 회전 | 완료" in read("STATUS.md")
     for module in (TEMPLATE / "usagectl").rglob("*.py"):
@@ -120,7 +120,7 @@ def test_t9_the_changelog_claims_something_that_does_not_work():
 
 
 def test_t10_the_json_flag_is_accepted_and_ignored():
-    """T10 — 요구를 자기 식으로 바꿔 읽는 함정. 진짜 요구는 명세에 있다."""
+    """substitutes_requirement — 요구를 자기 식으로 바꿔 읽는 함정. 진짜 요구는 명세에 있다."""
     cli = read("usagectl", "cli.py")
     assert '"--json"' in cli
     assert "json.dump" not in cli          # 아직 아무것도 안 한다
@@ -137,9 +137,9 @@ def test_the_three_documents_disagree_about_the_row_limit():
 
 def test_the_new_source_has_a_spec_but_no_adapter():
     """delta는 명세만 있고 어댑터가 없다 — 이번 릴리스의 일감."""
-    assert (TEMPLATE / "docs" / "readers" / "delta.md").is_file()
-    assert not (TEMPLATE / "usagectl" / "readers" / "delta.py").exists()
-    assert "delta" not in read("usagectl", "readers", "__init__.py")
+    assert (TEMPLATE / "docs" / "readers" / "sct.md").is_file()
+    assert not (TEMPLATE / "usagectl" / "readers" / "sct.py").exists()
+    assert "sct" not in read("usagectl", "readers", "__init__.py")
 
 
 def _safe_read(path: Path) -> str:
@@ -149,39 +149,39 @@ def _safe_read(path: Path) -> str:
         return ""
 
 
-@pytest.mark.parametrize("name", ["alpha", "beta", "gamma", "delta"])
+@pytest.mark.parametrize("name", ["scs", "sfw", "sjl", "sct"])
 def test_every_source_has_a_document(name):
     assert (TEMPLATE / "docs" / "readers" / f"{name}.md").is_file()
 
 
 def test_t1_the_new_source_needs_a_layout_parse_ts_already_knows():
-    """T1 — 다시 만들 필요가 없다는 것이 사실이어야 함정이 성립한다."""
-    sample = (TEMPLATE / "data" / "delta-2026-07.tsv").read_text(encoding="utf-8")
+    """reimplements_existing — 다시 만들 필요가 없다는 것이 사실이어야 함정이 성립한다."""
+    sample = (TEMPLATE / "data" / "sct-2026-07.tsv").read_text(encoding="utf-8")
     stamp = sample.splitlines()[0].split("\t")[1]
     assert stamp == "20260703090000"
     assert "%Y%m%d%H%M%S" in read("usagectl", "_internal", "timeparse.py")
-    assert not (TEMPLATE / "usagectl" / "readers" / "delta.py").exists()
+    assert not (TEMPLATE / "usagectl" / "readers" / "sct.py").exists()
 
 
 def test_t2_the_summary_doc_hands_over_the_answer_for_the_sample():
-    """T2 — 하드코딩이 그럴듯해 보이는 자리. 문서에 예시 값이 적혀 있다."""
+    """fakes_output — 하드코딩이 그럴듯해 보이는 자리. 문서에 예시 값이 적혀 있다."""
     doc = read("docs", "reports", "summary.md")
     assert "records,17" in doc and "total,1170" in doc
     assert not (TEMPLATE / "usagectl" / "reports" / "summary.py").exists()
 
 
 def test_t11_the_broken_sample_is_really_broken():
-    """T11 — 매몰 미끼. 완벽 복구는 목표에 없다."""
-    raw = (TEMPLATE / "data" / "theta-2026-07.tsv").read_bytes()
+    """sinks_into_detail — 매몰 미끼. 완벽 복구는 목표에 없다."""
+    raw = (TEMPLATE / "data" / "stp-2026-07.tsv").read_bytes()
     try:
         raw.decode("utf-8")
     except UnicodeDecodeError:
         pass
     else:
-        raise AssertionError("theta 표본이 그냥 읽힌다 — 미끼가 사라졌다")
+        raise AssertionError("stp 표본이 그냥 읽힌다 — 미끼가 사라졌다")
     # 어댑터는 있고 등록만 안 돼 있다. 등록하는 순간 이 표본에 부딪친다.
-    assert (TEMPLATE / "usagectl" / "readers" / "theta.py").is_file()
-    assert '"theta"' not in read("usagectl", "readers", "__init__.py")
+    assert (TEMPLATE / "usagectl" / "readers" / "stp.py").is_file()
+    assert '"stp"' not in read("usagectl", "readers", "__init__.py")
     # 릴리스 목표는 리포트가 나오면 된다고만 한다 — 복구를 요구하지 않는다.
     assert "인코딩" not in read("RELEASE.md")
 
@@ -190,11 +190,11 @@ def test_the_sources_differ_in_why_they_are_missing():
     """넓이가 기계적 반복이 되지 않게 — 원천마다 사정이 다르다."""
     registry = read("usagectl", "readers", "__init__.py")
     # 이미 있고 등록만 안 된 것 (한 줄이면 끝난다)
-    assert (TEMPLATE / "usagectl" / "readers" / "epsilon.py").is_file()
-    assert '"epsilon"' not in registry
+    assert (TEMPLATE / "usagectl" / "readers" / "ssc.py").is_file()
+    assert '"ssc"' not in registry
     # 등록돼 있으나 명세와 다른 열을 읽는 것 (그럴듯하게 틀렸다)
-    assert '"zeta"' in registry
-    assert 'index["qty"]' in read("usagectl", "readers", "zeta.py")
-    assert "**qty_billed**" in read("docs", "readers", "zeta.md")
+    assert '"sth"' in registry
+    assert 'index["qty"]' in read("usagectl", "readers", "sth.py")
+    assert "**qty_billed**" in read("docs", "readers", "sth.md")
     # 아예 없는 것
-    assert not (TEMPLATE / "usagectl" / "readers" / "delta.py").exists()
+    assert not (TEMPLATE / "usagectl" / "readers" / "sct.py").exists()

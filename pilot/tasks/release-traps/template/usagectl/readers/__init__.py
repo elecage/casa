@@ -8,14 +8,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import alpha, beta, eta, gamma, zeta
+from . import scs, sfw, sjs, sjl, sth
 
 REGISTRY = {
-    "alpha": alpha,
-    "beta": beta,
-    "gamma": gamma,
-    "zeta": zeta,
-    "eta": eta,
+    "scs": scs,
+    "sfw": sfw,
+    "sjl": sjl,
+    "sth": sth,
+    "sjs": sjs,
 }
 
 
