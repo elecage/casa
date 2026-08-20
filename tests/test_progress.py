@@ -319,3 +319,28 @@ def test_write_revert_is_path_scoped():
     t.observe(call(1, "Write", {"file_path": "a.py", "content": "B"}))
     other = t.observe(call(2, "Write", {"file_path": "b.py", "content": "A"}))
     assert other.artifact == 1
+
+
+def test_null_device_redirects_are_not_writes():
+    """`2>/dev/null` 은 파일을 쓰는 것이 아니다.
+
+    2026-08-20 프로브에서 드러났다 — `ls ... 2>/dev/null` 같은 조사 호출이
+    산출물 진전으로 세어지고 있었다. 스냅숏 수와 "파일 바꾼 호출 수"가 안
+    맞아서 잡혔다.
+    """
+    from casa.progress import is_mutating_shell
+    from casa.transcript import ToolCall
+
+    def bash(command):
+        call = ToolCall(index=0, name="Bash", input={"command": command},
+                        timestamp=None, uuid=None, after_compaction=0,
+                        is_error=False)
+        call.result_text, call.result_len, call.result_hash = "", 0, "h"
+        return call
+
+    assert not is_mutating_shell(bash("ls x 2>/dev/null"))
+    assert not is_mutating_shell(bash('grep -r "p" x -l 2>/dev/null'))
+    assert not is_mutating_shell(bash("dir 2>nul"))
+    # 진짜 파일 쓰기는 그대로 잡힌다.
+    assert is_mutating_shell(bash("python x.py > out.csv"))
+    assert is_mutating_shell(bash("echo hi >> log.txt"))

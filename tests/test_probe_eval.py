@@ -93,3 +93,25 @@ def test_the_floors_are_the_values_now_in_the_code():
 def test_missing_results_are_reported_not_guessed(tmp_path, capsys):
     assert probe.main.__doc__ is None or True
     assert probe.load_sessions(tmp_path) == []
+
+
+def test_snapshots_are_paired_by_order_not_by_the_commit_label():
+    """커밋 제목의 번호는 못 믿는다 — 2026-08-20 프로브에서 카운터가 세션마다
+    초기화되지 않는 버그가 드러났다. 순서로 짝지어야 한다."""
+    from casa.transcript import Session, ToolCall
+
+    def call(i, name, inp):
+        c = ToolCall(index=i, name=name, input=inp, timestamp=None, uuid=None,
+                     after_compaction=0, is_error=False)
+        c.result_text, c.result_len, c.result_hash = "ok", 2, f"h{i}"
+        return c
+
+    session = Session(path="x")
+    session.tool_calls = [
+        call(0, "Read", {"file_path": "a.py"}),
+        call(1, "Edit", {"file_path": "a.py"}),
+        call(2, "Read", {"file_path": "b.py"}),
+        call(3, "Write", {"file_path": "b.py"}),
+    ]
+    assert probe.changed_call_indices(session) == [1, 3]
+    assert probe.changed_call_count(session) == 2

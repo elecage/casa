@@ -247,6 +247,9 @@ def run_one(task_dir: Path, out_dir: Path, index: int, model: str | None,
     t0 = time.time()
     cli = run_headless(workdir, prompt, model, timeout_s, venv_bin)
     wall_s = round(time.time() - t0, 1)
+    # 마지막 한 번. 세션의 끝 편집은 훅이 못 잡고 끝나는 수가 있다
+    # (2026-08-20 프로브에서 여섯 중 하나가 그랬다).
+    snapshot.take(workdir)
 
     summary: dict = {"task": task_dir.name, "session_index": index,
                      "wall_s": wall_s, "cli": cli}

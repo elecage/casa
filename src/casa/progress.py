@@ -85,7 +85,11 @@ _SHELL_MUTATE_PREFIXES = (
 # `sed -i` edits in place; plain `sed` does not.
 _SED_INPLACE = re.compile(r"\bsed\b[^|;]*\s-i\b")
 # Redirection into a file. `2>&1` merges streams and is not a write.
-_REDIRECT = re.compile(r">>?\s*(?![&\s])")
+# 널 장치로 보내는 것은 파일을 쓰는 것이 아니다. `2>/dev/null` 을 파일
+# 쓰기로 세면 조사만 한 호출이 산출물 진전으로 잡힌다 (2026-08-20 프로브에서
+# 드러났다 — `ls ... 2>/dev/null` 세 건이 파일을 바꾼 호출로 세어졌다).
+_REDIRECT = re.compile(r">>?\s*(?![&\s])(?!/dev/null\b)(?!nul\b)",
+                       re.IGNORECASE)
 _QUOTED = re.compile(r"'[^']*'|\"[^\"]*\"", re.DOTALL)
 
 

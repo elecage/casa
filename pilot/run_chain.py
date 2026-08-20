@@ -143,6 +143,8 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
         label = f"c{chain:02d}s{index:02d}"
         started = time.time()
         cli = run_headless(workdir, prompt, model, timeout_s)
+        # 마지막 한 번 — 세션의 끝 편집을 훅이 못 잡고 끝나는 수가 있다.
+        snapshot.take(workdir)
         row: dict = {
             "task": task_dir.name, "chain": chain, "session_index": index,
             "label": label, "wall_s": round(time.time() - started, 1),

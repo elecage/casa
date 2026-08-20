@@ -43,9 +43,21 @@ EXCLUDES = (".casa-chain.json", ".casa-snapshot.json", ".claude/",
 
 
 def _git(git_dir: Path, work_tree: Path, *args: str) -> subprocess.CompletedProcess:
+    """작업 트리 **안에서** 실행한다.
+
+    `git add -A` 는 현재 디렉토리를 기준으로 무엇을 담을지 정한다. 훅은 보통
+    작업 트리 안에서 돌지만 그렇지 않을 때도 있고, 그때는 조용히 아무것도 안
+    담는다 — 스냅숏이 비는데 실패로도 안 보인다.
+    """
+    # git 훅 안에서 돌면 부모 git 이 GIT_INDEX_FILE·GIT_DIR 같은 것을 물려준다.
+    # 그대로 두면 `add` 가 **남의 색인**에 담기고, 스냅숏 저장소에는 담을 것이
+    # 없어 커밋이 조용히 실패한다. 2026-08-20에 이것 때문에 커밋 훅에서만
+    # 스냅숏이 비었다.
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     return subprocess.run(
         ["git", f"--git-dir={git_dir}", f"--work-tree={work_tree}", *args],
-        capture_output=True, text=True, encoding="utf-8", errors="replace")
+        cwd=work_tree, env=env, capture_output=True, text=True,
+        encoding="utf-8", errors="replace")
 
 
 def install(workdir: Path, git_dir: Path) -> None:
@@ -66,7 +78,7 @@ def install(workdir: Path, git_dir: Path) -> None:
         "\n".join(EXCLUDES) + "\n", encoding="utf-8")
 
     (workdir / CONFIG_NAME).write_text(json.dumps(
-        {"git_dir": str(git_dir), "state_dir": str(git_dir.parent)}, indent=2),
+        {"git_dir": str(git_dir), "state_dir": str(git_dir)}, indent=2),
         encoding="utf-8")
 
     settings_path = workdir / ".claude" / "settings.json"
@@ -95,6 +107,14 @@ def _load_config(workdir: Path) -> dict | None:
 
 
 def _next_index(state_dir: Path) -> int:
+    """이 세션의 다음 호출 번호.
+
+    세어 두는 파일은 **스냅숏 저장소 옆**에 둔다 — 저장소가 세션마다 하나이니
+    번호도 세션마다 처음부터 올라간다. 2026-08-20 프로브에서 이 파일을 한 칸
+    위(여러 세션이 공유하는 디렉토리)에 두는 바람에 번호가 세션 경계를 넘어
+    계속 올라갔다(세션 2의 첫 커밋이 `call 47`). 데이터는 멀쩡했고 이름표만
+    틀렸지만, 그 이름표를 믿은 분석은 통째로 어긋난다.
+    """
     counter = state_dir / "call-count.txt"
     try:
         value = int(counter.read_text(encoding="utf-8").strip())

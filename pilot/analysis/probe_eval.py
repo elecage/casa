@@ -90,20 +90,38 @@ def conditions_at(git_dir: Path, commit: str, tmp: Path) -> dict:
     return detect.tree_conditions(target, grade.checkpoints(target))
 
 
+def changed_call_indices(session) -> list[int]:
+    """파일을 바꿨을 법한 호출의 0기준 위치."""
+    from casa.progress import is_mutating_shell
+
+    return [i for i, call in enumerate(session.tool_calls)
+            if call.name in detect.WRITE_TOOLS or is_mutating_shell(call)]
+
+
 def tree_series_for(session, git_dir: Path, start_conditions: dict,
                     tmp: Path) -> list[dict]:
-    """호출마다의 트리 조건. 스냅숏이 없는 구간은 앞의 것을 잇는다."""
-    marks = snapshot_calls(git_dir)
-    series, current, next_mark = [], start_conditions, 0
+    """호출마다의 트리 조건. 스냅숏이 없는 구간은 앞의 것을 잇는다.
+
+    **커밋 제목의 번호를 쓰지 않는다.** 2026-08-20 프로브에서 스냅숏 훅의
+    호출 카운터가 세션마다 초기화되지 않는 버그가 드러났다(세션 2의 첫 커밋이
+    `call 47`). 데이터 자체는 멀쩡하고 이름표만 틀렸으므로, **순서로 짝짓는다**
+    — k번째 커밋 ↔ k번째 "파일을 바꾼 호출". 이름표에 안 기대므로 더 튼튼하다.
+
+    이 짝짓기의 전제(스냅숏 수 ≈ 파일 바꾼 호출 수)는 사전 예측 4번이 그대로
+    검사한다. 빗나가면 규약대로 나머지 결과는 읽지 않는다.
+    """
+    commits = [commit for _no, commit in snapshot_calls(git_dir)]
+    changed = changed_call_indices(session)
+    pairs = dict(zip(changed, commits))
+
+    series, current = [], start_conditions
     cache: dict[str, dict] = {}
     for index in range(len(session.tool_calls)):
-        call_no = index + 1
-        while next_mark < len(marks) and marks[next_mark][0] <= call_no:
-            commit = marks[next_mark][1]
+        commit = pairs.get(index)
+        if commit is not None:
             if commit not in cache:
                 cache[commit] = conditions_at(git_dir, commit, tmp)
             current = cache[commit]
-            next_mark += 1
         series.append(current)
     return series
 
@@ -137,10 +155,7 @@ def output_tokens(meta: dict) -> int | None:
 
 def changed_call_count(session) -> int:
     """파일을 바꿨을 법한 호출 수 — 스냅숏이 찍혔어야 하는 자리."""
-    from casa.progress import is_mutating_shell
-
-    return sum(1 for call in session.tool_calls
-               if call.name in detect.WRITE_TOOLS or is_mutating_shell(call))
+    return len(changed_call_indices(session))
 
 
 # -------------------------------------------------------------------- 예측 대조
