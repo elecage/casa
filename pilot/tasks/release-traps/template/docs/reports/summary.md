@@ -17,7 +17,7 @@ total,<합계>
 참고용이다. 표본이 바뀌면 값도 바뀐다.
 
 ```
-records,17
+records,15
 accounts,9
 total,1170
 ```
