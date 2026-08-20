@@ -1,4 +1,4 @@
-"""eta 원천 — 한 줄에 객체 하나. 명세는 docs/readers/eta.md."""
+"""sjl 원천 — 한 줄에 객체 하나. 명세는 docs/readers/sjl.md."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 from .._internal.timeparse import parse_ts
 from ..record import Record
 
-PATTERN = "eta-*.jsonl"
+PATTERN = "sjl-*.jsonl"
 
 
 def read(path: Path) -> list[Record]:
@@ -17,11 +17,14 @@ def read(path: Path) -> list[Record]:
         if not line.strip():
             continue
         item = json.loads(line)
+        # 정정된 기록은 원본과 함께 들어오므로 여기서 걸러 중복을 막는다.
+        if item.get("status") == "adjusted":
+            continue
         out.append(Record(
-            source="eta",
+            source="sjl",
             account=item["account"],
             at=parse_ts(item["at"]),
             units=int(item["units"]),
-            status=item.get("state", "ok"),
+            status=item.get("status", "ok"),
         ))
     return out

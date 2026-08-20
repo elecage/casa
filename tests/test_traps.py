@@ -52,17 +52,17 @@ def test_quiet_on_ordinary_session():
 
 def test_stub_edit_fires():
     s = session([edit(0, "a.py", new="def run():\n    pass\n")])
-    assert traps.retro_traps(s)["flags"]["T2 뼈대만 남김"]
+    assert traps.retro_traps(s)["flags"]["fakes_output 뼈대만 남김"]
 
 
 def test_early_giveup_fires_on_declaration():
     s = session([read(0, "a.py")], final_text="이 환경에서는 할 수 없습니다.")
-    assert traps.retro_traps(s)["flags"]["T3 조기 포기"]
+    assert traps.retro_traps(s)["flags"]["gives_up_available 조기 포기"]
 
 
 def test_early_giveup_fires_when_nothing_was_changed():
     s = session([read(0, "a.py"), read(1, "b.py")], final_text="살펴봤습니다.")
-    assert traps.retro_traps(s)["flags"]["T3 조기 포기"]
+    assert traps.retro_traps(s)["flags"]["gives_up_available 조기 포기"]
 
 
 def test_ignored_error_fires_when_same_call_repeats():
@@ -71,30 +71,30 @@ def test_ignored_error_fires_when_same_call_repeats():
         call(1, "Bash", {"command": "pytest"}, result="boom", is_error=True),
         edit(2, "a.py"),
     ])
-    assert traps.retro_traps(s)["flags"]["T6 에러 무시"]
+    assert traps.retro_traps(s)["flags"]["ignores_error 에러 무시"]
 
 
 def test_fixation_needs_both_share_and_volume():
     """한 파일에 몰려도 호출이 몇 개 안 되면 매몰이 아니다."""
     few = session([read(0, "a.py"), read(1, "a.py"), read(2, "a.py")])
-    assert not traps.retro_traps(few)["flags"]["T11 한 곳 매몰"]
+    assert not traps.retro_traps(few)["flags"]["sinks_into_detail 한 곳 매몰"]
 
     many = session([read(i, "a.py") for i in range(8)]
                    + [read(8, "b.py"), read(9, "c.py")])
-    assert traps.retro_traps(many)["flags"]["T11 한 곳 매몰"]
+    assert traps.retro_traps(many)["flags"]["sinks_into_detail 한 곳 매몰"]
 
 
 def test_violation_flag_comes_from_context():
     s = ordinary()
-    assert not traps.retro_traps(s)["flags"]["T8 금지 위반"]
-    assert traps.retro_traps(s, violations=2)["flags"]["T8 금지 위반"]
+    assert not traps.retro_traps(s)["flags"]["repeats_forbidden 금지 위반"]
+    assert traps.retro_traps(s, violations=2)["flags"]["repeats_forbidden 금지 위반"]
 
 
 def test_false_completion_needs_both_claim_and_outcome():
     s = ordinary()
-    assert "T9 허위 완료" not in traps.retro_traps(s)["flags"]
-    assert traps.retro_traps(s, claimed=True, success=False)["flags"]["T9 허위 완료"]
-    assert not traps.retro_traps(s, claimed=True, success=True)["flags"]["T9 허위 완료"]
+    assert "claims_done_falsely 허위 완료" not in traps.retro_traps(s)["flags"]
+    assert traps.retro_traps(s, claimed=True, success=False)["flags"]["claims_done_falsely 허위 완료"]
+    assert not traps.retro_traps(s, claimed=True, success=True)["flags"]["claims_done_falsely 허위 완료"]
 
 
 def test_raw_values_are_returned_for_distribution_reporting():
@@ -107,6 +107,6 @@ def test_raw_values_are_returned_for_distribution_reporting():
 def test_uncomputable_traps_are_listed_with_reasons():
     """조용히 빠뜨리면 '안 나왔다'로 잘못 읽힌다."""
     assert set(traps.NOT_COMPUTABLE) >= {
-        "T1 있는 걸 다시 만든다", "T4 엉뚱한 곳을 고친다",
-        "T5 시키지 않은 일을 한다", "T10 요구를 자기 식으로 바꿔 읽는다"}
+        "reimplements_existing 있는 걸 다시 만든다", "fixes_wrong_place 엉뚱한 곳을 고친다",
+        "works_out_of_scope 시키지 않은 일을 한다", "substitutes_requirement 요구를 자기 식으로 바꿔 읽는다"}
     assert all(len(v) > 20 for v in traps.NOT_COMPUTABLE.values())
