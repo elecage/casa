@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import shutil
 import statistics
 import subprocess
@@ -84,10 +85,46 @@ def conditions_at(git_dir: Path, commit: str, tmp: Path) -> dict:
     if target.exists():
         shutil.rmtree(target)
     target.mkdir(parents=True)
+    # 임시 색인을 쓴다. 저장소의 진짜 색인을 건드리면 나중에 HEAD 와의 비교가
+    # 어긋난 것처럼 보인다.
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    env["GIT_INDEX_FILE"] = str(tmp / f"index-{commit[:8]}")
     subprocess.run(["git", f"--git-dir={git_dir}", f"--work-tree={target}",
                     "checkout", commit, "--", "."],
-                   capture_output=True, text=True)
+                   cwd=target, env=env, capture_output=True, text=True)
     return detect.tree_conditions(target, grade.checkpoints(target))
+
+
+def labels_usable(marks: list[tuple[int, str]], n_calls: int) -> bool:
+    """커밋에 적힌 호출 번호를 그대로 믿어도 되는가.
+
+    세션마다 1부터 올라가고 호출 수를 넘지 않으며 오름차순이어야 한다.
+    2026-08-20 프로브 데이터는 카운터가 세션 경계를 넘어 올라가던 시절 것이라
+    여기서 걸린다 — 그때는 순서 짝짓기로 물러선다.
+    """
+    if not marks:
+        return False
+    numbers = [no for no, _ in marks]
+    return (numbers == sorted(numbers)
+            and numbers[0] >= 1 and numbers[-1] <= n_calls)
+
+
+def final_snapshot_matches(git_dir: Path, work_dir: Path) -> bool:
+    """마지막 스냅숏의 **내용**이 최종 작업 트리와 같은가.
+
+    예측 4를 대신하는 배선 검사다. 추정치가 안 끼는 참값끼리의 비교이고,
+    줄바꿈 정규화에 속지 않도록 내용 차이만 본다.
+    """
+    if not git_dir.is_dir() or not work_dir.is_dir():
+        return False
+    # HEAD 와 견준다. 색인과 견주면 되짚기가 색인을 건드린 뒤에 거짓으로
+    # 어긋난 것처럼 보인다 (2026-08-20에 그렇게 속았다).
+    done = subprocess.run(
+        ["git", f"--git-dir={git_dir}", f"--work-tree={work_dir}",
+         "diff", "HEAD", "--numstat"],
+        cwd=work_dir, capture_output=True, text=True, encoding="utf-8",
+        errors="replace")
+    return done.returncode == 0 and not done.stdout.strip()
 
 
 def changed_call_indices(session) -> list[int]:
@@ -110,9 +147,16 @@ def tree_series_for(session, git_dir: Path, start_conditions: dict,
     이 짝짓기의 전제(스냅숏 수 ≈ 파일 바꾼 호출 수)는 사전 예측 4번이 그대로
     검사한다. 빗나가면 규약대로 나머지 결과는 읽지 않는다.
     """
-    commits = [commit for _no, commit in snapshot_calls(git_dir)]
-    changed = changed_call_indices(session)
-    pairs = dict(zip(changed, commits))
+    marks = snapshot_calls(git_dir)
+    total = len(session.tool_calls)
+    if labels_usable(marks, total):
+        # 커밋에 적힌 번호가 그 세션의 호출을 정확히 가리킨다. 짝지을 것이
+        # 없다 — 기록된 사실을 그대로 쓴다.
+        pairs = {no - 1: commit for no, commit in marks}
+    else:
+        # 옛 데이터. 번호를 못 믿으니 순서로 짝짓는다(오차가 남는다).
+        pairs = dict(zip(changed_call_indices(session),
+                         [commit for _no, commit in marks]))
 
     series, current = [], start_conditions
     cache: dict[str, dict] = {}
@@ -134,11 +178,13 @@ def load_sessions(out_dir: Path) -> list[dict]:
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         index = meta.get("session_index")
         transcript = meta.get("transcript")
+        # 절대 경로로 둔다. 아래에서 작업 트리 안에서 git 을 돌리므로 상대
+        # 경로는 안 풀린다 — 조용히 실패하고 "다름"으로 보인다.
         row = {
             "index": index,
             "meta": meta,
-            "workdir": out_dir / f"work-{index:02d}",
-            "git_dir": out_dir / "snapshots" / f"work-{index:02d}.git",
+            "workdir": (out_dir / f"work-{index:02d}").resolve(),
+            "git_dir": (out_dir / "snapshots" / f"work-{index:02d}.git").resolve(),
             "session": parse(Path(transcript)) if transcript else None,
         }
         rows.append(row)
@@ -313,6 +359,16 @@ def main() -> int:
         hit = {k: v for k, v in vector.items()
                if v in (RECOVERED, ENDED_IN_TRAP)}
         print(f"  세션 {index}: {hit or '전부 회피/미도달'}")
+
+    print("\n=== 배선 검사 (예측 4를 대신한다) ===")
+    for row in rows:
+        session = row["session"]
+        matched = final_snapshot_matches(row["git_dir"], row["workdir"])
+        marks = snapshot_calls(row["git_dir"])
+        usable = labels_usable(marks, len(session.tool_calls)) if session else False
+        print(f"  세션 {row['index']}: 마지막 스냅숏=최종 트리 "
+              f"{'같음' if matched else '다름'} | 호출 번호 "
+              f"{'그대로 씀' if usable else '못 믿어 순서로 짝지음'}")
 
     print("\n=== 문턱 도출 (봉인된 규칙) ===")
     for key, value in thresholds(rows).items():
