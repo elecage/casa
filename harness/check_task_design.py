@@ -31,6 +31,8 @@ for _s in (sys.stdout, sys.stderr):
     if hasattr(_s, "reconfigure"):
         _s.reconfigure(encoding="utf-8", errors="replace")
 
+# 8번(과정 채점)은 2026-08-20에 추가됐다. 그 전까지 검문은 과제가 결과
+# 채점으로 되돌아가는 것을 막지 못했고, 실제로 되돌아갔다.
 REQUIRED_SECTIONS = [
     (1, "판단 단계"),
     (2, "상충 요구"),
@@ -39,6 +41,7 @@ REQUIRED_SECTIONS = [
     (5, "길이와 규율"),
     (6, "채점 환원"),
     (7, "기술적 실패 분리"),
+    (8, "과정 채점"),
 ]
 PLACEHOLDER = re.compile(r"\b(TODO|TBD|FIXME|작성\s*예정|미작성)\b", re.IGNORECASE)
 
@@ -128,8 +131,8 @@ def main() -> int:
             sys.stderr.write(f"    - {p}\n")
     sys.stderr.write(
         "  루브릭: harness/TASK_DESIGN_RUBRIC.md\n"
-        "  특히 6번(채점 환원)이 핵심이다 — 두 해석이 서로 다른 검사 가능한 "
-        "산출물을 낳는가.\n"
+        "  특히 8번(과정 채점)이 핵심이다 — 세션 점수를 최종 산출물로 "
+        "정의하면 반려다.\n"
         "  우회(권장하지 않음): CASA_SKIP_TASK_DESIGN=1 git commit ...\n"
     )
     return 1
