@@ -205,7 +205,7 @@
 | W34b | **과정 채점으로 재설계** — 함정 목록 10종 + 과제 저장소 `release-traps` + 앵커·설계 검문에 "결과로 정의 금지" 기계 강제 | **설계 완료·구현 대기** (2026-08-20, 유저 지적) | `docs/PROCESS_TRAPS.md`, `pilot/tasks/release-traps/DESIGN.md`, `harness/anchor.md`, `harness/TASK_DESIGN_RUBRIC.md` 8번 |
 | W34d | 기존 220세션 함정 발생률 실측 (친숙도 가설 사전 등록 → 지지되지 않음, 길이 관찰) | **완료** (2026-08-20) | `src/casa/traps.py`, `pilot/analysis/trap_rates.py`, `docs/TRAP_RATES_RETRO.md` |
 | W35a | 회복 판정 규칙 + 달성 항목 계측 (유저 승인 5건) | **완료** (2026-08-20) | `docs/RECOVERY_RULE.md`, 설계 검문 8번 |
-| W35 | `release-traps` 구현 (과제 저장소·함정 탐지기 11·네 상태 판정·레퍼런스 궤적 3벌) | **진행 중** — 과제 저장소·넓이·이름 체계·달성 항목 채점기·레퍼런스 해답·**함정 탐지기 11개와 네 상태 판정** 완료(2026-08-20). 남은 것: 호출 단위 스냅숏 러너, 레퍼런스 궤적 3벌(여기서 문턱 확정) | `pilot/tasks/release-traps/`, `src/casa/trap_state.py`, `tests/test_release_traps_*.py` |
+| W35 | `release-traps` 구현 (과제 저장소·함정 탐지기 11·네 상태 판정·레퍼런스 궤적 3벌) | **진행 중** — 과제 저장소·넓이·이름 체계·달성 항목 채점기·레퍼런스 해답·**함정 탐지기 11개와 네 상태 판정** 완료(2026-08-20). 남은 것: **레퍼런스 궤적 3벌**(여기서 문턱 확정) | `pilot/tasks/release-traps/`, `src/casa/trap_state.py`, `pilot/snapshot.py`, `tests/test_release_traps_*.py` |
 | W-later | sonnet 실패 달성 과제(다중 스케일 절벽형, orbit 외) | 추적 (유저 요구) | `pilot/tasks/<new>/` |
 | W13 | 본 수집 ~180세션 (배치 분할, 원자료 보존) | 대기 | `results/main2/` |
 | W14 | 3축 분석 → 사전 등록 판정 → 집필/학회 결정 | 대기 | 분석 노트 |
@@ -312,6 +312,19 @@ n 증가로 판정 (사후 조작 방지, 결정 로그 기록) / 노벨티 워�
 반드시 stdin으로(명령줄 전달 시 cmd.exe가 여러 줄 인자를 파괴).
 
 ## 결정 로그 (뒤집으려면 유저와 상의)
+
+- 2026-08-20 **수집 잠금 가드의 오탐을 좁혔다 (기능 축소 아님)**.
+  `pytest tests/test_snapshot.py tests/test_run_chain.py` 같은 **파일 목록**이
+  수집 실행으로 막혔다. 정규식이 앞 토큰의 꼬리 `.py`의 `py`를 인터프리터로
+  읽어, 그 뒤에 오는 러너 이름과 이어 붙였기 때문이다.
+  **고친 것**: 인터프리터 앞 경로 접두사는 `/`나 `\`로 끝나야 하고,
+  인터프리터 토큰은 거기서 끝나야 한다(`(?=\s)`).
+  **막는 힘은 그대로**임을 테스트로 못 박았다 — `python pilot/run_chain.py`,
+  `.venv/Scripts/python.exe pilot/run_sessions.py`, `py -3 ...`,
+  `cd x && python ...`, `python3 -u ...`, 절대경로 인터프리터까지 전부 여전히
+  막힌다. 통과해야 하는 세 가지(테스트 목록·컴파일 목록·`git add`)를 회귀
+  테스트에 넣었다.
+  **우회하지 않았다**: 막혔을 때 `CASA_SKIP_*`을 쓰지 않고 가드를 고쳤다.
 
 - 2026-08-20 **완료 주장 지표가 영어만 보고 있었다 — 한국어를 넣고 부정을
   가르게 고침** (`src/casa/metrics.py`의 `claims_completion`).

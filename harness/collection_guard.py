@@ -45,8 +45,14 @@ RUNNERS = ("run_sessions.py", "run_chain.py")
 
 _COLLECTION_RUN = re.compile(
     r"(?:^|[\s;|&(])"  # 명령 시작 위치
-    r"[^\s;|&]*"  # .venv/Scripts/ 같은 경로 접두사 (선택)
+    r"(?:[^\s;|&]*[\\/])?"  # .venv/Scripts/ 같은 경로 접두사 (선택).
+                            # 경로 구분자로 끝나야 한다 — 아니면
+                            # `tests/test_x.py` 의 꼬리 `py` 가 인터프리터로
+                            # 읽힌다.
     r"(?:python3?|py)(?:\.exe)?"  # 인터프리터 토큰
+    r"(?=\s)"  # 여기서 토큰이 끝나야 한다. 이 둘이 없으면
+               # `pytest a.py tests/test_run_chain.py` 가 수집 실행으로
+               # 오탐된다 (2026-08-20 실제로 막혔다).
     r"(?:\s+-\S+)*"  # -u, -3 같은 플래그 (선택)
     r"\s+[^\s;|&]*(?:"
     + "|".join(name.replace(".", r"\.") for name in RUNNERS)

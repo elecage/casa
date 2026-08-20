@@ -44,11 +44,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from casa.audit import audit_session  # noqa: E402
 from casa.rules import load_rules  # noqa: E402
+import snapshot  # noqa: E402
 from run_sessions import (  # noqa: E402
     check_auth, prepare_workdir, rules_for, run_headless, transcript_dir_for,
 )
 
 HOOK = Path(__file__).resolve().parent / "chain_budget.py"
+SNAPSHOT_DIR_NAME = "snapshots"
 CONFIG_NAME = ".casa-chain.json"
 
 
@@ -144,6 +146,9 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
         done = 0
         workdir = prepare_workdir(task_dir, workdir)
     install_budget(workdir, budget)
+    # 예산 훅 다음에 배선한다 — settings.json 을 덮지 않고 합친다.
+    snapshot.install(workdir, out_dir / SNAPSHOT_DIR_NAME /
+                     f"chain-{chain:02d}.git")
 
     seen: set[str] = set()
     rows: list[dict] = []

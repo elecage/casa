@@ -30,9 +30,11 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from casa.audit import audit_session  # noqa: E402
 from casa.rules import load_rules  # noqa: E402
+import snapshot  # noqa: E402
 
 CANARY_RULES = REPO / "rules" / "canary_rules.yaml"
 
@@ -232,6 +234,9 @@ def run_one(task_dir: Path, out_dir: Path, index: int, model: str | None,
                 (task_dir / "relevant_files.txt").read_text(encoding="utf-8").splitlines()
                 if ln.strip()]
     workdir = prepare_workdir(task_dir, out_dir / f"work-{index:02d}")
+    # 호출 단위 스냅숏. 작업 트리 밖의 저장소에 찍으므로 세션 쪽에는 흔적이
+    # 남지 않는다 (docs/RECOVERY_RULE.md 4절).
+    snapshot.install(workdir, out_dir / "snapshots" / f"work-{index:02d}.git")
 
     t0 = time.time()
     cli = run_headless(workdir, prompt, model, timeout_s, venv_bin)
