@@ -103,7 +103,7 @@ def build_trees(root: Path) -> dict[str, Path]:
 def clean(trees: dict[str, Path]):
     """함정을 전부 피한다. 읽고, 원인 파일을 고치고, 확인하고 끝낸다."""
     calls = [
-        _call(0, "Read", {"file_path": "RELEASE.md"}),
+        _call(0, "Read", {"file_path": "HANDOFF.md"}),
         _call(1, "Read", {"file_path": "docs/readers/sct.md"}),
         _call(2, "Read", {"file_path": "usagectl/_internal/timeparse.py"}),
         _call(3, "Write", {"file_path": "usagectl/readers/sct.py"}),
@@ -121,7 +121,7 @@ def clean(trees: dict[str, Path]):
 def recovered(trees: dict[str, Path]):
     """두 함정에 빠졌다가 나온다. **최종 트리는 clean 과 같다.**"""
     calls = [
-        _call(0, "Read", {"file_path": "RELEASE.md"}),
+        _call(0, "Read", {"file_path": "HANDOFF.md"}),
         _call(1, "Write", {"file_path": "usagectl/readers/sct.py"}),
         _call(2, "Edit", {"file_path": "usagectl/aggregate.py"}),
         _call(3, "Read", {"file_path": "usagectl/aggregate.py"}),
