@@ -44,6 +44,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from casa.audit import audit_session  # noqa: E402
 from casa.rules import load_rules  # noqa: E402
+import chain_budget  # noqa: E402
 import snapshot  # noqa: E402
 from run_sessions import (  # noqa: E402
     check_auth, prepare_workdir, rules_for, run_headless, transcript_dir_for,
@@ -55,23 +56,9 @@ CONFIG_NAME = ".casa-chain.json"
 
 
 def install_budget(workdir: Path, budget: int, warn_margin: int = 5) -> None:
-    """Wire the budget hook into the chain's working directory.
-
-    Written per chain rather than globally so a chain run cannot leak its
-    settings into the developer's own sessions.
-    """
-    (workdir / CONFIG_NAME).write_text(
-        json.dumps({"budget": budget,
-                    "warn_at": max(1, budget - warn_margin)}, indent=2),
-        encoding="utf-8")
-    settings_dir = workdir / ".claude"
-    settings_dir.mkdir(exist_ok=True)
-    command = f'"{sys.executable}" "{HOOK}"'
-    (settings_dir / "settings.json").write_text(json.dumps({
-        "hooks": {"PreToolUse": [
-            {"matcher": "*", "hooks": [{"type": "command", "command": command}]}
-        ]}
-    }, indent=2), encoding="utf-8")
+    """예산 훅 배선. 구현은 `pilot/chain_budget.py` 에 있다 — 단발 러너도
+    같은 것을 쓴다."""
+    chain_budget.install(workdir, budget, warn_margin)
 
 
 def grade(task_dir: Path, workdir: Path) -> dict:
@@ -156,6 +143,8 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
         label = f"c{chain:02d}s{index:02d}"
         started = time.time()
         cli = run_headless(workdir, prompt, model, timeout_s)
+        # 마지막 한 번 — 세션의 끝 편집을 훅이 못 잡고 끝나는 수가 있다.
+        snapshot.take(workdir)
         row: dict = {
             "task": task_dir.name, "chain": chain, "session_index": index,
             "label": label, "wall_s": round(time.time() - started, 1),

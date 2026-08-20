@@ -40,6 +40,35 @@ DEFAULT_WARN_MARGIN = 5
 CONFIG_NAME = ".casa-chain.json"
 
 
+def install(workdir: Path, budget: int, warn_margin: int = 5) -> None:
+    """예산 훅을 작업 디렉토리에 배선한다.
+
+    사슬 러너와 단발 러너가 함께 쓴다. 전역이 아니라 작업 디렉토리마다
+    쓰므로, 수집 실행의 설정이 개발자 자신의 세션으로 새지 않는다.
+
+    `.claude/settings.json` 은 덮지 않고 합친다 — 스냅숏 훅이 이미 쓰여
+    있을 수 있다.
+    """
+    import sys as _sys
+
+    (workdir / CONFIG_NAME).write_text(
+        json.dumps({"budget": budget,
+                    "warn_at": max(1, budget - warn_margin)}, indent=2),
+        encoding="utf-8")
+    settings_path = workdir / ".claude" / "settings.json"
+    settings_path.parent.mkdir(exist_ok=True)
+    settings = {}
+    if settings_path.is_file():
+        try:
+            settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        except ValueError:
+            settings = {}
+    command = f'"{_sys.executable}" "{Path(__file__).resolve()}"'
+    settings.setdefault("hooks", {})["PreToolUse"] = [
+        {"matcher": "*", "hooks": [{"type": "command", "command": command}]}]
+    settings_path.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+
+
 def load_config(start: Path) -> dict:
     """Read the chain config from the working directory, tolerating absence."""
     try:

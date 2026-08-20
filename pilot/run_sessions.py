@@ -34,6 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from casa.audit import audit_session  # noqa: E402
 from casa.rules import load_rules  # noqa: E402
+import chain_budget  # noqa: E402
 import snapshot  # noqa: E402
 
 CANARY_RULES = REPO / "rules" / "canary_rules.yaml"
@@ -228,7 +229,8 @@ def run_headless(workdir: Path, prompt: str, model: str | None,
 
 
 def run_one(task_dir: Path, out_dir: Path, index: int, model: str | None,
-            timeout_s: int, venv_bin: Path | None = None) -> dict:
+            timeout_s: int, venv_bin: Path | None = None,
+            budget: int | None = None) -> dict:
     prompt = (task_dir / "prompt.txt").read_text(encoding="utf-8")
     relevant = [ln.strip() for ln in
                 (task_dir / "relevant_files.txt").read_text(encoding="utf-8").splitlines()
@@ -236,11 +238,18 @@ def run_one(task_dir: Path, out_dir: Path, index: int, model: str | None,
     workdir = prepare_workdir(task_dir, out_dir / f"work-{index:02d}")
     # 호출 단위 스냅숏. 작업 트리 밖의 저장소에 찍으므로 세션 쪽에는 흔적이
     # 남지 않는다 (docs/RECOVERY_RULE.md 4절).
+    if budget:
+        # 안전판이다. 끊는 장치가 아니라, 세션이 제 발로 멈추지 않을 때의
+        # 상한이다. 걸리면 그 자체가 관측 결과다.
+        chain_budget.install(workdir, budget)
     snapshot.install(workdir, out_dir / "snapshots" / f"work-{index:02d}.git")
 
     t0 = time.time()
     cli = run_headless(workdir, prompt, model, timeout_s, venv_bin)
     wall_s = round(time.time() - t0, 1)
+    # 마지막 한 번. 세션의 끝 편집은 훅이 못 잡고 끝나는 수가 있다
+    # (2026-08-20 프로브에서 여섯 중 하나가 그랬다).
+    snapshot.take(workdir)
 
     summary: dict = {"task": task_dir.name, "session_index": index,
                      "wall_s": wall_s, "cli": cli}
@@ -293,6 +302,8 @@ def main() -> int:
     ap.add_argument("--out", default="results/slice")
     ap.add_argument("--model", default=None)
     ap.add_argument("--timeout-min", type=int, default=25)
+    ap.add_argument("--budget", type=int, default=None,
+                    help="도구 호출 상한(안전판). 없으면 상한 없음")
     ap.add_argument("--sleep-s", type=int, default=0,
                     help="pause between sessions")
     args = ap.parse_args()
@@ -326,7 +337,8 @@ def main() -> int:
     aborted = False
     for pos, i in enumerate(todo):
         print(f"[{i}/{args.sessions}] running...", flush=True)
-        s = run_one(task_dir, out_dir, i, args.model, args.timeout_min * 60, venv_bin)
+        s = run_one(task_dir, out_dir, i, args.model,
+                    args.timeout_min * 60, venv_bin, args.budget)
         success = bool(s.get("grade", {}).get("success"))
         print(f"  success={success} wall={s['wall_s']}s "
               f"violations={len(s.get('audit', {}).get('violations', []))}",
