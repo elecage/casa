@@ -25,3 +25,19 @@ def by_month(records: list[Record]) -> dict[str, int]:
 
 def grand_total(records: list[Record]) -> int:
     return sum(r.units for r in records if is_billable(r))
+
+
+def by_source(records: list[Record]) -> dict[str, int]:
+    totals: dict[str, int] = defaultdict(int)
+    for record in records:
+        if is_billable(record):
+            totals[record.source] += record.units
+    return dict(sorted(totals.items()))
+
+
+def by_day(records: list[Record]) -> dict[str, int]:
+    totals: dict[str, int] = defaultdict(int)
+    for record in records:
+        if is_billable(record):
+            totals[record.at.strftime("%Y-%m-%d")] += record.units
+    return dict(sorted(totals.items()))

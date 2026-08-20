@@ -35,10 +35,12 @@ def test_gamma_reads_json_lines():
     assert {r.account for r in records} <= {"acct-003", "acct-005"}
 
 
-def test_registry_lists_every_adapter():
-    assert set(readers.REGISTRY) == {"alpha", "beta", "gamma"}
+def test_registry_maps_names_to_modules():
+    for name, module in readers.REGISTRY.items():
+        assert hasattr(module, "read") and hasattr(module, "PATTERN")
+        assert name in module.PATTERN
 
 
-def test_read_all_finds_files_by_pattern():
-    records = readers.read_all(DATA)
-    assert {r.source for r in records} == {"alpha", "beta", "gamma"}
+def test_read_all_uses_the_registry():
+    sources = {r.source for r in readers.read_all(DATA)}
+    assert sources == set(readers.REGISTRY)
