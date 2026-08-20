@@ -11,6 +11,12 @@
    더 늘릴지를 이 숫자로 정한다. 프로브는 "완주 0/6"만 적었고 **몇 개까지
    갔는지**는 안 적었다.
 
+**달성 항목 수는 세션 점수가 아니다.** 저장소에 일이 얼마나 들었는지 재는
+눈금이고, 그 눈금은 **과제 크기를 정하는 데만** 쓴다. 세션 점수는 함정 상태
+벡터다(`docs/RECOVERY_RULE.md`, `pilot/analysis/probe_eval.py`). 이 숫자를
+점수 자리에 올리면 이름만 바꾼 결과 채점이 된다 — 이 프로젝트가 2026-08-20에
+한 번 그렇게 했다가 반려됐다.
+
 사용:
 
     .venv/bin/python pilot/analysis/call_attribution.py results/probe/release-traps
@@ -121,7 +127,7 @@ def main() -> int:
         return 1
 
     sessions, dropped_total, achieved = [], 0, []
-    print("=== 세션마다 ===")
+    print("=== 세션마다 === (달성 항목은 크기를 재는 눈금이지 세션 점수가 아니다)")
     for row in rows:
         changes, dropped = session_changes(row["git_dir"])
         dropped_total += dropped

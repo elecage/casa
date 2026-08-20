@@ -144,3 +144,53 @@ def test_how_many_sessions_of_work_the_repository_holds():
 
 def test_no_session_finished_anything_means_no_estimate():
     assert attribute.sessions_worth_of_work([0, 0], total_items=8) is None
+
+
+# ------------------------------------------------- 분석 스크립트 끝에서 끝까지
+
+def test_the_analysis_script_reads_real_snapshots(tmp_path):
+    """스냅숏 저장소에서 호출별 변경을 꺼내 항목에 붙이는 데까지 돈다.
+
+    이 프로젝트가 되풀이해 속은 자리가 전부 여기다 — 색인, 상대 경로,
+    줄바꿈. 순수 함수만 시험하면 그 셋을 하나도 못 잡는다.
+    """
+    import json
+    import subprocess
+
+    analysis = _load("casa_call_attribution",
+                     Path(__file__).resolve().parents[1] / "pilot" / "analysis"
+                     / "call_attribution.py")
+    snapshot = _load("casa_snapshot_for_attribution",
+                     Path(__file__).resolve().parents[1] / "pilot" / "snapshot.py")
+
+    out = tmp_path / "out"
+    work = out / "work-01"
+    (work / "usagectl" / "readers").mkdir(parents=True)
+    (work / "usagectl" / "cli.py").write_text("x=1\n", encoding="utf-8")
+    (work / "usagectl" / "readers" / "sjl.py").write_text("r\n", encoding="utf-8")
+    (work / "CHANGELOG.md").write_text("c\n", encoding="utf-8")
+    snapshot.install(work, out / "snapshots" / "work-01.git")
+
+    for path, text in [("usagectl/cli.py", "x=2\n"),
+                       ("usagectl/cli.py", "x=3\n"),
+                       ("usagectl/readers/sjl.py", "r2\n"),
+                       ("CHANGELOG.md", "c2\n")]:
+        (work / path).write_text(text, encoding="utf-8")
+        assert snapshot.take(work) is not None, path
+
+    (out / "session-01.json").write_text(json.dumps({
+        "session_index": 1,
+        "grade": {"checkpoints": {"tests.green": True, "json.matches_spec": True,
+                                  "pdf.produced": False}}}), encoding="utf-8")
+
+    changes, dropped = analysis.session_changes(
+        (out / "snapshots" / "work-01.git").resolve())
+    assert dropped == 0                  # 시작 상태 커밋이 있으니 잃는 호출이 없다
+    marks = attribute.attribute_session(changes)
+    assert marks == ["json", "json", "mismatch", None]
+
+    done = subprocess.run([sys.executable, str(analysis.__file__), str(out)],
+                          capture_output=True, text=True, encoding="utf-8",
+                          errors="replace")
+    assert done.returncode == 0, done.stderr
+    assert "세션 점수가 아니다" in done.stdout      # 결과 채점으로 읽히면 안 된다
