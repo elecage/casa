@@ -205,7 +205,7 @@
 | W34b | **과정 채점으로 재설계** — 함정 목록 10종 + 과제 저장소 `release-traps` + 앵커·설계 검문에 "결과로 정의 금지" 기계 강제 | **설계 완료·구현 대기** (2026-08-20, 유저 지적) | `docs/PROCESS_TRAPS.md`, `pilot/tasks/release-traps/DESIGN.md`, `harness/anchor.md`, `harness/TASK_DESIGN_RUBRIC.md` 8번 |
 | W34d | 기존 220세션 함정 발생률 실측 (친숙도 가설 사전 등록 → 지지되지 않음, 길이 관찰) | **완료** (2026-08-20) | `src/casa/traps.py`, `pilot/analysis/trap_rates.py`, `docs/TRAP_RATES_RETRO.md` |
 | W35a | 회복 판정 규칙 + 달성 항목 계측 (유저 승인 5건) | **완료** (2026-08-20) | `docs/RECOVERY_RULE.md`, 설계 검문 8번 |
-| W35 | `release-traps` 구현 (과제 저장소·함정 탐지기 11·네 상태 판정·레퍼런스 궤적 3벌) | **진행 중** — 과제 저장소·넓이·이름 체계·달성 항목 채점기·레퍼런스 해답·**함정 탐지기 11개와 네 상태 판정** 완료(2026-08-20). 남은 것: **레퍼런스 궤적 3벌**(여기서 문턱 확정) | `pilot/tasks/release-traps/`, `src/casa/trap_state.py`, `pilot/snapshot.py`, `tests/test_release_traps_*.py` |
+| W35 | `release-traps` 구현 (과제 저장소·함정 탐지기 11·네 상태 판정·레퍼런스 궤적 3벌) | **진행 중** — 과제 저장소·넓이·이름 체계·달성 항목 채점기·레퍼런스 해답·**함정 탐지기 11개와 네 상태 판정** 완료(2026-08-20). 남은 것: **넓이 보정 프로브에서 문턱 확정**(수집 승인 필요). 배선은 손으로 만든 궤적 3벌로 통과함 | `pilot/tasks/release-traps/`, `src/casa/trap_state.py`, `pilot/snapshot.py`, `tests/test_release_traps_*.py` |
 | W-later | sonnet 실패 달성 과제(다중 스케일 절벽형, orbit 외) | 추적 (유저 요구) | `pilot/tasks/<new>/` |
 | W13 | 본 수집 ~180세션 (배치 분할, 원자료 보존) | 대기 | `results/main2/` |
 | W14 | 3축 분석 → 사전 등록 판정 → 집필/학회 결정 | 대기 | 분석 노트 |
@@ -312,6 +312,26 @@ n 증가로 판정 (사후 조작 방지, 결정 로그 기록) / 노벨티 워�
 반드시 stdin으로(명령줄 전달 시 cmd.exe가 여러 줄 인자를 파괴).
 
 ## 결정 로그 (뒤집으려면 유저와 상의)
+
+- 2026-08-20 **배선 검증에서 함정 둘의 정의가 틀린 것을 찾아 고쳤다**
+  (손으로 만든 궤적 셋, `pilot/tasks/release-traps/solutions/trajectories.py`).
+  **무엇이 틀렸나**: `ignores_error`와 `gives_up_available`을 작업 트리만 보고
+  판정했더니 **시작 상태가 이미 함정**이었다. 경고는 시작부터 떠 있고 PDF는
+  시작부터 없다. 그래서 함정을 하나도 안 건드린 깨끗한 궤적이 그 둘에서
+  "빠졌다가 회복"으로 나왔다. **아직 아무것도 안 한 세션을 빠졌다고 적을 수는
+  없다.**
+  **고친 것**: `ignores_error`는 도구를 돌려 **경고를 본 뒤에도** 그대로인가로
+  바꿨다(트리 + 호출 기록). `gives_up_available`은 종료 시점 판정으로 옮겼다 —
+  그 항목에 손을 댔고, 저장소에 이미 있는 도구를 끝내 못 찾았고, 산출물이
+  없을 때만 포기다. **아직 안 한 것은 포기가 아니다.**
+  **궤적 자체의 앞뒤가 안 맞던 것도 하나**: 회복 궤적의 최종 트리에 요약 절이
+  있는데 그것을 만든 호출이 궤적에 없었다. 손으로 만든 궤적이라 생긴 흠이고,
+  이런 흠을 잡는 것이 배선 검증의 값어치다.
+  **핵심 확인**: `clean`과 `recovered`는 **최종 트리가 같은데 상태 벡터가
+  갈린다** — 정확히 `reimplements_existing`과 `fixes_wrong_place` 둘에서만.
+  결과 채점이 절대 못 보는 구분이고, 이 과제가 존재하는 이유다.
+  **문턱은 여기서 정하지 않았다** — 궤적이 지어낸 것이라 문턱을 맞추면 우리
+  상상에 맞추는 꼴이다. 넓이 보정 프로브에서 실제 세션으로 정한다.
 
 - 2026-08-20 **수집 잠금 가드의 오탐을 좁혔다 (기능 축소 아님)**.
   `pytest tests/test_snapshot.py tests/test_run_chain.py` 같은 **파일 목록**이
