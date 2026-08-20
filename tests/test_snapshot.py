@@ -191,7 +191,46 @@ def test_the_call_counter_starts_over_for_each_session(tmp_path):
     for name in ("one", "two"):
         log = _git(f"--git-dir={tmp_path / 'snapshots' / f'{name}.git'}",
                    "log", "--format=%s")
-        assert log.stdout.strip() == "call 1", (name, log.stdout, log.stderr)
+        subjects = log.stdout.split()
+        assert [s for s in subjects if s != "baseline"] == ["call", "1"], (
+            name, log.stdout, log.stderr)
+
+
+def test_a_baseline_is_committed_before_the_session_starts(tmp_path):
+    """시작 상태가 커밋 하나로 남아야 첫 호출의 변경을 견줄 데가 있다.
+
+    없으면 첫 스냅숏이 뿌리 커밋이라 "이 호출이 무엇을 바꿨나"가 저장소
+    전체로 나오고, 항목 귀속에서 세션마다 첫 호출을 통째로 잃는다.
+    """
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / "a.py").write_text("print(1)\n", encoding="utf-8")
+    git_dir = tmp_path / "snapshots" / "work.git"
+    snapshot.install(work, git_dir)
+
+    subjects = _git(f"--git-dir={git_dir}", "log", "--format=%s").stdout.split()
+    assert subjects == ["baseline"]
+
+    (work / "a.py").write_text("print(2)\n", encoding="utf-8")
+    assert snapshot.take(work) is not None
+    changed = _git(f"--git-dir={git_dir}", "diff", "--name-only",
+                   "HEAD~1", "HEAD").stdout.split()
+    assert changed == ["a.py"]           # 저장소 전체가 아니라 바뀐 파일 하나
+
+
+def test_the_baseline_leaves_our_own_files_out(tmp_path):
+    """훅 설정과 스냅숏 설정은 세션의 작업이 아니다."""
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / "a.py").write_text("print(1)\n", encoding="utf-8")
+    git_dir = tmp_path / "snapshots" / "work.git"
+    snapshot.install(work, git_dir)
+
+    tracked = _git(f"--git-dir={git_dir}", "ls-tree", "-r", "--name-only",
+                   "HEAD").stdout.split()
+    assert "a.py" in tracked
+    assert not [p for p in tracked if p.startswith(".claude")
+                or p == ".casa-snapshot.json"]
 
 
 def test_both_runners_take_a_final_snapshot():
@@ -217,3 +256,25 @@ def test_it_works_inside_a_git_hook_environment(workdir, tmp_path, monkeypatch):
 
     (workdir / "a.py").write_text("print(9)\n", encoding="utf-8")
     assert snapshot.take(workdir) is not None
+
+
+def test_relative_paths_do_not_silently_empty_the_snapshot(tmp_path, monkeypatch):
+    """상대 경로로 불러도 스냅숏이 찍혀야 한다.
+
+    `_git` 은 작업 트리 **안에서** git 을 돌린다. 상대 경로를 그대로 넘기면
+    그 안에서 다시 풀려 엉뚱한 데를 가리키고, 커밋이 조용히 실패해 저장소가
+    빈 채로 남는다 — 실패로 보이지도 않는다.
+    """
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / "a.py").write_text("print(1)\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    snapshot.install(Path("work"), Path("snapshots/work.git"))
+    (work / "a.py").write_text("print(2)\n", encoding="utf-8")
+    assert snapshot.take(Path("work")) is not None
+
+    log = _git(f"--git-dir={tmp_path / 'snapshots' / 'work.git'}",
+               "log", "--format=%s")
+    assert "call 1" in log.stdout
+    assert "baseline" in log.stdout

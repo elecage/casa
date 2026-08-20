@@ -66,7 +66,11 @@ def install(workdir: Path, git_dir: Path) -> None:
     이미 있는 `.claude/settings.json`은 덮어쓰지 않고 합친다 — 사슬 러너가
     거기에 예산 훅을 이미 써 두었다.
     """
-    workdir, git_dir = Path(workdir), Path(git_dir)
+    # 절대 경로로 못 박는다. `_git` 은 작업 트리 **안에서** git 을 돌리므로
+    # 상대 경로를 그대로 넘기면 그 안에서 다시 풀려 엉뚱한 데를 가리키고,
+    # 스냅숏이 실패로도 안 보인 채 조용히 빈다. 이 영역에서 상대 경로에 속은
+    # 것이 2026-08-20에만 두 번이다.
+    workdir, git_dir = Path(workdir).resolve(), Path(git_dir).resolve()
     git_dir.parent.mkdir(parents=True, exist_ok=True)
     if not git_dir.exists():
         subprocess.run(["git", "init", "-q", "--bare", str(git_dir)], check=True)
@@ -94,6 +98,27 @@ def install(workdir: Path, git_dir: Path) -> None:
     hooks["PostToolUse"] = [
         {"matcher": "*", "hooks": [{"type": "command", "command": command}]}]
     settings_path.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+
+    _baseline(workdir, git_dir)
+
+
+def _baseline(workdir: Path, git_dir: Path) -> None:
+    """세션이 시작하기 전 상태를 커밋 하나로 찍어 둔다.
+
+    **왜 필요한가.** 이것이 없으면 첫 스냅숏이 뿌리 커밋이라 "이 호출이 무엇을
+    바꿨나"가 **저장소 전체**로 나온다. 호출마다의 변경을 항목에 귀속하려면
+    (`pilot/tasks/release-traps/attribute.py`) 견줄 앞 시점이 있어야 하고,
+    없으면 세션마다 첫 호출 하나를 통째로 잃는다.
+
+    제목을 `call N` 으로 짓지 않는다 — 호출 번호를 읽는 분석기들이 제목이
+    `call ` 로 시작하는 커밋만 세므로, 이 커밋은 그 셈에 안 들어간다.
+    """
+    head = _git(git_dir, workdir, "rev-parse", "--verify", "HEAD")
+    if head.returncode == 0:
+        return                           # 이미 무언가 찍혀 있다
+    _git(git_dir, workdir, "add", "-A")
+    _git(git_dir, workdir, "-c", "user.name=casa", "-c", "user.email=casa@local",
+         "commit", "-q", "--allow-empty", "-m", "baseline")
 
 
 def _load_config(workdir: Path) -> dict | None:
@@ -130,11 +155,12 @@ def take(workdir: Path) -> str | None:
 
     돌려주는 값은 커밋 해시, 또는 찍을 것이 없었으면 None.
     """
+    workdir = Path(workdir).resolve()
     config = _load_config(workdir)
     if not config:
         return None
-    git_dir = Path(config["git_dir"])
-    state_dir = Path(config.get("state_dir", git_dir.parent))
+    git_dir = Path(config["git_dir"]).resolve()
+    state_dir = Path(config.get("state_dir", git_dir.parent)).resolve()
     index = _next_index(state_dir)
 
     _git(git_dir, workdir, "add", "-A")
