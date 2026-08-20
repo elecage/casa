@@ -138,3 +138,30 @@ def test_the_chain_runner_installs_snapshots_after_the_budget_hook():
     """예산 훅이 먼저 settings.json 을 쓰므로 순서가 뒤바뀌면 덮인다."""
     source = (PILOT / "run_chain.py").read_text(encoding="utf-8")
     assert source.index("install_budget(workdir") < source.index("snapshot.install")
+
+
+def test_budget_and_snapshot_hooks_coexist(tmp_path):
+    """둘 다 settings.json 을 쓴다. 어느 쪽이 먼저 와도 남아 있어야 한다."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "casa_pilot_budget", PILOT / "chain_budget.py")
+    budget = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(budget)
+
+    work = tmp_path / "w"
+    work.mkdir()
+    budget.install(work, 100)
+    snapshot.install(work, tmp_path / "s.git")
+
+    settings = json.loads((work / ".claude" / "settings.json").read_text(
+        encoding="utf-8"))
+    assert "PreToolUse" in settings["hooks"]
+    assert "PostToolUse" in settings["hooks"]
+    assert (work / ".casa-chain.json").is_file()
+
+
+def test_the_single_session_runner_takes_a_budget():
+    source = (PILOT / "run_sessions.py").read_text(encoding="utf-8")
+    assert "chain_budget.install(workdir, budget)" in source
+    assert '"--budget"' in source
