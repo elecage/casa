@@ -83,6 +83,13 @@ def test_collection_run_is_recognised_with_flags(command):
         ".venv/Scripts/python.exe pilot/analysis/ability_early.py results/main2/orbit-sonnet",
         ".venv/Scripts/python.exe -m pytest",
         "git log --oneline",
+        # 2026-08-20 실제로 막혔던 것들. 파일 **목록**이지 실행이 아니다.
+        # 앞 토큰이 `.py` 로 끝나면 그 꼬리 `py` 가 인터프리터로 읽혔다.
+        ".venv/Scripts/python.exe -m pytest tests/test_snapshot.py "
+        "tests/test_run_chain.py",
+        ".venv/Scripts/python.exe -m py_compile pilot/run_sessions.py "
+        "pilot/run_chain.py",
+        "git add tests/test_run_chain.py",
     ],
 )
 def test_non_collection_commands_pass(command):
