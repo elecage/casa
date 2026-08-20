@@ -13,10 +13,12 @@ python -m usagectl.cli --config config.sample.json --out report.csv
 모듈을 하나 더하고 `REGISTRY`에 등록한다. 어댑터별 입력 형식은
 `docs/readers/` 아래에 한 장씩 있다.
 
+원천은 alpha, beta, gamma, delta, epsilon, zeta, eta, theta 여덟이다.
+
 ## 리포트 절
 
 절도 모듈 하나씩이다(`usagectl/reports/`). `--section`으로 고를 수 있고,
-지정하지 않으면 전부 낸다.
+지정하지 않으면 전부 낸다. 절마다 설명이 `docs/reports/`에 한 장씩 있다.
 
 ## 한계
 

@@ -1,0 +1,4 @@
+account	at	qty	qty_billed	status
+acct-008	2026/07/02 09:00:00	100	90	ok
+acct-009	2026/07/06 10:00:00	60	60	ok
+acct-008	2026/07/12 11:00:00	40	30	adjusted
