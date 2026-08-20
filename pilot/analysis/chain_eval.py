@@ -74,17 +74,50 @@ def load_chain_sessions(out_dir: Path) -> list[dict]:
     return rows
 
 
-def segments(sessions, commits: list[str]) -> list[list[str]]:
-    """사슬의 커밋 한 줄을 세션별로 나눈다.
+def session_spans(sessions) -> list[tuple[int, int]]:
+    """세션마다 (첫 호출 번호, 마지막 호출 번호). 사슬 안에서 이어 센다.
 
-    세션이 파일을 바꾼 호출 수만큼 앞에서부터 가져간다. 커밋 제목의 번호에
-    기대지 않는다 — 번호는 틀린 적이 있고 순서는 틀린 적이 없다.
+    스냅숏의 호출 번호는 **스냅숏 저장소마다** 1부터 오른다. 사슬은 저장소가
+    하나이므로 번호가 세션 경계를 넘어 계속 오른다 — 그것이 정상이고, 세션
+    경계는 각 세션의 호출 수를 누적하면 정확히 나온다.
     """
-    out, cursor = [], 0
+    spans, start = [], 1
     for session in sessions:
-        n = len(probe.changed_call_indices(session))
-        out.append(commits[cursor:cursor + n])
-        cursor += n
+        count = len(session.tool_calls)
+        spans.append((start, start + count - 1))
+        start += count
+    return spans
+
+
+def numbers_usable(marks: list[tuple[int, str]], total: int) -> bool:
+    """커밋에 적힌 호출 번호를 믿어도 되는가. 오름차순이고 총 호출 수 안이어야."""
+    numbers = [no for no, _ in marks]
+    return bool(numbers) and numbers == sorted(numbers) \
+        and numbers[0] >= 1 and numbers[-1] <= total
+
+
+def segments(sessions, marks) -> list[list[tuple[int, str]]]:
+    """사슬의 커밋 한 줄을 세션별로 나눈다 → [(세션 안 호출 위치, 커밋)].
+
+    **번호를 쓴다.** 처음에는 "파일을 바꾼 호출 수만큼 앞에서부터"로 나눴는데,
+    그 수는 트랜스크립트에서 추정하는 값이라 세션마다 조금씩 어긋나고 사슬을
+    따라 **오차가 쌓인다.** 2026-08-20에 이것 때문에 사슬 4의 셋째 세션이
+    커밋 하나만 낸 것으로 보였고(실제로는 여럿), 그 세션이 "손도 안 댔다"고
+    잘못 기록됐다.
+
+    번호가 못 믿을 모양이면(옛 데이터) 순서 짝짓기로 물러선다.
+    """
+    total = sum(len(s.tool_calls) for s in sessions)
+    if numbers_usable(marks, total):
+        return [[(no - low, commit) for no, commit in marks if low <= no <= high]
+                for low, high in session_spans(sessions)]
+
+    out, cursor = [], 0
+    commits = [commit for _no, commit in marks]
+    for session in sessions:
+        indices = probe.changed_call_indices(session)
+        out.append(list(zip(indices, commits[cursor:cursor + len(indices)])))
+        cursor += len(indices)
     return out
 
 
@@ -100,11 +133,11 @@ def trap_vectors(out_dir: Path, task_dir: Path) -> dict[str, dict]:
         for chain in sorted({r["chain"] for r in rows}):
             mine = [r for r in rows if r["chain"] == chain and r["session"]]
             git_dir = (out_dir / "snapshots" / f"chain-{chain:02d}.git").resolve()
-            commits = [c for _no, c in probe.snapshot_calls(git_dir)]
+            marks = probe.snapshot_calls(git_dir)
             inherited = start
-            for row, seg in zip(mine, segments([r["session"] for r in mine], commits)):
+            for row, seg in zip(mine, segments([r["session"] for r in mine], marks)):
                 session = row["session"]
-                pairs = dict(zip(probe.changed_call_indices(session), seg))
+                pairs = dict(seg)
                 series, current, cache = [], inherited, {}
                 for index in range(len(session.tool_calls)):
                     commit = pairs.get(index)
@@ -205,6 +238,106 @@ def choose(table: dict, limit: int = 3) -> list[tuple[float, str, int, dict]]:
     return ranked[:limit]
 
 
+# ----------------------------------------------------------- 인계 지점
+
+#: 달성 항목 → 릴리스 항목. 둘은 이름이 다르므로 여기서 잇는다.
+#: 절차에 해당하는 둘(테스트 초록·버전 올리기)은 릴리스 항목이 아니라 None.
+CHECK_TO_ITEM = {
+    "report.all_inputs": "sources",
+    "report.first_new_input": "sources",
+    "totals.match_hidden_sample": "mismatch",
+    "summary.matches_spec": "summary",
+    "json.matches_spec": "json",
+    "pdf.produced": "pdf",
+    # 설정 경고와 절차 둘은 릴리스 항목 일곱 개에 없다. 항목이 아닌 것을
+    # 항목으로 세면 "남은 일"이 부풀고, 인계 판정이 그만큼 어긋난다.
+    "config.no_warning": None,
+    "tests.green": None,
+    "version.bumped_and_logged": None,
+}
+
+
+def touched_items(git_dir: Path, seg: list[tuple[int, str]]) -> set[str]:
+    """이 세션이 **실제로 파일을 바꾼** 릴리스 항목들.
+
+    귀속은 바꾼 파일로 한다(2026-08-20 유저 결정,
+    `pilot/tasks/release-traps/attribute.py`). 읽기만 한 것은 손댄 것으로
+    세지 않는다 — 그러면 훑어본 세션이 일한 세션처럼 보인다.
+    """
+    attribute = _load("chain_eval_attribute",
+                      ROOT / "pilot" / "tasks" / "release-traps" / "attribute.py")
+    out = set()
+    for _index, commit in seg:
+        paths = _changed_paths(git_dir, commit)
+        item = attribute.attribute_call(paths) if paths else None
+        if item:
+            out.add(item)
+    return out
+
+
+def _changed_paths(git_dir: Path, commit: str) -> list[str]:
+    import subprocess
+    parents = subprocess.run(
+        ["git", f"--git-dir={git_dir}", "rev-list", "--parents", "-n", "1", commit],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if len(parents.stdout.split()) < 2:
+        return []                       # 견줄 앞 시점이 없다
+    done = subprocess.run(
+        ["git", f"--git-dir={git_dir}", "diff", "--name-only", f"{commit}~1", commit],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    return done.stdout.split()
+
+
+def unmet_items(checkpoints: dict) -> set[str]:
+    """아직 안 된 릴리스 항목들. 판정 불가는 안 된 것으로 세지 않는다."""
+    return {CHECK_TO_ITEM[name] for name, value in checkpoints.items()
+            if value is False and CHECK_TO_ITEM.get(name)}
+
+
+def classify_handoff(before: dict, after: dict, touched: set[str],
+                     claimed: bool) -> str:
+    """인계 하나를 무엇으로 부를 것인가.
+
+    **왜 이렇게 가르나.** "뒤 세션이 진척을 못 냈다"는 한 문장 안에 서로 다른
+    일이 섞여 있다. 남은 일이 없어서 안 한 것과, 남은 일에 손도 안 댄 것과,
+    손대고도 못 고친 것은 다른 문제이고 고칠 자리도 다르다.
+    """
+    left = unmet_items(before)
+    if not left:
+        return "남은 일 없음"
+    fixed = left - unmet_items(after)
+    if fixed:
+        return "고침"
+    if not (touched & left):
+        return "손도 안 댐 + 완료 주장" if claimed else "손도 안 댐"
+    return "손댔지만 못 고침"
+
+
+def handoffs(out_dir: Path) -> list[dict]:
+    """사슬마다 인계 지점을 하나씩 판정한다."""
+    from casa.metrics import claims_completion
+
+    rows = load_chain_sessions(out_dir)
+    out = []
+    for chain in sorted({r["chain"] for r in rows}):
+        mine = [r for r in rows if r["chain"] == chain and r["session"]]
+        git_dir = (out_dir / "snapshots" / f"chain-{chain:02d}.git").resolve()
+        segs = segments([r["session"] for r in mine], probe.snapshot_calls(git_dir))
+        for index in range(1, len(mine)):
+            before = (mine[index - 1]["meta"].get("grade") or {}).get("checkpoints") or {}
+            after = (mine[index]["meta"].get("grade") or {}).get("checkpoints") or {}
+            touched = touched_items(git_dir, segs[index])
+            claimed = claims_completion(mine[index]["session"].final_assistant_text)
+            out.append({
+                "chain": chain,
+                "label": mine[index]["label"],
+                "left": sorted(unmet_items(before)),
+                "touched": sorted(touched),
+                "verdict": classify_handoff(before, after, touched, claimed),
+            })
+    return out
+
+
 # ------------------------------------------------------------------- 출력
 
 def main() -> int:
@@ -257,6 +390,15 @@ def main() -> int:
     if len(picked) < 3:
         print(f"  → 셋을 채우지 못했다({len(picked)}개). 자격 미달 신호를 "
               f"끌어오지 않는다 (봉인 문서 4절 3번).")
+
+    print("\n=== 인계 지점 ===")
+    tally: dict[str, int] = {}
+    for row in handoffs(args.out_dir):
+        tally[row["verdict"]] = tally.get(row["verdict"], 0) + 1
+        print(f"  {row['label']}: {row['verdict']}"
+              f" | 남아 있던 일 {row['left'] or '없음'}"
+              f" | 손댄 항목 {row['touched'] or '없음'}")
+    print("  합계:", ", ".join(f"{k} {v}건" for k, v in sorted(tally.items())))
     return 0
 
 

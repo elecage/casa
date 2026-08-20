@@ -3,7 +3,7 @@
 봉인된 규칙이 코드에서 그대로 도는지 못 박는다. 규칙은
 `docs/EARLY_DETECTION_PROTOCOL.md` 3·4절에 수집 전에 적혀 있다.
 
-1. **세션 경계는 순서로 나눈다** — 커밋 제목의 번호에 기대지 않는다.
+1. **세션 경계는 호출 번호로 나눈다** — 추정으로 나누면 사슬을 따라 오차가 쌓인다.
 2. **나쁜 세션은 중앙값 초과** — 이 배치에서 계산하되 정의는 미리 정해진 것이다.
 3. **신호 자격은 두 시점 이상에서 같은 방향** — 한 번만 갈린 것은 우연으로 본다.
 4. **셋을 못 채우면 못 채운 채로 둔다** — 자격 미달을 끌어오지 않는다.
@@ -48,18 +48,36 @@ def session_with(*names):
 
 # ------------------------------------------------------------- 세션 경계
 
-def test_commits_are_split_by_how_many_calls_changed_files():
-    """세션마다 파일을 바꾼 호출 수만큼 앞에서부터 가져간다."""
-    first = session_with("Read", "Edit", "Edit")        # 바꾼 호출 2
-    second = session_with("Edit", "Read")               # 바꾼 호출 1
-    got = chain_eval.segments([first, second], ["a", "b", "c", "d"])
-    assert got == [["a", "b"], ["c"]]
+def test_commits_are_split_by_the_call_numbers_they_carry():
+    """호출 번호로 나눈다. 사슬은 저장소가 하나라 번호가 이어서 오른다."""
+    first = session_with("Read", "Edit", "Edit")        # 호출 1~3
+    second = session_with("Edit", "Read")               # 호출 4~5
+    marks = [(2, "a"), (3, "b"), (4, "c")]
+    got = chain_eval.segments([first, second], marks)
+    assert got == [[(1, "a"), (2, "b")], [(0, "c")]]
 
 
-def test_a_session_that_changed_nothing_gets_no_commits():
-    reader = session_with("Read", "Grep")
-    writer = session_with("Edit")
-    assert chain_eval.segments([reader, writer], ["a"]) == [[], ["a"]]
+def test_a_session_with_no_commits_in_its_range_gets_none():
+    first = session_with("Read", "Edit")                # 호출 1~2
+    second = session_with("Read", "Read")               # 호출 3~4
+    assert chain_eval.segments([first, second], [(2, "a")]) == [[(1, "a")], []]
+
+
+def test_estimating_by_changed_call_count_drifts_along_a_chain():
+    """추정으로 나누면 오차가 쌓인다 — 2026-08-20에 실제로 어긋났다.
+
+    번호가 못 믿을 모양일 때만 그 방식으로 물러선다.
+    """
+    sessions = [session_with("Read", "Edit"), session_with("Edit")]
+    # 번호가 총 호출 수를 넘으면 못 믿는다 → 순서 짝짓기로 물러선다.
+    got = chain_eval.segments(sessions, [(99, "a"), (100, "b")])
+    assert got == [[(1, "a")], [(0, "b")]]
+
+
+def test_call_numbers_out_of_order_are_not_trusted():
+    sessions = [session_with("Read", "Edit")]
+    assert chain_eval.numbers_usable([(2, "a"), (1, "b")], 2) is False
+    assert chain_eval.numbers_usable([(1, "a"), (2, "b")], 2) is True
 
 
 # --------------------------------------------------------- 나쁜 세션 정의
