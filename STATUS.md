@@ -205,7 +205,7 @@
 | W34b | **과정 채점으로 재설계** — 함정 목록 10종 + 과제 저장소 `release-traps` + 앵커·설계 검문에 "결과로 정의 금지" 기계 강제 | **설계 완료·구현 대기** (2026-08-20, 유저 지적) | `docs/PROCESS_TRAPS.md`, `pilot/tasks/release-traps/DESIGN.md`, `harness/anchor.md`, `harness/TASK_DESIGN_RUBRIC.md` 8번 |
 | W34d | 기존 220세션 함정 발생률 실측 (친숙도 가설 사전 등록 → 지지되지 않음, 길이 관찰) | **완료** (2026-08-20) | `src/casa/traps.py`, `pilot/analysis/trap_rates.py`, `docs/TRAP_RATES_RETRO.md` |
 | W35a | 회복 판정 규칙 + 달성 항목 계측 (유저 승인 5건) | **완료** (2026-08-20) | `docs/RECOVERY_RULE.md`, 설계 검문 8번 |
-| W35 | `release-traps` 구현 (과제 저장소·함정 탐지기 11·네 상태 판정·레퍼런스 궤적 3벌) | **진행 중** — 과제 저장소·넓이·이름 체계·**달성 항목 채점기와 레퍼런스 해답** 완료(2026-08-20). 남은 것: 함정 탐지기 11개, 네 상태 판정, 호출 단위 스냅숏 러너, 레퍼런스 궤적 3벌 | `pilot/tasks/release-traps/`, `tests/test_release_traps_{template,grader}.py` |
+| W35 | `release-traps` 구현 (과제 저장소·함정 탐지기 11·네 상태 판정·레퍼런스 궤적 3벌) | **진행 중** — 과제 저장소·넓이·이름 체계·달성 항목 채점기·레퍼런스 해답·**함정 탐지기 11개와 네 상태 판정** 완료(2026-08-20). 남은 것: 호출 단위 스냅숏 러너, 레퍼런스 궤적 3벌(여기서 문턱 확정) | `pilot/tasks/release-traps/`, `src/casa/trap_state.py`, `tests/test_release_traps_*.py` |
 | W-later | sonnet 실패 달성 과제(다중 스케일 절벽형, orbit 외) | 추적 (유저 요구) | `pilot/tasks/<new>/` |
 | W13 | 본 수집 ~180세션 (배치 분할, 원자료 보존) | 대기 | `results/main2/` |
 | W14 | 3축 분석 → 사전 등록 판정 → 집필/학회 결정 | 대기 | 분석 노트 |
@@ -312,6 +312,19 @@ n 증가로 판정 (사후 조작 방지, 결정 로그 기록) / 노벨티 워�
 반드시 stdin으로(명령줄 전달 시 cmd.exe가 여러 줄 인자를 파괴).
 
 ## 결정 로그 (뒤집으려면 유저와 상의)
+
+- 2026-08-20 **완료 주장 지표가 영어만 보고 있었다 — 한국어를 넣고 부정을
+  가르게 고침** (`src/casa/metrics.py`의 `claims_completion`).
+  **발견 경위**: `release-traps`의 `claims_done_falsely` 탐지기가 한국어 보고
+  ("전부 끝냈습니다")에 한 번도 안 켜졌다. 지표가 `done|completed|tests pass`
+  만 보고 있었다. 과제 지시가 한국어면 보고도 한국어로 오므로, 새 과제군
+  에서는 이 지표가 **통째로 침묵**할 뻔했다.
+  **고친 것**: 한국어 표현(완료·끝냈·마쳤·전부 통과 등)을 넣고, **문장 단위로
+  보며 부정이 붙은 문장은 주장으로 세지 않는다**("두 항목은 끝내지
+  못했습니다"). 부정 가르기는 영어에도 적용된다.
+  **기존 결과에 영향 없음을 확인했다**: 220세션 재계산 결과가 그대로다 —
+  주장 210건(95%), 허위 108건(51%), 신호 8종 AUROC 0.408~0.631 동일.
+  재현: `pilot/analysis/claim_gap.py results/main2/* results/main/* results/cal/*`.
 
 - 2026-08-20 **이름은 문장에서 유도한다 — 번호와 지어낸 낱말을 전부 걷어냄**
   (유저 지시). 하루에 이름을 다섯 번 틀렸다: 그리스 문자(정의 없음) →
