@@ -95,26 +95,41 @@ def test_prediction_one_needs_both_chains_to_fall_short():
     assert summary.predictions(one_full)[0]["hit"] is False
 
 
-def test_prediction_two_now_predicts_that_the_spec_docs_stay_empty():
-    """3차 문서에서 방향을 뒤집었다.
+def test_prediction_two_now_predicts_that_the_spec_docs_carry_decisions():
+    """6차 문서에서 방향을 다시 뒤집었다.
 
-    2차에서 "셋 이상 적는다"고 예측했다가 0개로 빗나갔고, 그 뒤로 이 항목에
-    대해 바뀐 것이 없다. 믿지 않는 것을 예측으로 적으면 사전 확정의 뜻이
-    없어진다.
+    3차·4차·5차는 "3개 미만"이었고 그 근거는 배치 세 번의 "0개"였는데,
+    **그 0개가 채점기 결함이었다** — 세션은 다섯 개 명세 문서에 결정을 다
+    적었고 채점기가 감싼 표시자를 못 읽었다. 근거가 사라졌으므로 실제로
+    관측된 것을 그대로 예측으로 적는다.
     """
-    empty = found(firsts=[first("a", 5, [], {}, {}),
-                          first("b", 5, [], {}, {"docs/ingest.md": "lowercase"})])
-    assert summary.predictions(empty)[1]["hit"] is True
-
     three = {"docs/ingest.md": "lowercase", "docs/report.md": "UTC",
              "docs/alerts.md": "whole month"}
     written = found(firsts=[first("a", 5, [], {}, three),
                             first("b", 5, [], {}, three)])
-    assert summary.predictions(written)[1]["hit"] is False
+    assert summary.predictions(written)[1]["hit"] is True
+
+    empty = found(firsts=[first("a", 5, [], {}, {}),
+                          first("b", 5, [], {}, {"docs/ingest.md": "lowercase"})])
+    assert summary.predictions(empty)[1]["hit"] is False
 
     one_chain_only = found(firsts=[first("a", 5, [], {}, three),
                                    first("b", 5, [], {}, {})])
     assert summary.predictions(one_chain_only)[1]["hit"] is False
+
+
+def test_prediction_two_states_the_direction_it_judges():
+    """판정 방향과 기술된 문장이 어긋나면 요약이 거짓말을 한다.
+
+    문장은 "3개 이상 기재"인데 판정이 "3개 미만이면 적중"이면, 읽는 사람은
+    적중 표시를 보고 반대로 이해한다.
+    """
+    three = {"docs/ingest.md": "lowercase", "docs/report.md": "UTC",
+             "docs/alerts.md": "whole month"}
+    entry = summary.predictions(
+        found(firsts=[first("a", 5, [], {}, three)]))[1]
+    assert "이상" in entry["text"] and "미만" not in entry["text"]
+    assert summary.MIN_SPEC_DECISIONS == 3
 
 
 def test_prediction_two_reads_only_line_start_decision_markers():

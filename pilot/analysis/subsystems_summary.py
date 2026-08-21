@@ -6,7 +6,7 @@
 없다. 예측 문장과 판정 기준이 다르기 때문이다.
 
 **왜 결과를 확인하기 전에 작성하는가.** 무엇을 기술할지 데이터를 확인한 뒤
-결정하면 유리한 수치만 기술하게 된다. `docs/SUBSYSTEMS_PREDICTIONS3.md` 3절의
+결정하면 유리한 수치만 기술하게 된다. `docs/SUBSYSTEMS_PREDICTIONS6.md` 4절의
 예측 여섯 개와 판정 기준을 이 파일에 코드로 기술하고, 배치가 종료되면 그대로
 실행한다. **이 파일에서 기준을 수정하지 않는다.**
 
@@ -273,7 +273,7 @@ def measure(out_dir: Path) -> dict:
 def predictions(found: dict) -> list[dict]:
     """예측마다 (적중 여부, 실측값)을 산출한다.
 
-    문장과 기준은 `docs/SUBSYSTEMS_PREDICTIONS3.md` 3절 그대로이다.
+    문장과 기준은 `docs/SUBSYSTEMS_PREDICTIONS6.md` 4절 그대로이다.
     **판정할 표본이 없으면 `hit`을 None으로 둔다** — 적중이라고도 빗나갔다고도
     기술하지 않는다.
     """
@@ -295,11 +295,13 @@ def predictions(found: dict) -> list[dict]:
          "detail": f"첫 세션 달성 항목 {scores}"},
         {"n": 2,
          "text": f"사슬 두 개 모두에서 첫 세션이 명세 문서에 결정을 "
-                 f"{MIN_SPEC_DECISIONS}개 **미만** 기재",
-         # 2차 문서에서 방향을 뒤집었다. "셋 이상 적는다"고 예측했다가
-         # 빗나갔고(0개), 그 뒤로 이 항목에 대해 바뀐 것이 없다. 믿지 않는
-         # 것을 예측으로 적으면 사전 확정의 뜻이 없어진다.
-         "hit": (all(n < MIN_SPEC_DECISIONS for n in in_specs)
+                 f"{MIN_SPEC_DECISIONS}개 **이상** 기재",
+         # 6차 문서에서 방향을 다시 뒤집었다(`docs/SUBSYSTEMS_PREDICTIONS6.md`
+         # 4절 2번). 3차·4차·5차는 "3개 미만"이었고 그 근거는 배치 세 번의
+         # "0개"였는데, **그 0개가 채점기 결함이었다** — 세션은 다섯 개 명세
+         # 문서에 결정을 다 적었고 채점기가 감싼 표시자를 못 읽었다. 근거가
+         # 사라졌으므로 실제로 관측된 것을 그대로 예측으로 적는다.
+         "hit": (all(n >= MIN_SPEC_DECISIONS for n in in_specs)
                  if firsts else None),
          "detail": "; ".join(
              f"{f['label']} {len(f.get('spec_decisions') or {})}개"
@@ -370,7 +372,7 @@ def render(out_dir: Path) -> str:
     add("")
     add("`results/`는 저장소에 포함되지 않으며 컨테이너와 함께 소멸한다. 이")
     add("파일이 해당 배치에 남는 기록이다. 사전 예측은")
-    add("`docs/SUBSYSTEMS_PREDICTIONS.md`에 있다.")
+    add("`docs/SUBSYSTEMS_PREDICTIONS6.md`에 있다.")
     add("")
 
     if len(rows) < EXPECTED_SESSIONS:
@@ -394,7 +396,7 @@ def render(out_dir: Path) -> str:
     add("")
     add(f"- {len(stopped)}/{len(rows)}세션: {', '.join(stopped) or '없음'}")
     add("- 절반을 넘으면 100호출이 이 저장소에 적합하지 않은 것이다"
-        "(`docs/SUBSYSTEMS_PREDICTIONS.md` 4절).")
+        "(`docs/SUBSYSTEMS_PREDICTIONS6.md` 5절).")
     add("")
 
     add("## 세션별")
@@ -429,7 +431,7 @@ def render(out_dir: Path) -> str:
     add("")
     add("**한 곳에 몰린 비율은 측정만 하고 이 배치의 판정에는 사용하지 않는다.**")
     add("동일한 데이터로 기준을 정하고 동일한 데이터로 판정하면 적중할 수밖에")
-    add("없다(`docs/SUBSYSTEMS_PREDICTIONS.md` 5절).")
+    add("없다(`docs/SUBSYSTEMS_PREDICTIONS6.md` 6절).")
     add("")
 
     add("## 세션 교체 지점")
