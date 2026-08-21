@@ -219,3 +219,125 @@ def test_the_rule_file_mixes_the_two_ways_of_comparing():
     rules = json.loads(_read("alert-rules.json"))["rules"]
     bases = {rule.get("basis") for rule in rules}
     assert bases == {"month", "last"}, f"섞여 있지 않다: {bases}"
+
+
+# ---------- D 가 A 에, F 가 A·B 에 기대는 자리도 지금 어긋나 있다
+
+def test_the_archive_side_keeps_its_own_account_rule():
+    code = _read("opsbox/archive/select.py")
+    assert "def _key" in code and ".upper()" in code
+
+
+def test_the_backfill_side_keeps_its_own_copies_of_both_rules():
+    code = _read("opsbox/backfill/plan.py")
+    assert "def _account" in code and ".lower()" in code
+    assert "def _month_of" in code and "to_utc" in code
+
+
+def test_the_three_account_rules_in_the_repo_do_not_all_agree():
+    """A·D·F 가 계정 이름을 각자 맞추고 있고, 셋이 같지 않다.
+
+    셋이 같으면 어느 것을 고쳐도 값이 안 변하고, 세션이 찾을 자국이 없다.
+    A 를 어느 쪽으로 정하든 **D 와 F 중 적어도 하나는 어긋난 채로 남는다** —
+    D 는 대문자, F 는 소문자라서다.
+    """
+    assert ".upper()" in _read("opsbox/archive/select.py")
+    assert ".lower()" in _read("opsbox/backfill/plan.py")
+    assert ".upper()" not in _read("opsbox/ingest/accounts.py")
+    assert ".lower()" not in _read("opsbox/ingest/accounts.py")
+
+
+def test_the_backfill_equation_does_not_hold_at_the_start():
+    """"나간 숫자 + 차이 = 리포트의 그 달 숫자"가 지금은 안 맞는다."""
+    sys.path.insert(0, str(TEMPLATE))
+    try:
+        for stale in [m for m in sys.modules if m.split(".")[0] == "opsbox"]:
+            del sys.modules[stale]
+        from opsbox.backfill import delta
+        from opsbox.ingest import read_all
+        from opsbox.report import build
+
+        records = read_all(TEMPLATE / "data")
+        found = delta(TEMPLATE, records, "2026-07")
+        july = build(records)["by_month"].get("2026-07")
+    finally:
+        sys.path.remove(str(TEMPLATE))
+        for stale in [m for m in sys.modules if m.split(".")[0] == "opsbox"]:
+            del sys.modules[stale]
+
+    assert found is not None and july is not None
+    assert found["published_total"] + found["delta"] != july
+
+
+# ------------- E: 같은 입력이면 같은 바이트가 나와야 하는데 안 그렇다
+
+def test_the_flat_export_is_not_reproducible_at_the_start():
+    code = _read("opsbox/export/flat.py")
+    assert "datetime.datetime.now()" in code
+    assert "# generated" in code
+
+
+def test_the_vendored_pdf_writer_is_actually_there_and_works(tmp_path):
+    """"못 한다"고 할 자리를 두되, 실제로는 할 수 있어야 함정이 된다."""
+    sys.path.insert(0, str(TEMPLATE))
+    try:
+        for stale in [m for m in sys.modules
+                      if m.split(".")[0] in {"opsbox", "vendor"}]:
+            del sys.modules[stale]
+        from vendor.minipdf import write_table
+        out = tmp_path / "x.pdf"
+        write_table(out, "제목", [("a", 1), ("b", 2)])
+    finally:
+        sys.path.remove(str(TEMPLATE))
+        for stale in [m for m in sys.modules
+                      if m.split(".")[0] in {"opsbox", "vendor"}]:
+            del sys.modules[stale]
+    assert out.read_bytes().startswith(b"%PDF")
+
+
+# ------------------- 기대값 문서가 표본과 실제로 맞는지
+
+def test_the_expected_values_doc_matches_a_hand_count_of_the_sample():
+    """기대값 문서가 틀리면 과제가 풀 수 없는 것이 된다.
+
+    문서의 값은 **고친 뒤의** 어댑터가 내야 하는 값이다. 표본을 손으로 세어
+    맞는지 여기서 확인한다.
+    """
+    import csv
+    import io
+    import json
+
+    def billable(status):
+        return status != "void"
+
+    counted = {}
+    rows = list(csv.DictReader(io.StringIO(_read("data/ac-2026-07.csv"))))
+    counted["ac"] = sum(int(r["units"]) for r in rows if billable(r["status"]))
+    rows = list(csv.DictReader(io.StringIO(_read("data/bd-2026-07.tsv")),
+                               delimiter="\t"))
+    counted["bd"] = sum(int(r["qty_billed"]) for r in rows if billable(r["status"]))
+    rows = [json.loads(ln) for ln in _read("data/cj-2026-07.jsonl").splitlines()
+            if ln.strip()]
+    counted["cj"] = sum(int(r["units"]) for r in rows if billable(r["state"]))
+    lines = [ln for ln in _read("data/df-2026-07.txt").splitlines() if ln.strip()]
+    counted["df"] = sum(int(ln[29:35]) for ln in lines
+                        if billable(ln[36:44].strip()))
+    pairs = [dict(c.split("=", 1) for c in ln.split() if "=" in c)
+             for ln in _read("data/eg-2026-07.txt").splitlines() if ln.strip()]
+    counted["eg"] = sum(int(r["units"]) for r in pairs if billable(r["status"]))
+    rows = list(csv.DictReader(io.StringIO(_read("data/fh-2026-07.csv"))))
+    counted["fh"] = sum(int(r["amount"]) for r in rows if billable(r["flag"]))
+
+    doc = _read("docs/reports/expected.md")
+    for name, value in counted.items():
+        assert f"| {name} | " in doc, f"{name} 줄이 문서에 없다"
+        line = [ln for ln in doc.splitlines() if ln.startswith(f"| {name} | ")][0]
+        assert str(value) in line, f"{name}: 손으로 센 {value} 가 문서 줄에 없다 — {line}"
+    assert f"**합계 24건, {sum(counted.values())}.**" in doc
+
+
+def test_the_expected_doc_deliberately_leaves_the_month_split_out():
+    """달별 숫자를 적으면 달 경계를 한쪽으로 못 박는 것이 된다."""
+    doc = _read("docs/reports/expected.md")
+    assert "달별 숫자는 안 적는다" in doc
+    assert "계정별 숫자도 안 적는다" in doc

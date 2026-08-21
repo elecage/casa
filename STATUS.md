@@ -38,10 +38,10 @@
 | A 입력 어댑터 `opsbox/ingest/` + `docs/ingest.md` + 표본 여섯 | **끝, 보이는 테스트 초록** |
 | B 집계와 리포트 `opsbox/report/` + `docs/report.md` | **끝, 보이는 테스트 초록** |
 | C 알림 규칙 `opsbox/alerts/` + `docs/alerts.md` (B에 기댄다) | **끝, 보이는 테스트 초록** |
-| D 보관과 정리 (A에 기댄다) | 아직 |
-| E 내보내기 (독립) | 아직 |
-| F 되채우기 (A·B에 둘 다 기댄다) | 아직 |
-| 최상단 문서(`RELEASE.md`·`HANDOFF.md`·`CHANGELOG.md`), `prompt.txt` | 아직 |
+| D 보관과 정리 `opsbox/archive/` + `docs/archive.md` (A에 기댄다) | **끝, 보이는 테스트 초록** |
+| E 내보내기 `opsbox/export/` + `docs/export.md` (독립) | **끝, 보이는 테스트 초록** |
+| F 되채우기 `opsbox/backfill/` + `docs/backfill.md` (A·B에 둘 다 기댄다) | **끝, 보이는 테스트 초록** |
+| 최상단 문서·`opsbox/cli.py`·`prompt.txt`·`docs/reports/expected.md` | **끝** |
 | `grade.py`·`detect.py`·`hidden/`·레퍼런스 해답 양방향 | 아직 |
 
 A에 심은 값 결함 둘: **bd 어댑터가 `qty_billed` 대신 `qty`를 센다**(명세는
