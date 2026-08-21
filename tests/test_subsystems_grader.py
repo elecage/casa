@@ -141,3 +141,52 @@ def test_hardcoding_the_visible_numbers_does_not_pass(tmp_path):
     checks = _grade(faked)
     assert checks["report.sources_match"] is not True
     assert checks["ingest.bd_billed"] is not True
+
+
+# ------------------- 러너가 호출하는 방식 그대로 호출해도 도는가
+
+def test_the_runner_calls_the_grader_with_a_positional_work_dir():
+    """`pilot/run_chain.py`가 채점기를 어떻게 호출하는지 소스에서 확인한다.
+
+    이 검사가 없으면 러너 쪽 호출 방식이 바뀌었을 때 아래 검사가 무의미해진다.
+    """
+    source = (Path(__file__).resolve().parents[1] / "pilot"
+              / "run_chain.py").read_text(encoding="utf-8")
+    assert 'str(task_dir / "grade.py"), str(workdir)' in source
+
+
+def test_grading_works_when_the_work_dir_is_passed_positionally(tmp_path):
+    """수집이 실제로 쓰는 호출 방식이다.
+
+    2026-08-21에 채점기가 `--work-dir`만 받도록 되어 있어, argparse가 사용법을
+    stderr로 출력하고 종료 코드 2로 끝났다. 러너는 빈 stdout을 JSON으로
+    읽으려다 실패해 그 세션의 채점 결과를 `{"parse_error": true}`로 기록했다.
+    손으로 호출할 때는 `--work-dir`를 붙였으므로 수집을 실행하기 전에는
+    드러나지 않았고, 배치를 한 세션 만에 중단했다.
+    """
+    done = subprocess.run(
+        [sys.executable, str(GRADER), str(TASK / "template")],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=600)
+    assert done.returncode == 0, done.stdout + done.stderr
+    checks = json.loads(done.stdout)["checkpoints"]
+    assert len(checks) == ITEMS
+
+
+def test_the_named_form_still_works():
+    done = subprocess.run(
+        [sys.executable, str(GRADER), "--work-dir", str(TASK / "template")],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=600)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert len(json.loads(done.stdout)["checkpoints"]) == ITEMS
+
+
+def test_the_grader_refuses_clearly_when_given_no_work_dir():
+    """조용히 빈 출력을 내면 러너가 그것을 채점 결과로 읽는다."""
+    done = subprocess.run(
+        [sys.executable, str(GRADER)],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=60)
+    assert done.returncode != 0
+    assert done.stdout.strip() == ""

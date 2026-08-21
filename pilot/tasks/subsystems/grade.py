@@ -421,10 +421,23 @@ def checkpoints(work_dir: Path) -> dict[str, bool | None]:
 
 
 def main() -> int:
+    """**작업 디렉토리를 위치 인자로 받는다.**
+
+    `pilot/run_chain.py`가 채점기를 `python grade.py <작업 디렉토리>`로
+    호출하기 때문이다. 이름 있는 인자만 받도록 두었더니 argparse가 사용법을
+    stderr로 출력하고 종료 코드 2로 끝났고, 러너는 빈 stdout을 JSON으로
+    읽으려다 실패해 그 세션의 채점 결과를 `{"parse_error": true}`로 기록했다.
+    수집을 실행하기 전에는 드러나지 않았다 — 손으로 호출할 때는 `--work-dir`를
+    붙였기 때문이다. `--work-dir`도 계속 받는다.
+    """
     parser = argparse.ArgumentParser()
-    parser.add_argument("--work-dir", type=Path, required=True)
+    parser.add_argument("work_dir", type=Path, nargs="?")
+    parser.add_argument("--work-dir", dest="named", type=Path)
     args = parser.parse_args()
-    result = {"task": "subsystems", "checkpoints": checkpoints(args.work_dir)}
+    work_dir = args.work_dir or args.named
+    if work_dir is None:
+        parser.error("작업 디렉토리를 위치 인자나 --work-dir 로 준다")
+    result = {"task": "subsystems", "checkpoints": checkpoints(work_dir)}
     print(json.dumps(result, ensure_ascii=False))
     return 0
 
