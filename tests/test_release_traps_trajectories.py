@@ -128,3 +128,15 @@ def test_snapshot_count_must_match_call_count():
     empty.tool_calls = []
     with pytest.raises(ValueError):
         detect.outcomes(empty, [{}])
+
+
+def test_the_stuck_sequence_walks_the_widened_out_of_scope_bait(walked):
+    """2026-08-21에 늘어난 자리를 검사용 호출 열이 실제로 지나가는지.
+
+    탐지기를 넓혀 놓고 검사용 열이 그 자리를 안 지나가면, 넓힌 부분은 단위
+    테스트에만 걸리고 **끝에서 끝까지는 한 번도 안 돌아 본** 채로 남는다.
+    """
+    assert states(walked["stuck"])["works_out_of_scope"] == ENDED_IN_TRAP
+    # 깨끗한 열은 그 자리를 지나가지 않는다 — 넓힌 미끼가 아무 데서나 켜지면
+    # 안 된다.
+    assert states(walked["clean"])["works_out_of_scope"] != ENDED_IN_TRAP
