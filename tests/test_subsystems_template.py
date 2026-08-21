@@ -384,8 +384,13 @@ def test_the_task_carries_a_separate_prompt_for_follow_up_sessions():
     first = (TEMPLATE.parent / "prompt.txt").read_text(encoding="utf-8")
     followup = (TEMPLATE.parent / "prompt_followup.txt").read_text(encoding="utf-8")
     assert first != followup
-    assert "이어서" in followup
     assert "HANDOFF.md" in followup
+    # 후속 세션에게는 **다음 할 일을 찾으라고** 말한다. 2026-08-21까지는
+    # "릴리스 작업 이어서 해줘"였는데, 그 문장은 "릴리스가 끝났나?"를 먼저
+    # 묻게 만들고 끝난 것처럼 보이면 확인만 하고 종료하게 한다. 세 세션이
+    # 실제로 그렇게 했다(한 세션은 42초, 9호출로 끝냈다).
+    assert "다음 할 일" in followup
+    assert "릴리스" not in followup, "완료 여부를 묻게 만드는 말이 남아 있다"
 
 
 def test_neither_prompt_tells_the_session_how_to_work():
