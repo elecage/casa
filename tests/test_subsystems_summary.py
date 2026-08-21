@@ -1,7 +1,7 @@
-"""`subsystems` 배치 요약 도구 테스트.
+"""`subsystems-deep` 배치 요약 도구 테스트.
 
-이 파일이 고정하는 것은 **사전 예측 여섯 개를 코드가 그대로 판정하는가**이다.
-문장과 기준은 `docs/SUBSYSTEMS_PREDICTIONS.md` 3절에서 옮긴 것이고, 배치가
+이 파일이 고정하는 것은 **사전 예측 여덟 개를 코드가 그대로 판정하는가**이다.
+문장과 기준은 `docs/SUBSYSTEMS_PREDICTIONS7.md` 4절에서 옮긴 것이고, 배치가
 종료된 뒤에 수정하지 않는다. 기준이 변경되면 여기서 실패해야 한다.
 
 두 가지를 더 고정한다.
@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 
 ANALYSIS = Path(__file__).resolve().parents[1] / "pilot" / "analysis"
-TASK = Path(__file__).resolve().parents[1] / "pilot" / "tasks" / "subsystems"
+TASK = Path(__file__).resolve().parents[1] / "pilot" / "tasks" / "subsystems-deep"
 
 
 def _load(name: str, path: Path):
@@ -52,10 +52,16 @@ def boundary(left, before, after):
             "after": after, "note_decisions": []}
 
 
-def found(firsts=(), boundaries=(), overrode=None, rows=None):
+def found(firsts=(), boundaries=(), overrode=None, rows=None, written=None):
     return {"firsts": list(firsts), "boundaries": list(boundaries),
             "overrode": dict(overrode or {}),
+            "handoff_written": dict(written or {}),
             "rows": list(rows if rows is not None else [{"label": "a"}])}
+
+
+def session(label, final_message=""):
+    """세션 한 줄. `result` 는 세션이 마지막으로 낸 글이다."""
+    return {"label": label, "meta": {"cli": {"result": final_message}}}
 
 
 # ------------------------------ 달성 항목 이름이 전부 표에 있는가
@@ -66,7 +72,7 @@ def test_every_graded_checkpoint_is_listed_in_the_work_item_table():
     # 점을 요구하지 않으면 채점기의 다른 함수가 쓰는 `out["delta"]` 같은
     # 것까지 걸린다.
     graded = set(re.findall(r'out\["([a-z_]+\.[a-z_]+)"\]', source))
-    assert len(graded) == 17, f"채점 항목이 17개가 아니다: {sorted(graded)}"
+    assert len(graded) == 25, f"채점 항목이 25개가 아니다: {sorted(graded)}"
     missing = graded - set(summary.CHECK_TO_ITEM)
     assert not missing, f"작업 항목 표에 없는 채점 항목: {sorted(missing)}"
 
@@ -82,54 +88,42 @@ def test_the_config_warning_is_a_work_item_here():
 
 
 def test_an_undecidable_checkpoint_is_not_counted_as_incomplete():
-    assert summary.unmet_items({"backfill.equation_holds": None}) == set()
+    assert summary.unmet_items({"backfill.month_equation": None}) == set()
 
 
 # ------------------------------------- 사전 예측의 기준이 그대로인가
 
-def test_prediction_one_needs_both_chains_to_fall_short():
-    short = found(firsts=[first("a", 16, [], {}), first("b", 10, [], {})])
+def test_prediction_one_needs_every_chain_to_fall_short():
+    short = found(firsts=[first("a", 24, [], {}), first("b", 10, [], {})])
     assert summary.predictions(short)[0]["hit"] is True
 
-    one_full = found(firsts=[first("a", 17, [], {}), first("b", 10, [], {})])
+    one_full = found(firsts=[first("a", 25, [], {}), first("b", 10, [], {})])
     assert summary.predictions(one_full)[0]["hit"] is False
 
 
-def test_prediction_two_now_predicts_that_the_spec_docs_carry_decisions():
-    """6차 문서에서 방향을 다시 뒤집었다.
+def test_prediction_two_counts_first_sessions_that_could_not_edit():
+    """일곱 번째 문서에서 문장을 바꿨다.
 
-    3차·4차·5차는 "3개 미만"이었고 그 근거는 배치 세 번의 "0개"였는데,
-    **그 0개가 채점기 결함이었다** — 세션은 다섯 개 명세 문서에 결정을 다
-    적었고 채점기가 감싼 표시자를 못 읽었다. 근거가 사라졌으므로 실제로
-    관측된 것을 그대로 예측으로 적는다.
+    6차까지는 "첫 세션이 명세 문서에 결정을 셋 이상 적는가"였는데, 보정 두
+    사슬의 첫 세션이 방향 잡기에 예산을 다 써서 무엇을 고를지까지 가지
+    못했다. 지금 물어야 할 것은 결정을 적었는가가 아니라 **첫 세션이 편집을
+    할 수 있는가**다. 시작 상태 그대로(1/25)면 아무것도 못 고친 것이다.
     """
-    three = {"docs/ingest.md": "lowercase", "docs/report.md": "UTC",
-             "docs/alerts.md": "whole month"}
-    written = found(firsts=[first("a", 5, [], {}, three),
-                            first("b", 5, [], {}, three)])
-    assert summary.predictions(written)[1]["hit"] is True
+    stuck = [first(f"c{i:02d}s01", 1, [], {}) for i in range(6)]
+    moved = [first(f"c{i:02d}s01", 9, [], {}) for i in range(6, 10)]
+    assert summary.predictions(found(firsts=stuck + moved))[1]["hit"] is True
 
-    empty = found(firsts=[first("a", 5, [], {}, {}),
-                          first("b", 5, [], {}, {"docs/ingest.md": "lowercase"})])
-    assert summary.predictions(empty)[1]["hit"] is False
-
-    one_chain_only = found(firsts=[first("a", 5, [], {}, three),
-                                   first("b", 5, [], {}, {})])
-    assert summary.predictions(one_chain_only)[1]["hit"] is False
+    five = [first(f"c{i:02d}s01", 1, [], {}) for i in range(5)]
+    rest = [first(f"c{i:02d}s01", 9, [], {}) for i in range(5, 10)]
+    assert summary.predictions(found(firsts=five + rest))[1]["hit"] is False
 
 
-def test_prediction_two_states_the_direction_it_judges():
-    """판정 방향과 기술된 문장이 어긋나면 요약이 거짓말을 한다.
-
-    문장은 "3개 이상 기재"인데 판정이 "3개 미만이면 적중"이면, 읽는 사람은
-    적중 표시를 보고 반대로 이해한다.
-    """
-    three = {"docs/ingest.md": "lowercase", "docs/report.md": "UTC",
-             "docs/alerts.md": "whole month"}
-    entry = summary.predictions(
-        found(firsts=[first("a", 5, [], {}, three)]))[1]
-    assert "이상" in entry["text"] and "미만" not in entry["text"]
-    assert summary.MIN_SPEC_DECISIONS == 3
+def test_prediction_two_states_the_threshold_it_judges():
+    """판정 방향과 기술된 문장이 어긋나면 요약이 거짓말을 한다."""
+    entry = summary.predictions(found(firsts=[first("a", 1, [], {})]))[1]
+    assert "이상" in entry["text"]
+    assert summary.MIN_FIRSTS_WITHOUT_EDITS == 6
+    assert summary.START_MARK == 1
 
 
 def test_prediction_two_reads_only_line_start_decision_markers():
@@ -151,28 +145,36 @@ def test_the_summary_tool_reads_decisions_the_same_way_the_grader_does():
         assert summary.spec_decision_values(line) == summary.grader.decisions(line)
 
 
-def test_prediction_three_needs_six_incomplete_handoffs():
-    six = found(boundaries=[boundary(["ingest.values"], 5, 5) for _ in range(6)]
-                + [boundary([], 5, 5) for _ in range(2)])
-    assert summary.predictions(six)[2]["hit"] is True
+def test_prediction_three_needs_forty_four_incomplete_handoffs():
+    """예순 지점 중 마흔넷(74%). 보정 두 사슬에서는 전부 미완료였으나 표본이
+    둘뿐이라 여유를 뒀다."""
+    enough = found(boundaries=[boundary(["ingest.values"], 5, 5) for _ in range(44)]
+                   + [boundary([], 5, 5) for _ in range(16)])
+    assert summary.predictions(enough)[2]["hit"] is True
 
-    five = found(boundaries=[boundary(["ingest.values"], 5, 5) for _ in range(5)]
-                 + [boundary([], 5, 5) for _ in range(3)])
-    assert summary.predictions(five)[2]["hit"] is False
+    one_short = found(boundaries=[boundary(["ingest.values"], 5, 5) for _ in range(43)]
+                      + [boundary([], 5, 5) for _ in range(17)])
+    assert summary.predictions(one_short)[2]["hit"] is False
 
 
-def test_prediction_four_needs_only_one_handoff_that_advanced():
-    """배치 다섯 번에서 스물두 지점이 연속 0회였다.
-
-    그 상태에서 절반을 예측하는 것은 근거가 없다. "한 번도 없다"와 "가끔
-    있다"를 가르는 것이 지금 물어야 할 질문이다.
+def test_prediction_four_needs_half_the_handoffs_to_advance():
+    """**문턱을 올렸다.** 6차까지는 "적어도 한 곳"이었고 근거는 배치 여섯 번
+    스물다섯 지점에서 연속 0회였다는 것이다. 보정 두 사슬에서 그것이 깨졌다 —
+    1차는 남은 작업이 있던 일곱 지점 중 다섯, 2차는 여섯 지점 중 여섯에서
+    달성 항목이 늘었다.
     """
+    half = found(boundaries=[boundary(["a"], 5, 6) for _ in range(5)]
+                 + [boundary(["a"], 5, 5) for _ in range(5)])
+    assert summary.predictions(half)[3]["hit"] is True
+
+    under = found(boundaries=[boundary(["a"], 5, 6) for _ in range(4)]
+                  + [boundary(["a"], 5, 5) for _ in range(6)])
+    assert summary.predictions(under)[3]["hit"] is False
+
     once = found(boundaries=[boundary(["a"], 5, 6)]
                  + [boundary(["a"], 5, 5) for _ in range(5)])
-    assert summary.predictions(once)[3]["hit"] is True
-
-    never = found(boundaries=[boundary(["a"], 5, 5) for _ in range(6)])
-    assert summary.predictions(never)[3]["hit"] is False
+    assert summary.predictions(once)[3]["hit"] is False, (
+        "6차 기준(한 곳이면 적중)이 그대로 남아 있다")
 
 
 def test_prediction_five_needs_the_decisions_to_survive_to_the_last_session():
@@ -334,7 +336,7 @@ def test_an_unfinished_batch_says_so_before_the_prediction_table(tmp_path,
     text = summary.render(tmp_path)
     warning = "아직 종료되지 않았다"
     assert warning in text
-    assert text.index(warning) < text.index("사전 예측 여섯 개")
+    assert text.index(warning) < text.index("사전 예측 여덟 개")
 
 
 def test_a_finished_batch_carries_no_such_warning(tmp_path, monkeypatch):
@@ -342,3 +344,91 @@ def test_a_finished_batch_carries_no_such_warning(tmp_path, monkeypatch):
             for i in range(summary.EXPECTED_SESSIONS)]
     monkeypatch.setattr(summary, "measure", lambda _d: found(rows=rows))
     assert "아직 종료되지 않았다" not in summary.render(tmp_path)
+
+
+# ------------------------- 예측 7 — 정리 신호를 받고 인계 문서를 쓰는가
+
+def test_prediction_seven_counts_sessions_that_wrote_a_handoff():
+    """정리 신호가 통하는지를 본다. 인계가 안 남으면 예측 3·4·5의 판정이
+    전부 흔들리므로, 이것이 빗나가면 배치를 중단한다."""
+    wrote = {f"s{i:02d}": True for i in range(63)}
+    wrote.update({f"x{i:02d}": False for i in range(7)})
+    assert summary.predictions(found(written=wrote))[6]["hit"] is True
+
+    one_short = {f"s{i:02d}": True for i in range(62)}
+    one_short.update({f"x{i:02d}": False for i in range(8)})
+    assert summary.predictions(found(written=one_short))[6]["hit"] is False
+
+
+def test_prediction_seven_is_undecidable_with_no_sessions():
+    assert summary.predictions(found())[6]["hit"] is None
+
+
+# --------------- 예측 8 — 종료 메시지에서 예산을 이유로 드는가
+
+def test_prediction_eight_counts_sessions_that_blamed_the_budget():
+    """**이 배치의 세션별 성과를 능력 차이로 읽어도 되는지를 가르는 값이다.**
+
+    세션이 남은 호출 수를 보고 일을 조절하면 멈추는 자리를 측정 대상이
+    정하게 되고, 그러면 "몇 개를 했는가"가 능력이 아니라 우리 장치를 잰
+    값이 된다.
+    """
+    clean = [session(f"s{i:02d}", "Finished subsystem A. Handoff updated.")
+             for i in range(10)]
+    assert summary.predictions(found(rows=clean))[7]["hit"] is True
+
+    blamed = clean[:6] + [
+        session("s06", "I'm over the session's tool-call budget (34/30)."),
+        session("s07", "With 2 tool calls left in this session's budget."),
+        session("s08", "stopping here at the budget warning."),
+        session("s09", "Given the budget is now over its limit, I'm stopping."),
+    ]
+    assert summary.predictions(found(rows=blamed))[7]["hit"] is False
+
+
+def test_the_budget_words_catch_every_phrasing_the_calibration_produced():
+    """**낱말 하나로는 못 센다.**
+
+    아래 문장들은 2026-08-21 보정 사슬 1차의 세션 종료 메시지에서 글자 그대로
+    옮긴 것이다(원자료 `results/calib/subsystems-deep`, gitignore 대상이라
+    CI 에 없으므로 여기 옮겨 적는다). 여덟 세션이 서로 다른 말로 같은 것을
+    말했다.
+    """
+    said = [
+        "With 2 tool calls left in this session's budget, I'll stop here "
+        "rather than risk starting an edit I can't finish.",
+        "Given the session's tool-call budget is now over its limit, I'm "
+        "stopping here rather than starting new edits.",
+        "I'm over the session's tool-call budget (34/30), so I'm stopping "
+        "here without further edits.",
+        "I stopped after these items due to a session tool-call budget "
+        "warning, prioritizing writing a thorough handoff.",
+        "Made progress on the v0.3 release under tight tool-call budget "
+        "(a session-budget hook flagged remaining calls partway through).",
+        "I'm at the last available tool call for this session, so I'll stop "
+        "here with the handoff in good shape.",
+        "HANDOFF.md is updated with what's done. That's the last write "
+        "needed - stopping here at the budget warning.",
+    ]
+    rows = [session(f"s{i:02d}", text) for i, text in enumerate(said)]
+    assert summary.budget_mentions(rows) == [r["label"] for r in rows], (
+        "보정 1차에서 실제로 나온 표현을 못 잡는다")
+
+
+def test_the_budget_words_do_not_fire_on_ordinary_wrap_up_messages():
+    """**보정 2차의 여덟 세션은 하나도 걸리지 않아야 한다.**
+
+    아래는 그 배치의 종료 메시지에서 옮긴 것이다. 여기서 하나라도 걸리면
+    예측 8이 조건과 무관하게 빗나가고, 훅 수정이 통했는지 알 수 없게 된다.
+    """
+    quiet = [
+        "This session finished subsystem A of the opsbox v0.3 release: fixed "
+        "the three ingest bugs, verified all six sources now match.",
+        "All 20 tests still pass. This session finished subsystem C (alerts).",
+        "All tests pass, and HANDOFF.md is updated as instructed.",
+        "v0.3 is fully done and I've independently confirmed it - no code "
+        "changes needed this session.",
+        "I've wrapped up this session's work on the v0.3 release.",
+    ]
+    rows = [session(f"s{i:02d}", text) for i, text in enumerate(quiet)]
+    assert summary.budget_mentions(rows) == []

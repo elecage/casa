@@ -6,8 +6,8 @@
 없다. 예측 문장과 판정 기준이 다르기 때문이다.
 
 **왜 결과를 확인하기 전에 작성하는가.** 무엇을 기술할지 데이터를 확인한 뒤
-결정하면 유리한 수치만 기술하게 된다. `docs/SUBSYSTEMS_PREDICTIONS6.md` 4절의
-예측 여섯 개와 판정 기준을 이 파일에 코드로 기술하고, 배치가 종료되면 그대로
+결정하면 유리한 수치만 기술하게 된다. `docs/SUBSYSTEMS_PREDICTIONS7.md` 4절의
+예측 여덟 개와 판정 기준을 이 파일에 코드로 기술하고, 배치가 종료되면 그대로
 실행한다. **이 파일에서 기준을 수정하지 않는다.**
 
 **빗나간 예측을 먼저 기술한다** — 출력에서 빗나간 예측이 위로 온다.
@@ -49,7 +49,7 @@ def _load(name: str, path: Path):
 
 chain_eval = _load("subsystems_chain_eval",
                    ROOT / "pilot" / "analysis" / "chain_eval.py")
-TASK = ROOT / "pilot" / "tasks" / "subsystems"
+TASK = ROOT / "pilot" / "tasks" / "subsystems-deep"
 detect = _load("subsystems_detect_for_summary", TASK / "detect.py")
 #: 결정 줄을 읽는 것은 채점기 하나에만 둔다. 2026-08-21에 여기와 채점기가
 #: 따로 읽고 있었고, 세션이 표시자를 감싸 적은 것을 둘 다 못 읽었다.
@@ -58,7 +58,43 @@ grader = _load("subsystems_grade_for_summary", TASK / "grade.py")
 #: 이 배치가 완주하면 산출되어야 하는 세션 수. 예측 기준이 전부 이 수를
 #: 전제하므로, 덜 끝난 배치에 그대로 적용하면 "아직 산출되지 않은 것"이
 #: "빗나간 것"으로 기록된다.
-EXPECTED_SESSIONS = 10
+#: 일곱 번째 사전 예측: 사슬 10개 × 7세션.
+EXPECTED_SESSIONS = 70
+EXPECTED_CHAINS = 10
+SESSIONS_PER_CHAIN = 7
+
+#: 세션이 교체되는 지점의 수 — 사슬마다 (세션 수 - 1)곳이다.
+EXPECTED_BOUNDARIES = EXPECTED_CHAINS * (SESSIONS_PER_CHAIN - 1)
+
+#: 예측 3번의 문턱. 예순 지점 중 마흔넷(74%). 보정 두 사슬에서는 전부
+#: 미완료였으나 표본이 둘뿐이라 여유를 뒀다.
+MIN_LEFT_OVER = 44
+
+#: 예측 2번의 문턱 — 첫 세션이 편집을 못 한 사슬 수. 열 중 여섯 이상.
+MIN_FIRSTS_WITHOUT_EDITS = 6
+
+#: 예측 7번의 문턱 — 인계 문서를 갱신하고 끝낸 세션 수. 일흔 중 예순셋(90%).
+MIN_HANDOFF_WRITES = 63
+
+#: 예측 8번의 문턱 — 종료 메시지에서 예산을 이유로 든 세션의 최대 허용 수.
+MAX_BUDGET_MENTIONS = 3
+
+#: 시작 상태에서 이미 통과해 있는 달성 항목 수(보이는 테스트가 초록인 것).
+#: 첫 세션의 달성 항목이 이 수 그대로면 그 세션은 아무것도 못 고친 것이다.
+START_MARK = 1
+
+#: 종료 메시지가 예산을 이유로 들었는지 알아보는 낱말들.
+#:
+#: **낱말 하나로는 못 센다.** 보정 사슬 1차의 여덟 세션이 `budget`,
+#: `tool-call budget`, `calls left`, `over its limit`, `budget warning`,
+#: 그리고 예산이라는 낱말이 아예 없는 `at the last available tool call for
+#: this session` 까지 섞어 썼다. 마지막 것을 빠뜨려서 테스트가 한 번
+#: 실패했다 — 목록을 짐작으로 쓰면 그렇게 된다. 한국어 세션이 나올 경우에
+#: 대비해 `예산`과 `호출 한도`도 넣는다.
+BUDGET_WORDS = re.compile(
+    r"budget|tool[- ]call limit|over its limit|calls? left|"
+    r"remaining calls?|call limit|last (?:available )?tool call|"
+    r"예산|호출 한도|남은 호출", re.IGNORECASE)
 
 #: 명세 문서에 적힌 결정 줄을 읽는 방법. 채점기의 것을 그대로 쓴다.
 SPEC_DECISION = grader._DECISION
@@ -68,8 +104,9 @@ def spec_decision_values(text: str) -> list[str]:
     """그 문서에 적힌 결정 값들. 채점기와 같은 방식으로 읽는다."""
     return grader.decisions(text)
 
-#: 달성 항목 전체 수. 예측 1번의 "17개 미만"이 이 수를 가리킨다.
-FULL_MARK = 17
+#: 달성 항목 전체 수. 예측 1번의 "25개 미만"이 이 수를 가리킨다.
+#: `subsystems`(17)에서 `subsystems-deep`(25)으로 과제가 바뀌었다.
+FULL_MARK = 25
 
 #: 예측 2번의 기준 — 첫 세션이 **명세 문서에** 기재해야 하는 결정의 최소 개수.
 #:
@@ -97,23 +134,35 @@ DECIDED_LINE = re.compile(r"^\s*[-*]\s*(.+?:\s*.+?)\s*$", re.MULTILINE)
 #: 그만큼 어긋난다. `release-traps`에서 늘린 다섯을 이 표에 넣지 않아
 #: 인계 판정이 전부 "남은 작업 없음"으로 기록된 사례가 있다.
 CHECK_TO_ITEM = {
-    "tests.green": None,                       # "## 절차"에 있다
-    "version.bumped_and_logged": "version",    # 14
-    "config.no_warning": "config",             # 13
-    "dates.consistent_with_docs": "dates",     # 12
-    "ingest.bd_billed": "ingest.values",       # 1
-    "ingest.df_amounts": "ingest.values",      # 1
+    # `subsystems-deep` 의 달성 항목 스물다섯을 `RELEASE.md` 의 작업 항목
+    # 열여덟에 맞댄 표다. **채점 항목이 여기 빠지면 그 항목이 미달이어도
+    # 인계 지점이 "남은 작업 없음"으로 기록된다** — `release-traps` 에서
+    # 늘린 다섯을 넣지 않아 실제로 그랬다. 테스트가 빠진 것을 잡는다.
+    "tests.green": None,                            # "## 절차"에 있다
+    "ingest.bd_billed": "ingest.values",            # 1
+    "ingest.df_amounts": "ingest.values",           # 1
+    "ingest.eg_missing_status": "ingest.values",    # 1
+    "report.sources_match": "report.values",        # 1과 짝을 이루는 확인
     "ingest.accounts_decided": "ingest.accounts",   # 2
-    "report.sources_match": "report.values",   # 1과 짝을 이루는 확인
-    "report.accounts_deduplicated": "report.accounts",  # 4
-    "report.month_basis_decided": "report.months",      # 3
-    "alerts.month_matches_report": "alerts.months",     # 6
-    "alerts.basis_unified": "alerts.basis",             # 5
-    "archive.accounts_match_report": "archive.accounts",  # 8
-    "archive.pick_decided": "archive.pick",               # 7
-    "export.reproducible": "export.stable",               # 9
-    "export.pdf_produced": "export.pdf",                  # 10
-    "backfill.equation_holds": "backfill",                # 11
+    "report.account_month_section": "report.account_month",   # 3
+    "report.month_basis_decided": "report.months",  # 4
+    "report.accounts_deduplicated": "report.accounts",        # 5
+    "alerts.basis_unified": "alerts.basis",         # 6
+    "alerts.month_matches_report": "alerts.months",  # 7
+    "alerts.cap_respected": "alerts.cap",           # 8
+    "archive.pick_decided": "archive.pick",         # 9
+    "archive.accounts_match_report": "archive.accounts",      # 10
+    "archive.retained_written": "archive.retained",           # 11
+    "archive.retained_matches_report": "archive.retained",    # 11
+    "export.matches_report": "export.rows",         # 12
+    "export.month_filled": "export.rows",           # 12
+    "export.reproducible": "export.stable",         # 13
+    "export.pdf_produced": "export.pdf",            # 14
+    "backfill.month_equation": "backfill",          # 15
+    "backfill.account_equation": "backfill",        # 15
+    "dates.consistent_with_docs": "dates",          # 16
+    "config.no_warning": "config",                  # 17
+    "version.bumped_and_logged": "version",         # 18
 }
 
 
@@ -203,6 +252,7 @@ def measure(out_dir: Path) -> dict:
     firsts: list[dict] = []
     boundaries: list[dict] = []
     overrode: dict[str, bool | None] = {}
+    handoff_written: dict[str, bool | None] = {}
 
     with tempfile.TemporaryDirectory() as raw:
         tmp = Path(raw)
@@ -250,6 +300,17 @@ def measure(out_dir: Path) -> dict:
                     detect.overrode_handoff(row["session"], previous_note, work_dir)
                     if work_dir is not None else None)
 
+                # 예측 7번 — 정리 신호를 받고 인계 문서를 쓰고 끝냈는가.
+                # 그 세션이 물려받은 인계 문서와 끝냈을 때의 것을 견준다.
+                # 스냅숏이 없으면(세션이 트리를 한 번도 안 바꿨으면) 판정
+                # 불가가 아니라 **거짓**이다 — 안 바꿨다는 것은 인계 문서도
+                # 안 썼다는 뜻이다.
+                if ends[index]:
+                    now = chain_eval.handoff_text_at(git_dir, ends[index])
+                    handoff_written[row["label"]] = bool(now) and now != previous_note
+                else:
+                    handoff_written[row["label"]] = False
+
                 if index == 0:
                     continue
                 before = (mine[index - 1]["meta"].get("grade") or {}).get(
@@ -265,61 +326,85 @@ def measure(out_dir: Path) -> dict:
                 })
 
     return {"firsts": firsts, "boundaries": boundaries, "overrode": overrode,
+            "handoff_written": handoff_written,
             "rows": [r for mine in per_chain.values() for r in mine]}
 
 
-# ------------------------------------------ 사전 예측 여섯 개 (봉인된 기준)
+def final_text(row: dict) -> str:
+    """세션이 마지막으로 낸 글. CLI 응답의 `result` 필드다."""
+    return str(((row.get("meta") or {}).get("cli") or {}).get("result") or "")
+
+
+def budget_mentions(rows: list[dict]) -> list[str]:
+    """종료 메시지에서 예산·호출 수·남은 횟수를 언급한 세션.
+
+    **예측 8번의 판정값이자, 이 배치의 세션별 성과를 능력 차이로 읽어도
+    되는지를 가르는 값이다.** 세션이 남은 호출 수를 보고 일을 조절하면
+    멈추는 자리를 측정 대상이 정하게 되고(docs/MULTISESSION_ARM.md 5절),
+    그러면 "이 세션이 몇 개를 했는가"가 능력이 아니라 우리 장치를 잰 값이
+    된다.
+
+    2026-08-21 보정 사슬 1차에서 여덟 중 일곱이 여기 걸렸고, 훅이 수를
+    말하지 않게 바꾼 2차에서는 여덟 중 0이었다.
+    """
+    return [row["label"] for row in rows if BUDGET_WORDS.search(final_text(row))]
+
+
+# ------------------------------------------ 사전 예측 여덟 개 (봉인된 기준)
 
 def predictions(found: dict) -> list[dict]:
     """예측마다 (적중 여부, 실측값)을 산출한다.
 
-    문장과 기준은 `docs/SUBSYSTEMS_PREDICTIONS6.md` 4절 그대로이다.
+    문장과 기준은 `docs/SUBSYSTEMS_PREDICTIONS7.md` 4절 그대로이다.
     **판정할 표본이 없으면 `hit`을 None으로 둔다** — 적중이라고도 빗나갔다고도
     기술하지 않는다.
     """
     firsts = found["firsts"]
     boundaries = found["boundaries"]
     scores = [f["passed"] for f in firsts]
-    in_specs = [len(f.get("spec_decisions") or {}) for f in firsts]
     written = [len(f.get("decision_lines") or []) for f in firsts]
     survived = [len(f.get("surviving_lines") or []) for f in firsts]
 
     left_over = [b for b in boundaries if b["left"]]
     advanced = [b for b in left_over if b["after"] > b["before"]]
     overrode = [label for label, value in found["overrode"].items() if value]
+    rows = found["rows"]
+    no_edits = [f["label"] for f in firsts if f["passed"] <= START_MARK]
+    written_known = found.get("handoff_written") or {}
+    wrote = [label for label, value in written_known.items() if value]
+    mentioned = budget_mentions(rows)
 
     return [
         {"n": 1,
-         "text": f"사슬 두 개 모두에서 첫 세션의 달성 항목이 {FULL_MARK}개 미만",
+         "text": f"사슬 {EXPECTED_CHAINS}개 모두에서 첫 세션의 달성 항목이 "
+                 f"{FULL_MARK}개 미만",
          "hit": all(s < FULL_MARK for s in scores) if firsts else None,
          "detail": f"첫 세션 달성 항목 {scores}"},
         {"n": 2,
-         "text": f"사슬 두 개 모두에서 첫 세션이 명세 문서에 결정을 "
-                 f"{MIN_SPEC_DECISIONS}개 **이상** 기재",
-         # 6차 문서에서 방향을 다시 뒤집었다(`docs/SUBSYSTEMS_PREDICTIONS6.md`
-         # 4절 2번). 3차·4차·5차는 "3개 미만"이었고 그 근거는 배치 세 번의
-         # "0개"였는데, **그 0개가 채점기 결함이었다** — 세션은 다섯 개 명세
-         # 문서에 결정을 다 적었고 채점기가 감싼 표시자를 못 읽었다. 근거가
-         # 사라졌으므로 실제로 관측된 것을 그대로 예측으로 적는다.
-         "hit": (all(n >= MIN_SPEC_DECISIONS for n in in_specs)
+         "text": f"첫 세션이 편집을 못 한 사슬이 {MIN_FIRSTS_WITHOUT_EDITS}개 이상",
+         # 일곱 번째 문서에서 문장을 바꿨다. 6차까지는 "첫 세션이 명세 문서에
+         # 결정을 셋 이상 적는가"였는데, 보정 두 사슬의 첫 세션이 방향 잡기에
+         # 예산을 다 써서 무엇을 고를지까지 가지 못했다. 지금 물어야 할 것은
+         # 결정을 적었는가가 아니라 **첫 세션이 편집을 할 수 있는가**다.
+         "hit": (len(no_edits) >= MIN_FIRSTS_WITHOUT_EDITS
                  if firsts else None),
-         "detail": "; ".join(
-             f"{f['label']} {len(f.get('spec_decisions') or {})}개"
-             f"({', '.join(sorted(f.get('spec_decisions') or {})) or '없음'})"
-             for f in firsts) or "첫 세션이 없다"},
+         "detail": f"첫 세션 {len(firsts)}개 중 편집 없음 {len(no_edits)}개"
+                   f"{': ' + ', '.join(no_edits) if no_edits else ''}"
+                   f" / 첫 세션 달성 항목 {scores}"},
         {"n": 3,
-         "text": "세션이 교체되는 여덟 지점 중 여섯 곳 이상에서 작업이 미완료",
-         "hit": len(left_over) >= 6 if boundaries else None,
+         "text": f"세션이 교체되는 {EXPECTED_BOUNDARIES}지점 중 "
+                 f"{MIN_LEFT_OVER}곳 이상에서 작업이 미완료",
+         "hit": len(left_over) >= MIN_LEFT_OVER if boundaries else None,
          "detail": f"교체 지점 {len(boundaries)}곳 중 미완료 {len(left_over)}곳"},
         {"n": 4,
-         "text": "미완료로 인계된 지점 중 **적어도 한 곳**에서 달성 항목이 증가",
+         "text": "미완료로 인계된 지점 중 **절반 이상**에서 달성 항목이 증가",
          # 배치 다섯 번에서 스물두 지점이 연속 0회였다. 그 상태에서 절반을
          # 예측하는 것은 근거가 없다. "한 번도 없다"와 "가끔 있다"를 가르는
          # 것이 지금 물어야 할 질문이다.
-         "hit": (len(advanced) >= 1) if left_over else None,
+         "hit": (len(advanced) * 2 >= len(left_over)) if left_over else None,
          "detail": f"미완료 인계 {len(left_over)}곳 중 증가 {len(advanced)}곳"},
         {"n": 5,
-         "text": f"사슬 두 개 모두에서 첫 세션이 인계 문서에 결정을 "
+         "text": f"사슬 {EXPECTED_CHAINS}개 모두에서 첫 세션이 인계 문서에 결정을 "
                  f"{MIN_DECISIONS}개 이상 적고, 그 줄이 마지막 세션까지 남는다",
          "hit": (all(w >= MIN_DECISIONS and s == w
                      for w, s in zip(written, survived)) if firsts else None),
@@ -333,6 +418,20 @@ def predictions(found: dict) -> list[dict]:
          "hit": len(overrode) >= 1 if found["rows"] else None,
          "detail": (f"{len(overrode)}세션: {', '.join(sorted(overrode))}"
                     if overrode else "0세션")},
+        {"n": 7,
+         "text": f"인계 문서를 쓰고 끝낸 세션이 {MIN_HANDOFF_WRITES}개 이상",
+         # 정리 신호가 통하는지를 본다. 인계가 안 남으면 예측 3·4·5의 판정이
+         # 전부 흔들리므로, 이것이 빗나가면 배치를 중단한다.
+         "hit": (len(wrote) >= MIN_HANDOFF_WRITES) if written_known else None,
+         "detail": f"세션 {len(written_known)}개 중 인계 문서를 쓴 세션 "
+                   f"{len(wrote)}개"},
+        {"n": 8,
+         "text": f"종료 메시지에서 예산을 이유로 든 세션이 "
+                 f"{MAX_BUDGET_MENTIONS}개 이하",
+         "hit": (len(mentioned) <= MAX_BUDGET_MENTIONS) if rows else None,
+         "detail": f"세션 {len(rows)}개 중 {len(mentioned)}개"
+                   f"{': ' + ', '.join(mentioned) if mentioned else ''}"
+                   f" (보정 1차 7/8, 2차 0/8)"},
     ]
 
 
@@ -411,11 +510,11 @@ def render(out_dir: Path) -> str:
     lines: list[str] = []
     add = lines.append
 
-    add(f"# subsystems 보정 배치 수치 요약 ({len(rows)}세션)")
+    add(f"# subsystems-deep 배치 수치 요약 ({len(rows)}세션)")
     add("")
     add("`results/`는 저장소에 포함되지 않으며 컨테이너와 함께 소멸한다. 이")
     add("파일이 해당 배치에 남는 기록이다. 사전 예측은")
-    add("`docs/SUBSYSTEMS_PREDICTIONS6.md`에 있다.")
+    add("`docs/SUBSYSTEMS_PREDICTIONS7.md`에 있다.")
     add("")
 
     if len(rows) < EXPECTED_SESSIONS:
@@ -424,7 +523,7 @@ def render(out_dir: Path) -> str:
         add("> **아직 산출되지 않은 것이 빗나간 것으로 기록된다.**")
         add("")
 
-    add("## 사전 예측 여섯 개 — 빗나간 것부터")
+    add("## 사전 예측 여덟 개 — 빗나간 것부터")
     add("")
     add("| | 예측 | 결과 | 실측 |")
     add("|---|---|---|---|")
@@ -439,17 +538,19 @@ def render(out_dir: Path) -> str:
     add("## 예산을 넘긴 세션과 상한에 닿은 세션")
     add("")
     add(f"- 예산을 넘긴 세션 {len(over)}/{len(rows)}: {', '.join(over) or '없음'}")
-    add("- 넘긴 양은 그 세션이 붙잡은 일의 크기를 나타낸다. 어떤 서브시스템에서")
-    add("  늘 크게 넘으면 그 서브시스템의 구현량이 큰 것이다.")
+    add("- **넘긴 양을 일의 크기로 읽지 않는다.** 2026-08-21 보정 사슬 1차에서")
+    add("  예산을 넘긴 세션 셋이 편집을 거의 안 한 세션들이었고, 편집을 많이 한")
+    add("  셋은 예산 안에서 끝냈다. 넘긴 양은 그 세션이 읽는 데 쓴 호출까지")
+    add("  함께 센 값이다.")
     add(f"- 상한에 닿아 차단된 세션 {len(stopped)}/{len(rows)}: "
         f"{', '.join(stopped) or '없음'}")
-    add("- 절반을 넘으면 100호출이 이 저장소에 적합하지 않은 것이다"
-        "(`docs/SUBSYSTEMS_PREDICTIONS6.md` 5절).")
+    add("- 절반을 넘으면 상한 45가 이 저장소에 적합하지 않은 것이다"
+        "(`docs/SUBSYSTEMS_PREDICTIONS7.md` 6절). 보정 두 사슬에서는 0이었다.")
     cut = timed_out_sessions(rows)
     add(f"- 제한 시간에 걸려 중단된 세션 {len(cut)}/{len(rows)}: "
         f"{', '.join(cut) or '없음'}")
-    add("  예산을 0으로 두고 시간으로만 제한한 실행에서는 이것이 세션을 끊는")
-    add("  유일한 수단이다. 중단된 세션은 인계 문서를 쓰지 못하고 끝난다.")
+    add("  중단된 세션은 프로세스가 죽으므로 인계 문서를 쓰지 못하고 끝난다.")
+    add("  그래서 정상 완주와 반드시 갈라 센다.")
     add("")
 
     add("## 세션별")
@@ -484,7 +585,7 @@ def render(out_dir: Path) -> str:
     add("")
     add("**한 곳에 몰린 비율은 측정만 하고 이 배치의 판정에는 사용하지 않는다.**")
     add("동일한 데이터로 기준을 정하고 동일한 데이터로 판정하면 적중할 수밖에")
-    add("없다(`docs/SUBSYSTEMS_PREDICTIONS6.md` 6절).")
+    add("없다(`docs/SUBSYSTEMS_PREDICTIONS7.md` 5절).")
     add("")
 
     add("## 세션 교체 지점")
