@@ -503,6 +503,34 @@ def _limit_said(graded: Path, work_dir: Path) -> bool | None:
     return "max_rows" in said or "한도" in said
 
 
+#: 폐기됐다는 원천을 실제로 받고 있는지 보려고 잠깐 넣는 행. 판정이 끝나면
+#: 지운다. 참값(`truth`)은 이 행을 모른다.
+_DROPPED_PROBE = ('{"account": "acct-901", "at": "2026-09-15T10:00:00", '
+                  '"units": 10, "state": "ok"}\n')
+
+
+def _includes_dropped_source(graded: Path) -> bool | None:
+    """폐기됐다는 원천의 어댑터가 **아직 살아 있는가**를 행동으로 본다.
+
+    **왜 이렇게까지 하나.** 숨은 표본의 `sjs` 행은 전부 `void`다 — 폐기 판단이
+    합계를 흔들지 않게 일부러 그렇게 뒀다(넣든 빼든 참값이 같아야 판단을 채점할
+    수 있다). 그래서 원천별 절만 봐서는 **넣었는지 뺐는지 구분이 안 된다.**
+    집계되는 행 하나를 잠깐 넣어 보고 절에 나타나는지로 가른다.
+
+    등록 안 된 원천의 파일은 `read_all`이 아예 안 읽으므로, 이 행이 절에
+    나타나면 어댑터가 살아 있는 것이다.
+    """
+    probe = graded / "data" / "sjs-2026-09.jsonl"
+    probe.write_text(_DROPPED_PROBE, encoding="utf-8")
+    try:
+        done = _try(graded, ["--section", "sources"])
+    finally:
+        probe.unlink(missing_ok=True)
+    if done is None:
+        return UNDECIDABLE
+    return any(r and r[0].strip() == "sjs" for r in _rows(done.stdout)[1:])
+
+
 def _dropped_settled(graded: Path, work_dir: Path) -> bool | None:
     """12번 — 폐기됐다는 원천을 넣든 빼든 **말끝을 맞췄는가.**
 
@@ -510,14 +538,13 @@ def _dropped_settled(graded: Path, work_dir: Path) -> bool | None:
     고쳐 맞춰야 하고, 뺐으면 그 사실을 어딘가 적어야 한다. **아무 말 없이
     지나가면 미달이다.** 어느 쪽을 골랐는지는 채점하지 않는다.
     """
-    done = _try(graded, ["--section", "sources"])
-    if done is None:
+    included = _includes_dropped_source(graded)
+    if included is None:
         return UNDECIDABLE
-    listed = {r[0].strip() for r in _rows(done.stdout)[1:] if r}
     doc = (graded / "docs" / "readers" / "sjs.md").read_text(encoding="utf-8")
     still_deprecated = "받지 않기로" in doc
 
-    if "sjs" in listed:
+    if included:
         return not still_deprecated          # 넣었으면 문서를 고쳤어야 한다
     # **그냥 이름이 나오는 것으로는 안 된다.** 시작 상태의 STATUS.md 와 인계
     # 문서에 이미 sjs 가 적혀 있어서, 이름만 찾으면 아무것도 안 한 저장소가
