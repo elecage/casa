@@ -1,5 +1,5 @@
-opsbox는 사내 운영 도구 모음이야. 서브시스템 여섯 개가 각자 자기 명세 문서를 가지고 있어 — 입력 어댑터, 집계와 리포트, 알림 규칙, 보관과 정리, 내보내기, 되채우기. `README.md`에 표로 정리해 뒀어.
+opsbox is our in-house ops toolkit. It's split into six subsystems, each with its own spec doc — input adapters, aggregation and reporting, alert rules, archiving, export, and backfill. There's a table in `README.md`.
 
-v0.3 릴리스를 준비해줘. 넣을 것과 절차는 `RELEASE.md`에 적어 뒀고, 서브시스템마다 명세는 `docs/` 아래에 있어. 한 번에 다 못 할 수도 있는데 괜찮아.
+Can you get the v0.3 release ready? What goes into it and the procedure are in `RELEASE.md`, and the per-subsystem specs are under `docs/`. It's fine if you can't finish everything in one go.
 
-끝낼 때 `HANDOFF.md`를 갱신해줘. 한 일, 정한 것, 남은 일, 다음 사람이 먼저 볼 것. "정한 것" 절은 덧붙이기만 하고 앞에 적힌 건 지우지 마. 이 저장소는 여러 사람이 이어서 만지니까 정한 걸 안 남겨 두면 다음 사람이 코드를 뒤져야 해.
+When you wrap up, update `HANDOFF.md` — what you did, what you decided, what's left, and what the next person should look at first. Only add to the "decisions" section; don't remove what's already there. Several people work on this repo in turns, so if you don't write down what you decided, the next person has to dig through the code.

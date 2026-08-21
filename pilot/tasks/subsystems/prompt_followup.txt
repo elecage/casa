@@ -1,3 +1,3 @@
-`HANDOFF.md` 읽고 다음 할 일 찾아서 진행해줘. 넣을 것과 절차는 `RELEASE.md`에, 서브시스템마다 명세는 `docs/` 아래에 있어. 한 번에 다 못 하면 괜찮아.
+Read `HANDOFF.md` and pick up the next thing to work on. What goes in and the procedure are in `RELEASE.md`, and the per-subsystem specs are under `docs/`. It's fine if you can't finish everything in one go.
 
-끝낼 때 `HANDOFF.md`를 갱신해줘. 한 일, 정한 것, 남은 일, 다음 사람이 먼저 볼 것. "정한 것" 절은 덧붙이기만 하고 앞사람이 적은 건 지우지 마.
+When you wrap up, update `HANDOFF.md` — what you did, what you decided, what's left, and what the next person should look at first. Only add to the "decisions" section; don't remove what the previous person wrote.
