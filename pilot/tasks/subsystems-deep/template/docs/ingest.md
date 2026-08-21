@@ -70,8 +70,11 @@ lines.
 about the case is open. Either way is fine.
 
 **Once you decide, write it in this section as one line** that starts with
-the word `Decision:`, a colon, and then one of lowercase, uppercase or as-is.
-If it isn't written down, the next person has to read the code to find out.
+the word `Decision:`, a colon, and then either lowercase or uppercase. If it
+isn't written down, the next person has to read the code to find out.
+
+Leaving the spelling as it arrives is not one of the choices: the report gives
+one account one line, and several spellings cannot do that.
 
 Everything downstream that names an account uses whatever this rule produces.
 

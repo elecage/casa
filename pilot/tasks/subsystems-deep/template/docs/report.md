@@ -19,7 +19,13 @@ The report has these five sections, in this order.
 
 The fifth is the one export and backfill need: both of them work per account
 **within** a month, and neither can get that from the third or the fourth
-alone. `build()` has to carry it in a form they can read.
+alone.
+
+`report --json` carries it as **`by_account_month`**: account name to month to
+units, `{"acme-01": {"2026-07": 700}}`. Only the account-and-month pairs that
+have usage appear. Its per-account sums agree with `by_account` and its
+per-month sums agree with `by_month`, because all three count the same
+records.
 
 ## What gets counted
 

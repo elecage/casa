@@ -20,6 +20,10 @@ for that account + difference for that account = what the current report says
 for that account in that month. The published files carry a `by_account`
 block; `docs/report.md`'s fifth section is the other side of it.
 
+The `backfill` output carries the per-account differences as
+**`delta_by_account`**: account name to difference, `{"acme-01": 25}`. A
+difference can be negative.
+
 If either identity does not hold, backfill is doing a different arithmetic
 than the report, and the number that goes out next will be wrong in a way
 nobody can see from either side alone.

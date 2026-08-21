@@ -47,13 +47,13 @@ and they pull against each other.
 
 **So something has to be left behind before the originals go.** A retained
 summary: for every account and month that is being archived, the units total
-the report would have produced for it. The `archive` command writes it next to
-the manifest, and **its numbers have to match what the report says for those
-same accounts and months** — a summary that disagrees with the report is worse
-than no summary, because it looks like a record.
+the report would have produced for it.
 
-The shape is up to you as long as it is machine-readable and the account and
-month can be read back out of it.
+The `archive` output carries it as **`retained`**, in the same shape the
+report uses for its fifth section: account name to month to units,
+`{"acme-01": {"2026-07": 700}}`. **Its numbers have to match what the report
+says for those same accounts and months** — a summary that disagrees with the
+report is worse than no summary, because it looks like a record.
 
 `config.sample.json` has a `keep_originals` key that **the code does not know
 about** — running the tool prints a warning. It looks like someone started
