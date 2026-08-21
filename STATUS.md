@@ -196,7 +196,7 @@
 | `results/chain/casefile` | 13 |
 | `results/chain2/casefile` | 18 |
 | `results/chain3/release-traps` | 18 (완주 2026-08-20, 사슬 3세션 × 6벌, sonnet) |
-| `results/chain4/release-traps` | 18 (인계 규약판, 진행 중) |
+| `results/chain4/release-traps` | 18 (인계 규약판 완주 2026-08-21, 사슬 3세션 × 6벌, sonnet) |
 | `results/aborted/root-permission` | 0 — 세션이 한 건도 안 돌았다. 클라우드 컨테이너가 root 로 도는데 Claude CLI 가 무인 실행 옵션을 거부해 18건 전부 1초 만에 실패했다(release-traps, sonnet, 사슬 3x6). 기록으로만 남긴다 |
 | `results/main/buggy-pipeline` | 15 |
 | `results/main/orbit-propagator` | 15 |
