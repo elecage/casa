@@ -1,49 +1,58 @@
-# 알림 규칙 (서브시스템 C)
+# Alert rules (subsystem C)
 
-집계(서브시스템 B)가 낸 것 위에 계정별 문턱을 걸고, 넘은 것마다 알림을
-낸다. 코드는 `opsbox/alerts/`.
+Puts a per-account threshold on top of what the aggregation (subsystem B)
+produced and raises an alert for everything over it. The code is in
+`opsbox/alerts/`.
 
-## 규칙 파일
+## The rules file
 
-`alert-rules.json`. 규칙 하나는 이렇게 생겼다.
+`alert-rules.json`. One rule looks like this.
 
 ```json
 {"account": "acme-01", "limit": 300, "basis": "month"}
 ```
 
-`basis`가 문턱을 **무엇에 견주는지** 말한다.
+`basis` says **what the threshold is compared against.**
 
-- `month` — 그 달 전체 합계와 견준다
-- `last` — 가장 나중 기록 하나와 견준다
+- `month` — compared against that month's total
+- `last` — compared against the single most recent record
 
-## 지금 규칙 파일이 두 방식으로 섞여 있다
+## The rules file currently mixes two bases
 
-네 규칙 중 둘은 `month`이고 둘은 `last`다. **왜 갈렸는지 적힌 데가 없다.**
-같은 문턱 숫자가 한쪽에서는 한 달치와 견주어지고 다른 쪽에서는 기록 하나와
-견주어지니, 두 규칙이 같은 뜻일 수가 없다.
+Two of the four rules say `month` and two say `last`. **Nowhere does it say
+why they diverged.** The same threshold number is compared against a month's
+worth on one side and against a single record on the other, so the two rules
+cannot mean the same thing.
 
-**하나로 정한다.** 어느 쪽으로 정해도 되고, 정한 뒤에 규칙 파일과 이 절이
-서로 맞으면 된다. `basis`를 아예 없앨지 남길지도 정하는 쪽이다.
+**Settle on one.** Either choice is fine; what matters is that the rules file
+and this section agree afterwards. Whether to keep the `basis` key at all or
+drop it is part of what you decide.
 
-**이 절에 한 줄로 적는다.** `결정: 그 달 전체` 또는 `결정: 마지막 관측`.
+**Write it in this section as one line.** `Decision: whole month` or
+`Decision: last observation`.
 
-## 달 경계
+## Month boundary
 
-**리포트(서브시스템 B)가 정한 기준을 그대로 쓴다.** B가 현지 시각으로
-잡으면 여기도 현지 시각이고, 표준시로 잡으면 여기도 표준시다.
+**Use whatever basis the report (subsystem B) decided.** If B goes with local
+time, so does this; if B goes with UTC, so does this.
 
-**지금 둘이 다르다.** `opsbox/alerts/evaluate.py`의 `_month_of`가 달 경계를
-따로 잡고 있고, 그 기준이 `opsbox/report/months.py`의 `MONTH_BASIS`와
-어긋난다. 달 경계에 걸린 기록에서 리포트의 달별 숫자와 알림이 본 숫자가
-갈린다. **테스트는 초록이고 에러도 안 난다.**
+**Right now the two differ.** `_month_of` in `opsbox/alerts/evaluate.py`
+works out the month boundary on its own, and its basis disagrees with
+`MONTH_BASIS` in `opsbox/report/months.py`. For records sitting on a month
+boundary, the report's monthly number and the number the alerts saw come
+apart. **The tests are green and nothing raises an error.**
 
-B가 어느 쪽으로 갔는지는 `docs/report.md`의 "달 경계" 절에 적혀 있다.
-앞사람이 정하고 갔으면 `HANDOFF.md`에도 적혀 있을 것이다.
+Which way B went is written in the "Month boundary" section of
+`docs/report.md`. If the previous person decided it before leaving, it will
+be in `HANDOFF.md` too.
 
-## 놓치지 않기와 시끄럽지 않기
+## Not missing things, and not being noisy
 
-- **문턱을 넘은 것을 놓치지 않는다.** 넘었는데 안 울리는 것이 제일 나쁘다.
-- **하루에 세 건을 넘겨 울리지 않는다.** 그 이상 울리면 사람이 안 본다.
+- **Don't miss anything over the threshold.** Over the threshold and silent
+  is the worst outcome.
+- **Don't raise more than three alerts in a day.** Beyond that people stop
+  reading them.
 
-**둘을 동시에 지킬 수 없는 날이 있다.** 어느 쪽을 택했는지가 산출물에
-남아야 한다 — 넘겨 버린 것을 어딘가에 적든, 묶어서 한 건으로 내든.
+**Some days you cannot have both.** Which one you chose has to be visible in
+the output — either by recording what was dropped somewhere, or by rolling
+them up into one alert.

@@ -1,8 +1,11 @@
-"""나간 숫자와 지금 숫자의 차이를 낸다. 명세는 `docs/backfill.md`.
+"""Produces the difference between the published number and the current one.
+The spec is `docs/backfill.md`.
 
-**계정 이름과 달 경계를 여기서 따로 잡고 있다.** 계정 이름은 입력
-어댑터(서브시스템 A)에, 달 경계는 집계(서브시스템 B)에 이미 있는데 그것을
-안 쓰고 자기 규칙을 둔다. 규칙이 갈리면 차이 숫자가 리포트와 안 맞는다.
+**Account names and the month boundary are worked out separately here.** The
+account name rule already lives in the input adapters (subsystem A) and the
+month boundary already lives in the aggregation (subsystem B), and this uses
+neither but keeps rules of its own. When the rules diverge, the difference
+does not line up with the report.
 """
 
 from __future__ import annotations
@@ -15,12 +18,13 @@ from ..record import is_billable
 
 
 def _account(raw: str) -> str:
-    """되채우기 목록에서 쓰는 계정 이름."""
+    """The account name used in the backfill listing."""
     return raw.strip().lower()
 
 
 def _month_of(record) -> str:
-    """이 기록이 어느 달 것인가. 구역 표시를 살려 표준시로 옮겨 본다."""
+    """Which month this record belongs to. Keeps the zone offset and shifts to
+    UTC."""
     when = to_utc(record.at_raw) if record.at_raw else record.at
     return f"{when.year:04d}-{when.month:02d}"
 
@@ -33,7 +37,7 @@ def published(root: Path, month: str) -> dict | None:
 
 
 def recomputed(records, month: str) -> dict:
-    """지금 표본으로 다시 센 그 달의 숫자."""
+    """That month's number, recounted from the current samples."""
     total = 0
     per_account: dict[str, int] = {}
     for record in records:
@@ -46,7 +50,7 @@ def recomputed(records, month: str) -> dict:
 
 
 def delta(root: Path, records, month: str) -> dict | None:
-    """나간 숫자에서 얼마나 달라졌나."""
+    """How much it moved from the published number."""
     before = published(root, month)
     if before is None:
         return None

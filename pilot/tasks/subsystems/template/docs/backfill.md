@@ -1,26 +1,33 @@
-# 되채우기 (서브시스템 F)
+# Backfill (subsystem F)
 
-이미 바깥으로 나간 달별 숫자와 지금 표본으로 다시 센 숫자를 견주어 차이를
-적는다. 코드는 `opsbox/backfill/`.
+Compares the monthly numbers that already went out with the numbers recounted
+from the current samples, and records the difference. The code is in
+`opsbox/backfill/`.
 
-## 나간 것은 고치지 않는다
+## What shipped does not get corrected
 
-`published/` 아래 파일은 바깥으로 나간 그대로 둔다. 달라진 것은 **차이로**
-적는다. 그래야 무엇이 언제 얼마나 바뀌었는지가 남는다.
+The files under `published/` stay exactly as they went out. Whatever changed
+is recorded **as a difference**. That way what changed, when, and by how much
+stays on record.
 
-## 차이가 맞는지 확인하는 방법
+## How to check that the difference is right
 
-**나간 숫자 + 차이 = 지금 리포트의 그 달 숫자.** 이 식이 안 맞으면 되채우기가
-리포트와 다른 셈을 하고 있는 것이다.
+**Published number + difference = this month's number in the current report.**
+If that equation doesn't hold, backfill is doing a different arithmetic than
+the report.
 
-## 둘에 기댄다
+## It leans on two things
 
-- **계정 이름** — 입력 어댑터(서브시스템 A)가 정한 규칙을 쓴다
-  (`opsbox.ingest.accounts.normalize_account`). `docs/ingest.md`의 "계정 표기" 절.
-- **달 경계** — 집계(서브시스템 B)가 정한 기준을 쓴다
-  (`opsbox.report.months.month_key`). `docs/report.md`의 "달 경계" 절.
+- **Account names** — use the rule the input adapters (subsystem A) settled on
+  (`opsbox.ingest.accounts.normalize_account`). The "Account spelling" section
+  of `docs/ingest.md`.
+- **Month boundary** — use the basis the aggregation (subsystem B) settled on
+  (`opsbox.report.months.month_key`). The "Month boundary" section of
+  `docs/report.md`.
 
-**지금은 둘 다 여기서 따로 잡고 있다.** `opsbox/backfill/plan.py`의
-`_account`와 `_month_of`가 그 자리다. 그래서 위의 확인 식이 안 맞는다.
+**Right now both are worked out here separately.** `_account` and `_month_of`
+in `opsbox/backfill/plan.py` are the places. That is why the check above does
+not hold.
 
-앞사람이 A와 B에서 무엇을 골랐는지는 각 명세와 `HANDOFF.md`에 있다.
+What the previous person chose for A and B is in each spec doc and in
+`HANDOFF.md`.

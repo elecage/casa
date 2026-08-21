@@ -1,6 +1,7 @@
-"""bd 원천 — 탭으로 구분된 표. 명세는 docs/ingest.md.
+"""Source bd — tab separated table. The spec is docs/ingest.md.
 
-이 원천은 수량을 두 벌로 준다. 원래 수량과 청구 수량이 다를 수 있다.
+This source gives two quantities. The original quantity and the billed
+quantity can differ.
 """
 
 from __future__ import annotations

@@ -1,4 +1,5 @@
-"""eg 원천 — 한 줄에 `key=value` 쌍들. 명세는 docs/ingest.md."""
+"""Source eg — `key=value` pairs, several per line. The spec is
+docs/ingest.md."""
 
 from __future__ import annotations
 

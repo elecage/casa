@@ -52,7 +52,8 @@ def build(target: Path, other_way: bool = False) -> Path:
     shutil.copytree(TEMPLATE, target,
                     ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"))
 
-    # 판단이 필요한 자리마다 어느 쪽을 고를지.
+    # 판단이 필요한 자리마다 어느 쪽을 고를지. **문서에 적는 말은 영어다** —
+    # 과제 저장소를 영어로 옮기면서 판정에 쓰는 문자열도 같이 옮겼다.
     case = "upper" if other_way else "lower"
     basis = "utc" if other_way else "local"
     style = "slash" if other_way else "dash"
@@ -68,18 +69,18 @@ def build(target: Path, other_way: bool = False) -> Path:
     # 계정 표기를 정한다.
     _edit(target / "opsbox/ingest/accounts.py", "    return raw.strip()",
           f"    return raw.strip().{case}()")
-    _append_after(target / "docs/ingest.md", "## 계정 표기",
-                  f"결정: {'대문자' if case == 'upper' else '소문자'}\n")
+    _append_after(target / "docs/ingest.md", "## Account spelling",
+                  f"Decision: {'uppercase' if case == 'upper' else 'lowercase'}\n")
 
     # ---------------------------------------------- B 집계와 리포트
     _edit(target / "opsbox/report/months.py", 'MONTH_BASIS = "local"',
           f'MONTH_BASIS = "{basis}"')
-    _append_after(target / "docs/report.md", "## 달 경계",
-                  f"결정: {'표준시' if basis == 'utc' else '현지 시각'}\n")
+    _append_after(target / "docs/report.md", "## Month boundary",
+                  f"Decision: {'UTC' if basis == 'utc' else 'local time'}\n")
     _edit(target / "opsbox/report/dates.py", 'DATE_STYLE = "dash"',
           f'DATE_STYLE = "{style}"')
-    _append_after(target / "docs/report.md", "## 날짜 표기",
-                  f"결정: {'빗금' if style == 'slash' else '붙임표'}\n")
+    _append_after(target / "docs/report.md", "## Date format",
+                  f"Decision: {'slash' if style == 'slash' else 'hyphen'}\n")
 
     # ---------------------------------------------- C 알림 규칙
     # 달 경계를 리포트에서 가져온다. 자기 사본을 지운다.
@@ -100,21 +101,27 @@ def build(target: Path, other_way: bool = False) -> Path:
         rule["basis"] = alert_basis
     rules_path.write_text(json.dumps(raw, ensure_ascii=False, indent=2) + "\n",
                           encoding="utf-8")
-    _append_after(target / "docs/alerts.md", "## 지금 규칙 파일이 두 방식으로 섞여 있다",
-                  f"결정: {'마지막 관측' if alert_basis == 'last' else '그 달 전체'}\n")
+    _append_after(target / "docs/alerts.md",
+                  "## The rules file currently mixes two bases",
+                  "Decision: "
+                  f"{'last observation' if alert_basis == 'last' else 'whole month'}\n")
 
     # ---------------------------------------------- D 보관과 정리
     _edit(target / "opsbox/archive/select.py",
-          '    """보관 목록에서 쓰는 계정 이름."""\n    return account.strip().upper()',
-          '    """보관 목록에서 쓰는 계정 이름. 입력 어댑터의 규칙을 그대로 쓴다."""\n'
+          '    """The account name used in the archive manifest."""\n'
+          "    return account.strip().upper()",
+          '    """The account name used in the archive manifest.\n\n'
+          "    Uses the input adapters' rule as it is.\n"
+          '    """\n'
           "    return normalize_account(account)")
     _edit(target / "opsbox/archive/select.py",
           "from ..record import is_billable",
           "from ..ingest.accounts import normalize_account\nfrom ..record import is_billable")
-    _append_after(target / "docs/archive.md", "## 무엇을 골라 보관하나",
-                  f"결정: {'크기' if pick == 'size' else '나이'}\n")
-    _append_after(target / "docs/archive.md", "## 날짜 표기",
-                  f"결정: {'빗금' if style == 'slash' else '붙임표'}\n")
+    _append_after(target / "docs/archive.md",
+                  "## What gets picked for archiving",
+                  f"Decision: {'size' if pick == 'size' else 'age'}\n")
+    _append_after(target / "docs/archive.md", "## Date format",
+                  f"Decision: {'slash' if style == 'slash' else 'hyphen'}\n")
     if pick == "size":
         _edit(target / "opsbox/cli.py",
               'picked = archive.by_age(records, as_of, settings["retain_days"])',
@@ -136,8 +143,10 @@ def build(target: Path, other_way: bool = False) -> Path:
               '    lines = [f"# as_of {as_of}", ",".join(COLUMNS)]')
         _edit(target / "opsbox/cli.py", "text = export.to_csv(built)",
               'text = export.to_csv(built, settings["as_of"])')
-    _append_after(target / "docs/export.md", "## 같은 입력이면 같은 바이트가 나와야 한다",
-                  f"결정: {'기준일로 바꾼다' if stable == 'asof' else '시각 줄을 뺀다'}\n")
+    _append_after(target / "docs/export.md",
+                  "## The same input must produce the same bytes",
+                  "Decision: "
+                  f"{'use the as-of date' if stable == 'asof' else 'drop the timestamp line'}\n")
 
     # ---------------------------------------------- F 되채우기
     plan = target / "opsbox/backfill/plan.py"
@@ -161,8 +170,9 @@ def build(target: Path, other_way: bool = False) -> Path:
     # 버전과 바뀐 것.
     _edit(target / "opsbox/__init__.py", '__version__ = "0.2.3"',
           '__version__ = "0.3.0"')
-    _edit(target / "CHANGELOG.md", "# 바뀐 것\n",
-          "# 바뀐 것\n\n## v0.3.0\n\n- 서브시스템 여섯의 결정을 서로 맞췄다.\n")
+    _edit(target / "CHANGELOG.md", "# Changelog\n",
+          "# Changelog\n\n## v0.3.0\n\n"
+          "- Lined up the decisions across all six subsystems.\n")
     # PDF 한 장.
     subprocess.run([sys.executable, "-c",
                     "import sys; sys.path.insert(0,'.');"
@@ -177,23 +187,25 @@ def build(target: Path, other_way: bool = False) -> Path:
     # 결정을 지우면 다음다음 사람이 그것을 코드에서 찾아내야 한다.
     handoff = target / "HANDOFF.md"
     decided = "\n".join([
-        f"- s01 계정 표기: {'대문자' if case == 'upper' else '소문자'}",
-        f"- s01 달 경계: {'표준시' if basis == 'utc' else '현지 시각'}",
-        f"- s01 날짜 표기: {'빗금' if style == 'slash' else '붙임표'}",
-        f"- s01 알림 문턱 기준: "
-        f"{'마지막 관측' if alert_basis == 'last' else '그 달 전체'}",
-        f"- s01 보관 기준: {'크기' if pick == 'size' else '나이'}",
-        f"- s01 내보내기 안정성: "
-        f"{'기준일로 바꾼다' if stable == 'asof' else '시각 줄을 뺀다'}",
+        f"- s01 account spelling: "
+        f"{'uppercase' if case == 'upper' else 'lowercase'}",
+        f"- s01 month boundary: {'UTC' if basis == 'utc' else 'local time'}",
+        f"- s01 date format: {'slash' if style == 'slash' else 'hyphen'}",
+        f"- s01 alert threshold basis: "
+        f"{'last observation' if alert_basis == 'last' else 'whole month'}",
+        f"- s01 archive selection: {'size' if pick == 'size' else 'age'}",
+        f"- s01 export stability: "
+        f"{'use the as-of date' if stable == 'asof' else 'drop the timestamp line'}",
     ])
     text = handoff.read_text(encoding="utf-8")
     head, _, tail = text.partition("\n---\n")
     kept = head if tail else text
     handoff.write_text(
         kept.rstrip() + "\n" + decided + "\n\n---\n\n"
-        "## 한 일\n\nv0.3 목록을 전부 처리했다.\n\n"
-        "## 남은 일\n\n없다.\n\n"
-        "## 다음 사람이 먼저 볼 것\n\n- `CHANGELOG.md`\n",
+        "**Everything below is rewritten each time.**\n\n"
+        "## Done\n\nWorked through the whole v0.3 list.\n\n"
+        "## Left to do\n\nNothing.\n\n"
+        "## Look at this first\n\n- `CHANGELOG.md`\n",
         encoding="utf-8")
     return target
 

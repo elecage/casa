@@ -1,8 +1,9 @@
-"""되채우기가 도는지 본다.
+"""Checks that backfill runs.
 
-**모양만 본다.** "나간 숫자 + 차이 = 지금 리포트의 그 달 숫자"가 맞는지는
-지금 안 맞고, 그것을 맞추는 것이 할 일이다. 여기서 고정하면 시작 상태가
-빨간 저장소가 된다.
+**Shape only.** Whether "published number + difference = this month's number
+in the current report" holds is exactly what does not hold right now, and
+making it hold is the work. Pinning it here would make the starting state a
+repo with failing tests.
 """
 
 from __future__ import annotations

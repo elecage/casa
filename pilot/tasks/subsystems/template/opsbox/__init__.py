@@ -1,3 +1,3 @@
-"""opsbox — 사내 운영 도구 모음."""
+"""opsbox — the in-house ops toolkit."""
 
 __version__ = "0.2.3"

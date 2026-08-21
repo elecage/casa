@@ -103,11 +103,11 @@ def test_prediction_two_now_predicts_that_the_spec_docs_stay_empty():
     없어진다.
     """
     empty = found(firsts=[first("a", 5, [], {}, {}),
-                          first("b", 5, [], {}, {"docs/ingest.md": "소문자"})])
+                          first("b", 5, [], {}, {"docs/ingest.md": "lowercase"})])
     assert summary.predictions(empty)[1]["hit"] is True
 
-    three = {"docs/ingest.md": "소문자", "docs/report.md": "표준시",
-             "docs/alerts.md": "그 달 전체"}
+    three = {"docs/ingest.md": "lowercase", "docs/report.md": "UTC",
+             "docs/alerts.md": "whole month"}
     written = found(firsts=[first("a", 5, [], {}, three),
                             first("b", 5, [], {}, three)])
     assert summary.predictions(written)[1]["hit"] is False
@@ -119,10 +119,11 @@ def test_prediction_two_now_predicts_that_the_spec_docs_stay_empty():
 
 def test_prediction_two_reads_only_line_start_decision_markers():
     """명세 본문이 보기로 든 것을 결정으로 읽으면 시작부터 통과가 된다."""
-    body = ("정하면 이 절에 한 줄로 적는다. `결정: 소문자` 또는 `결정: 대문자`.\n"
-            "결정: 대문자\n")
+    body = ("Write it in this section as one line. `Decision: lowercase` or\n"
+            "`Decision: uppercase`.\n"
+            "Decision: uppercase\n")
     found_lines = [m.group(1) for m in summary.SPEC_DECISION.finditer(body)]
-    assert found_lines == ["대문자"]
+    assert found_lines == ["uppercase"]
 
 
 def test_prediction_three_needs_six_incomplete_handoffs():
@@ -154,7 +155,7 @@ def test_prediction_five_needs_the_decisions_to_survive_to_the_last_session():
 
     적었는지만 보면 그 무너짐이 안 보인다. 끝까지 남았는지를 같이 본다.
     """
-    two = ["s01 달 경계: 표준시", "s01 날짜 표기: 빗금"]
+    two = ["s01 month boundary: UTC", "s01 date format: slash"]
     kept = found(firsts=[first("a", 5, [], {}, lines=two),
                          first("b", 5, [], {}, lines=two)])
     assert summary.predictions(kept)[4]["hit"] is True
@@ -176,11 +177,11 @@ def test_prediction_five_needs_the_decisions_to_survive_to_the_last_session():
 
 def test_decision_lines_come_only_from_the_append_only_section():
     """가로줄 아래는 매번 새로 쓰는 부분이라 결정으로 세지 않는다."""
-    note = ("# 인계 문서\n\n## 정한 것 — 덧붙이기만 한다\n\n"
-            "- s01 달 경계: 표준시\n- s02 보관 기준: 나이\n\n"
-            "---\n\n## 한 일\n\n- 어댑터 고침: 두 개\n")
-    assert summary.decision_lines(note) == ["s01 달 경계: 표준시",
-                                            "s02 보관 기준: 나이"]
+    note = ("# Handoff note\n\n## Decisions — append only\n\n"
+            "- s01 month boundary: UTC\n- s02 archive selection: age\n\n"
+            "---\n\n## Done\n\n- fixed adapters: two of them\n")
+    assert summary.decision_lines(note) == ["s01 month boundary: UTC",
+                                            "s02 archive selection: age"]
 
 
 def test_the_placeholder_line_in_the_skeleton_is_not_a_decision():
@@ -207,7 +208,7 @@ def test_the_spec_docs_the_tool_reads_are_the_ones_that_carry_decisions():
     template = TASK / "template"
     for name in summary.SPEC_DOCS:
         assert (template / name).is_file(), name
-        assert "결정:" in (template / name).read_text(encoding="utf-8"), name
+        assert "Decision:" in (template / name).read_text(encoding="utf-8"), name
 
 
 def test_with_no_first_sessions_the_first_two_are_undecided():

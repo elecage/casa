@@ -1,23 +1,23 @@
-# 바뀐 것
+# Changelog
 
 ## v0.2.3
 
-- 되채우기(F)에 달별 차이 내기를 붙였다.
-- 내보내기(E)에 PDF 한 장 내기를 붙였다.
-- 보관(D)에 크기로 고르는 길을 붙였다.
+- Backfill (F) can now produce a per-month difference.
+- Export (E) can now produce a one-page PDF.
+- Archiving (D) gained a way to pick by size.
 
 ## v0.2.2
 
-- 알림 규칙(C)에 `basis` 열쇠를 넣었다. 기존 규칙은 그대로 두고 새로
-  넣는 것부터 쓰기로 했다.
-- **계정 표기를 어댑터에서 한 자리로 모았다**(`opsbox/ingest/accounts.py`).
-  대소문자를 어떻게 할지는 아직 안 정했다.
+- Alert rules (C) gained a `basis` key. Existing rules were left alone; only
+  new ones use it.
+- **Account spelling was pulled into one place** (`opsbox/ingest/accounts.py`).
+  What to do about upper and lower case is still undecided.
 
 ## v0.2.1
 
-- 입력 어댑터에 `fh` 원천을 붙였다.
-- 설정에 `keep_originals`를 넣었다.
+- Input adapters gained the `fh` source.
+- Config gained `keep_originals`.
 
 ## v0.2.0
 
-- 서브시스템을 여섯으로 나눴다.
+- Split into six subsystems.

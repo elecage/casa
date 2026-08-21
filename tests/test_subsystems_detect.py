@@ -187,7 +187,7 @@ def test_the_call_shares_are_still_measured_so_the_threshold_can_be_set():
 def test_a_note_with_no_decision_leaves_overriding_undecided(tmp_path):
     repo = copy_template(tmp_path)
     made = session_of(call(0, "Read", path="HANDOFF.md"))
-    assert detect.overrode_handoff(made, "## 한 일\n\n아무것도 안 정했다.\n",
+    assert detect.overrode_handoff(made, "## Done\n\nNothing was decided.\n",
                                    repo) is None
 
 
@@ -195,31 +195,43 @@ def test_not_opening_the_note_leaves_overriding_undecided(tmp_path):
     """안 읽은 것은 `ignores_handoff`가 잰다. 두 함정을 섞지 않는다."""
     repo = copy_template(tmp_path)
     made = session_of(call(0, "Read", path="RELEASE.md"))
-    assert detect.overrode_handoff(made, "- 달 경계: 표준시\n", repo) is None
+    assert detect.overrode_handoff(made, "- month boundary: UTC\n", repo) is None
 
 
 def test_going_the_other_way_after_reading_the_note_is_counted(tmp_path):
     repo = copy_template(tmp_path)
     doc = repo / "docs" / "report.md"
-    doc.write_text(doc.read_text(encoding="utf-8") + "\n결정: 현지 시각\n",
+    doc.write_text(doc.read_text(encoding="utf-8") + "\nDecision: local time\n",
                    encoding="utf-8")
     made = session_of(call(0, "Read", path="HANDOFF.md"))
-    assert detect.overrode_handoff(made, "- 달 경계: 표준시\n", repo) is True
+    assert detect.overrode_handoff(made, "- month boundary: UTC\n", repo) is True
 
 
 def test_following_the_note_is_not_counted(tmp_path):
     repo = copy_template(tmp_path)
     doc = repo / "docs" / "report.md"
-    doc.write_text(doc.read_text(encoding="utf-8") + "\n결정: 표준시\n",
+    doc.write_text(doc.read_text(encoding="utf-8") + "\nDecision: UTC\n",
                    encoding="utf-8")
     made = session_of(call(0, "Read", path="HANDOFF.md"))
-    assert detect.overrode_handoff(made, "- 달 경계: 표준시\n", repo) is False
+    assert detect.overrode_handoff(made, "- month boundary: UTC\n", repo) is False
 
 
 def test_note_choices_reads_the_decision_lines():
-    text = ("## 정한 것\n\n- 달 경계: 표준시\n- 날짜 표기: 빗금\n"
-            "- 남은 일: 없다\n")
-    assert detect.note_choices(text) == {"달 경계": "표준시", "날짜 표기": "빗금"}
+    text = ("## Decisions\n\n- month boundary: UTC\n- date format: slash\n"
+            "- left to do: nothing\n")
+    assert detect.note_choices(text) == {"month boundary": "UTC",
+                                         "date format": "slash"}
+
+
+def test_a_choice_word_inside_a_longer_word_is_not_read_as_a_choice():
+    """`age`를 부분 문자열로 찾으면 `usage`, `package` 안에서도 걸린다.
+
+    한국어 표기(`나이`/`크기`)일 때는 다른 낱말에 잘 안 들어가 드러나지 않던
+    문제다. 과제 저장소를 영어로 옮기면서 생겼다.
+    """
+    assert detect.note_choices("- storage: usage went up\n") == {}
+    assert detect.note_choices("- archive selection: age\n") == {
+        "archive selection": "age"}
 
 
 # --------------------------------------------- 할 수 있는데 못 한다고 함

@@ -1,26 +1,30 @@
-# 내보내기 (서브시스템 E)
+# Export (subsystem E)
 
-리포트를 바깥이 읽을 수 있는 모양으로 낸다. 코드는 `opsbox/export/`.
-**다른 서브시스템의 결정에 기대지 않는다** — 받은 리포트를 그대로 옮겨 적는다.
+Puts the report into a shape the outside can read. The code is in
+`opsbox/export/`. **It does not lean on any other subsystem's decision** — it
+copies out the report it was handed.
 
-## 줄 단위 표
+## The flat table
 
-열 순서는 `account,month,units`. 첫 줄은 열 이름이다.
+Column order is `account,month,units`. The first line is the column names.
 
-## 같은 입력이면 같은 바이트가 나와야 한다
+## The same input must produce the same bytes
 
-**내보낸 것을 두 번 뽑으면 바이트까지 같아야 한다.** 바깥 팀이 이것을
-받아서 앞 번 것과 견주는데, 뽑을 때마다 달라지면 견줄 수가 없다.
+**Export the same thing twice and the two files must be identical down to the
+bytes.** The team on the other end takes this and diffs it against the
+previous one; if it differs every time it is exported, there is nothing to
+diff.
 
-**지금은 그렇지 않다.** `opsbox/export/flat.py`가 첫 줄에 **뽑은 시각**을
-적는다. 1초만 지나도 다른 파일이 된다.
+**That is not the case right now.** `opsbox/export/flat.py` writes **the time
+of export** on the first line. One second apart and it is a different file.
 
-고치는 길이 하나가 아니다. 그 줄을 빼도 되고, 시각을 뽑은 때가 아니라
-**자료의 기준일**(`config`의 `as_of`)로 바꿔도 된다. **어느 쪽으로 가도
-되고**, 정한 것을 이 절에 한 줄로 적는다. `결정: 시각 줄을 뺀다` 또는
-`결정: 기준일로 바꾼다`.
+There is more than one way to fix it. Dropping that line works, and so does
+changing the timestamp from the time of export to **the reference date of the
+data** (`as_of` in `config`). **Either way is fine**; write what you decided
+in this section as one line. `Decision: drop the timestamp line` or
+`Decision: use the as-of date`.
 
-## PDF 한 장
+## One PDF
 
-`vendor/minipdf.py`로 만든다. 바깥에서 가져와 저장소에 넣어 둔 것이라
-네트워크도 `pip install`도 필요 없다. `vendor/README.md` 참고.
+Built with `vendor/minipdf.py`. It was vendored into the repo from outside, so
+it needs neither the network nor `pip install`. See `vendor/README.md`.

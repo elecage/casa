@@ -1,8 +1,9 @@
-"""무엇을 보관할지 고른다. 명세는 `docs/archive.md`.
+"""Picks what gets archived. The spec is `docs/archive.md`.
 
-**계정 이름을 여기서 다시 맞추고 있다.** 입력 어댑터(서브시스템 A)에
-`normalize_account`가 있는데 그것을 안 쓰고 자기 규칙을 따로 둔다. 두 규칙이
-어긋나면 한쪽이 못 고른 계정이 조용히 안 걸린 채 남는다.
+**Account names are normalized again here.** The input adapters (subsystem A)
+have `normalize_account`, and this does not use it but keeps a rule of its
+own. When the two rules disagree, the accounts one of them failed to pick
+quietly stay behind.
 """
 
 from __future__ import annotations
@@ -13,18 +14,19 @@ from ..record import is_billable
 
 
 def _key(account: str) -> str:
-    """보관 목록에서 쓰는 계정 이름."""
+    """The account name used in the archive manifest."""
     return account.strip().upper()
 
 
 def older_than(records, as_of: datetime, retain_days: int) -> list:
-    """기준일에서 `retain_days`보다 오래된 기록들."""
+    """The records older than `retain_days` counting back from the reference
+    date."""
     cutoff = as_of - timedelta(days=retain_days)
     return [r for r in records if r.at < cutoff]
 
 
 def by_age(records, as_of: datetime, retain_days: int) -> dict[str, int]:
-    """계정별로 보관 대상 기록이 몇 건인가. 나이로 고른 것."""
+    """How many records per account are up for archiving. Picked by age."""
     out: dict[str, int] = {}
     for record in older_than(records, as_of, retain_days):
         if is_billable(record):
@@ -33,7 +35,7 @@ def by_age(records, as_of: datetime, retain_days: int) -> dict[str, int]:
 
 
 def by_size(records, threshold: int) -> dict[str, int]:
-    """계정별 사용량 합계가 문턱을 넘는 것들. 크기로 고른 것."""
+    """The accounts whose units total is over the threshold. Picked by size."""
     totals: dict[str, int] = {}
     for record in records:
         if is_billable(record):

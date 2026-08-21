@@ -1,7 +1,7 @@
-"""규칙 파일을 읽는다. 형식은 `docs/alerts.md`.
+"""Reads the rules file. The format is in `docs/alerts.md`.
 
-규칙 하나는 계정 하나에 문턱 하나를 건다. `basis`가 그 문턱을 무엇에
-견주는지 말한다.
+One rule puts one threshold on one account. `basis` says what that threshold
+is compared against.
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-#: 규칙 파일이 놓이는 자리.
+#: Where the rules file lives.
 RULES_FILE = "alert-rules.json"
 
 

@@ -1,8 +1,9 @@
-"""입력 어댑터가 도는지 본다.
+"""Checks that the input adapters run.
 
-여기서 보는 것은 **모양**이다 — 원천마다 레코드가 나오는지, 상태 값이
-아는 것 중 하나인지, 시각이 파싱되는지. 값이 맞는지는 여기서 안 본다.
-값은 `docs/reports/expected.md`의 손으로 센 기대값과 견준다.
+What is checked here is **shape** — that every source produces records, that
+the status is one of the known values, that the timestamp parses. Whether the
+values are right is not checked here. Values are compared against the
+hand-counted expected values in `docs/reports/expected.md`.
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ DATA = Path(__file__).resolve().parents[1] / "data"
 def test_every_registered_adapter_reads_something():
     records = read_all(DATA)
     seen = {r.source for r in records}
-    assert seen == set(ADAPTERS), f"안 읽힌 원천: {set(ADAPTERS) - seen}"
+    assert seen == set(ADAPTERS), f"sources that read nothing: {set(ADAPTERS) - seen}"
 
 
 def test_records_carry_the_shape_the_rest_of_the_tool_expects():

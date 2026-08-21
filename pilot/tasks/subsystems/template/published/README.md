@@ -1,4 +1,5 @@
 # published/
 
-이미 바깥으로 나간 달별 숫자. **여기 있는 파일은 고치지 않는다** — 나간 것은
-나간 것이고, 나중에 바뀐 것은 되채우기(서브시스템 F)가 따로 적는다.
+Per-month numbers that already went out. **Do not edit files in here** — what
+went out went out. Anything that changed since is recorded separately by
+backfill (subsystem F).

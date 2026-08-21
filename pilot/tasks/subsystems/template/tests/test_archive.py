@@ -1,7 +1,7 @@
-"""보관과 정리가 도는지 본다.
+"""Checks that archiving and cleanup run.
 
-**모양만 본다.** 나이로 고를지 크기로 고를지, 날짜를 어떻게 적을지는
-정할 자리이므로 여기서 고정하지 않는다.
+**Shape only.** Whether to pick by age or by size, and how dates are written,
+are there to be decided, so they are not pinned here.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ def _setup():
 def test_the_age_filter_keeps_only_records_before_the_cutoff():
     records, config, as_of = _setup()
     picked = older_than(records, as_of, config["retain_days"])
-    assert picked, "보관 대상이 하나도 없으면 이 검사는 의미가 없다"
+    assert picked, "this check is meaningless if nothing is up for archiving"
     for record in picked:
         assert (as_of - record.at).days >= config["retain_days"]
 

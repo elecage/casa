@@ -1,4 +1,4 @@
-"""원천별 합계."""
+"""Per-source totals."""
 
 from __future__ import annotations
 

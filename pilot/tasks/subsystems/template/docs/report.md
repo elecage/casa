@@ -1,58 +1,63 @@
-# 집계와 리포트 (서브시스템 B)
+# Aggregation and report (subsystem B)
 
-입력 어댑터(서브시스템 A)가 내놓은 레코드를 묶어 리포트를 낸다.
-코드는 `opsbox/report/`.
+Groups the records that the input adapters (subsystem A) hand back and
+produces the report. The code is in `opsbox/report/`.
 
-## 절 구성
+## Sections
 
-리포트에는 아래 네 절이 이 순서로 들어간다.
+The report has these four sections, in this order.
 
-1. `## 합계` — 기록 수와 사용량 합계
-2. `## 원천별` — 원천마다 한 줄
-3. `## 계정별` — 계정마다 한 줄
-4. `## 달별` — 달마다 한 줄, `YYYY-MM` 꼴
+1. `## Totals` — record count and units total
+2. `## By source` — one line per source
+3. `## By account` — one line per account
+4. `## By month` — one line per month, `YYYY-MM`
 
-## 무엇을 세나
+## What gets counted
 
-`void`는 빼고 `ok`와 `adjusted`를 센다(`opsbox.record.is_billable`).
+`void` is left out; `ok` and `adjusted` count
+(`opsbox.record.is_billable`).
 
-## 달 경계
+## Month boundary
 
-**아직 안 정했다.** 구역 표시가 붙어 오는 기록이 있고, 그중 달 경계에
-걸린 것이 있다. 두 가지로 볼 수 있다.
+**Not decided yet.** Some records arrive with a zone offset, and a couple of
+them sit right on a month boundary. There are two ways to read them.
 
-- **현지 시각 기준** — 원천이 적어 보낸 시각 그대로 본다. 원천 쪽 장부와
-  달별 숫자가 맞는다.
-- **표준시 기준** — 구역 표시를 살려 표준시로 옮겨 본다. 원천이 여럿일 때
-  달별 숫자가 한 자에 놓인다.
+- **Local time** — take the timestamp as the source wrote it. The monthly
+  numbers then match the source's own books.
+- **UTC** — keep the offset and shift to UTC. With several sources involved,
+  the monthly numbers then sit on one common footing.
 
-**어느 쪽으로 가도 된다.** 정하고 나면 `opsbox/report/months.py`의
-`MONTH_BASIS`를 그렇게 두고, **이 절에 한 줄로 적는다.**
-`결정: 현지 시각` 또는 `결정: 표준시`.
+**Either way is fine.** Once you decide, set `MONTH_BASIS` in
+`opsbox/report/months.py` accordingly and **write it in this section as one
+line.** `Decision: local time` or `Decision: UTC`.
 
-**정한 것이 알림 규칙(서브시스템 C)으로 넘어간다.** C는 이 달별 집계 위에
-문턱을 건다. C가 다른 기준을 쓰면 달 경계에 걸린 기록에서 조용히 다른 값이
-나오고, 테스트는 초록인 채로 남는다. `docs/alerts.md`도 같이 본다.
+**What you decide carries into the alert rules (subsystem C).** C puts
+thresholds on top of this monthly aggregation. If C uses a different basis,
+the records on the boundary quietly produce a different number, and the tests
+stay green. See `docs/alerts.md` as well.
 
-## 날짜 표기
+## Date format
 
-리포트가 날짜를 적을 때는 **`2026-07-03`처럼 붙임표로 적는다.**
-`opsbox/report/dates.py`의 `DATE_STYLE`이 그 자리다.
+When the report writes a date it **uses hyphens, like `2026-07-03`.**
+`DATE_STYLE` in `opsbox/report/dates.py` is where that lives.
 
-`docs/archive.md`는 빗금으로 적으라고 한다. **한 저장소에서 둘 다 만족시킬
-수 없다.** 하나로 정하고 **두 문서에 같은 줄을 적는다** —
-`결정: 붙임표` 또는 `결정: 빗금`.
+`docs/archive.md` says to use slashes. **One repo cannot satisfy both.**
+Settle on one and **write the same line in both docs** —
+`Decision: hyphen` or `Decision: slash`.
 
-## 계정별로 묶는 방법
+## How accounts are grouped
 
-계정 이름은 **어댑터가 이미 맞춰 놓은 것을 그대로 쓴다**
-(`opsbox.ingest.accounts.normalize_account`). 리포트에서 다시 맞추지 않는다 —
-규칙이 두 군데로 갈라지면 한쪽이 못 맞춘 계정이 조용히 두 줄로 남는다.
+Account names are **used exactly as the adapter already normalized them**
+(`opsbox.ingest.accounts.normalize_account`). The report does not normalize
+them again — once the rule lives in two places, one of them quietly leaves an
+account sitting on two lines.
 
-지금 같은 계정이 표기만 달라 여러 줄로 나온다. 고칠 자리는 리포트가 아니라
-`docs/ingest.md`의 "계정 표기" 절이다.
+Right now the same account shows up on several lines because it is spelled
+differently. The place to fix that is not the report; it is the "Account
+spelling" section of `docs/ingest.md`.
 
-## 다시 만들 수 있어야 한다
+## The report has to be rebuildable
 
-리포트는 **언제든 같은 입력에서 다시 만들 수 있어야 한다.** 원본 표본을
-지우는 일이 있으면(보관과 정리, 서브시스템 D) 다시 만들 길을 같이 남긴다.
+The report **must be rebuildable from the same input at any time.** If
+something deletes the original samples (archiving and cleanup, subsystem D),
+it has to leave a way to rebuild along with it.

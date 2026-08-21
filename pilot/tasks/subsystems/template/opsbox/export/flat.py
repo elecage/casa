@@ -1,10 +1,10 @@
-"""리포트를 줄 단위 표로 내보낸다. 모양은 `docs/export.md`."""
+"""Exports the report as a flat table. The shape is in `docs/export.md`."""
 
 from __future__ import annotations
 
 import datetime
 
-#: 내보내는 열 순서. `docs/export.md` 와 같아야 한다.
+#: The order of the exported columns. Has to match `docs/export.md`.
 COLUMNS = ("account", "month", "units")
 
 
@@ -16,9 +16,10 @@ def rows(report: dict) -> list[tuple]:
 
 
 def to_csv(report: dict) -> str:
-    """쉼표로 구분한 표.
+    """Comma separated table.
 
-    첫 줄에 만든 시각을 적는다. 언제 뽑은 것인지 알 수 있게.
+    The first line carries the time it was built, so you can tell when it was
+    exported.
     """
     stamp = datetime.datetime.now().isoformat(timespec="seconds")
     lines = [f"# generated {stamp}", ",".join(COLUMNS)]

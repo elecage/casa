@@ -1,4 +1,4 @@
-"""cj 원천 — 한 줄에 JSON 하나. 명세는 docs/ingest.md."""
+"""Source cj — one JSON object per line. The spec is docs/ingest.md."""
 
 from __future__ import annotations
 

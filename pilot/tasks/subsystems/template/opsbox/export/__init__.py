@@ -1,7 +1,7 @@
-"""서브시스템 E — 내보내기. 명세는 `docs/export.md`.
+"""Subsystem E — export. The spec is `docs/export.md`.
 
-리포트를 바깥이 읽을 수 있는 모양으로 낸다. **다른 서브시스템의 결정에
-기대지 않는다** — 받은 리포트를 그대로 옮겨 적는다.
+Puts the report into a shape the outside can read. **It does not lean on any
+other subsystem's decision** — it copies out the report it was handed.
 """
 
 from __future__ import annotations

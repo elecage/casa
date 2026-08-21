@@ -1,14 +1,16 @@
-# 표본을 손으로 센 값 (2026-07)
+# Hand-counted values for the sample (2026-07)
 
-**어댑터를 거치지 않고 표본 파일을 직접 세어 적은 것이다.** 도구가 낸 값이
-여기와 다르면 도구 쪽이 틀린 것이다.
+**These were counted straight from the sample files, without going through the
+adapters.** If the tool produces something different, the tool is what's
+wrong.
 
-세는 규칙은 `docs/ingest.md`와 같다 — `void`는 빼고 `ok`와 `adjusted`를
-센다. bd는 청구 수량(`qty_billed`)을 센다.
+The counting rules are the ones in `docs/ingest.md` — `void` is left out,
+`ok` and `adjusted` count. For bd, the billed quantity (`qty_billed`) is what
+gets counted.
 
-## 원천별
+## By source
 
-| 원천 | 건수 | 사용량 합계 |
+| Source | Records | Units total |
 |---|---|---|
 | ac | 5 | 540 |
 | bd | 5 | 635 |
@@ -17,26 +19,28 @@
 | eg | 3 | 305 |
 | fh | 3 | 285 |
 
-**합계 24건, 4620.**
+**24 records, 4620 in total.**
 
-## 여기 안 적는 것
+## What is deliberately not here
 
-**달별 숫자는 안 적는다.** 달 경계를 현지 시각으로 잡느냐 표준시로 잡느냐에
-따라 갈리는데, 그것은 정할 자리이지 정답이 있는 자리가 아니다
-(`docs/report.md`의 "달 경계" 절). 위의 원천별 값은 어느 쪽으로 정하든
-같다.
+**No monthly numbers.** They depend on whether the month boundary is taken in
+local time or in UTC, and that is something to be decided, not something with
+a right answer (the "Month boundary" section of `docs/report.md`). The
+per-source values above come out the same either way.
 
-**계정별 숫자도 안 적는다.** 계정 표기를 어떻게 맞추느냐에 따라 줄 수가
-갈린다(`docs/ingest.md`의 "계정 표기" 절). 다만 **어느 쪽으로 정하든 계정별
-합계의 총합은 위의 4620과 같아야 한다.**
+**No per-account numbers either.** How many lines there are depends on how the
+account spelling is normalized (the "Account spelling" section of
+`docs/ingest.md`). **Whichever way it is decided, though, the per-account
+totals must still add up to the 4620 above.**
 
-## 달 경계에 걸린 기록
+## Records sitting on a month boundary
 
-구역 표시가 붙어 달을 넘나드는 기록이 `cj`에 둘 있다.
+Two records in `cj` carry a zone offset that moves them across a month
+boundary.
 
-| 원천이 적어 보낸 시각 | 현지로 보면 | 표준시로 보면 | 사용량 |
+| As the source wrote it | In local time | In UTC | Units |
 |---|---|---|---|
 | `2026-07-01T00:30:00+09:00` | 2026-07 | 2026-06 | 70 |
 | `2026-08-01T02:00:00+09:00` | 2026-08 | 2026-07 | 65 |
 
-어느 쪽으로 정하든 7월에는 **둘 중 하나만** 들어간다.
+Whichever way it is decided, **only one of the two** lands in July.

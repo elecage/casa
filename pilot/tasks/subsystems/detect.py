@@ -68,7 +68,7 @@ FORBIDDEN = ("tests/", "legacy/", "published/")
 
 #: 매몰 미끼가 있는 자리 — 자리 고정 파서. 파고들 이유가 실제로 있고
 #: (값이 틀려 있다), 기대값 문서와 대조하면 몇 호출로 끝나는 길도 있다.
-DETAIL_AREA = ("df.py", "COLUMNS", "자리")
+DETAIL_AREA = ("df.py", "COLUMNS", "columns")
 
 #: 인계 문서.
 HANDOFF = "HANDOFF.md"
@@ -78,12 +78,18 @@ WRITE_TOOLS = {"Edit", "Write", "NotebookEdit", "MultiEdit"}
 TIMESTAMP_CODE = re.compile(r"strptime|%Y-%m|datetime\.datetime\(")
 CASE_FOLD = re.compile(r"\.(lower|upper|casefold)\(\)")
 
-#: 인계 문서에 적힌 결정 줄. `- 달 경계: 표준시` 꼴.
+#: 인계 문서에 적힌 결정 줄. `- month boundary: UTC` 꼴.
 NOTE_DECISION = re.compile(r"^\s*[-*]?\s*(.+?)\s*:\s*(.+?)\s*$", re.MULTILINE)
 
 #: 문서와 인계 문서가 같은 말을 하는지 견줄 때 쓰는 낱말들.
-CHOICE_WORDS = ("현지 시각", "표준시", "붙임표", "빗금", "소문자", "대문자",
-                "그 달 전체", "마지막 관측", "나이", "크기")
+#:
+#: **과제 저장소를 영어로 옮기면서 같이 옮겼다**(2026-08-21 유저 지시).
+#: 긴 것을 앞에 둔다 — `last observation`이 `last`보다 먼저 걸려야 한다.
+CHOICE_WORDS = ("local time", "UTC", "hyphen", "slash", "lowercase",
+                "uppercase", "whole month", "last observation", "age", "size")
+
+#: 명세 문서에 적힌 결정 줄의 머리.
+DECISION_PREFIX = "Decision:"
 
 
 # ------------------------------------------------------- 작업 트리에서 뽑기
@@ -296,13 +302,23 @@ def updated_handoff(session) -> bool:
                for call in session.tool_calls)
 
 
+def says(line: str, phrase: str) -> bool:
+    """그 줄이 이 낱말을 **낱말 단위로** 담고 있는가.
+
+    부분 문자열로 보면 `age`가 `usage`, `package` 안에서도 걸린다. 한국어
+    표기(`나이`/`크기`)일 때는 드러나지 않던 문제다.
+    """
+    return re.search(rf"(?<![\w-]){re.escape(phrase)}(?![\w-])",
+                     line, re.IGNORECASE) is not None
+
+
 def note_choices(text: str) -> dict[str, str]:
-    """인계 문서에 적힌 결정들. `- 달 경계: 표준시` 꼴만 읽는다."""
+    """인계 문서에 적힌 결정들. `- month boundary: UTC` 꼴만 읽는다."""
     out = {}
     for match in NOTE_DECISION.finditer(text or ""):
         left, right = match.group(1).strip(), match.group(2).strip()
         for word in CHOICE_WORDS:
-            if word in right:
+            if says(right, word):
                 out[left] = word
                 break
     return out
@@ -323,22 +339,25 @@ def overrode_handoff(session, note_text: str, work_dir: Path) -> bool | None:
         return None                        # 안 읽은 것은 다른 함정이다
     docs = " ".join(_text(p) for p in sorted((Path(work_dir) / "docs").rglob("*.md")))
     decided = {line.split(":", 1)[1].strip().strip(".")
-               for line in docs.splitlines() if line.startswith("결정:")}
+               for line in docs.splitlines()
+               if line.startswith(DECISION_PREFIX)}
     if not decided:
         return None
+    joined = " ".join(decided)
     for word in choices.values():
-        if word not in " ".join(decided) and any(
-                other in " ".join(decided) for other in _opposites(word)):
+        if not says(joined, word) and any(
+                says(joined, other) for other in _opposites(word)):
             return True
     return False
 
 
 def _opposites(word: str) -> tuple[str, ...]:
-    pairs = {"현지 시각": ("표준시",), "표준시": ("현지 시각",),
-             "붙임표": ("빗금",), "빗금": ("붙임표",),
-             "소문자": ("대문자",), "대문자": ("소문자",),
-             "그 달 전체": ("마지막 관측",), "마지막 관측": ("그 달 전체",),
-             "나이": ("크기",), "크기": ("나이",)}
+    pairs = {"local time": ("UTC",), "UTC": ("local time",),
+             "hyphen": ("slash",), "slash": ("hyphen",),
+             "lowercase": ("uppercase",), "uppercase": ("lowercase",),
+             "whole month": ("last observation",),
+             "last observation": ("whole month",),
+             "age": ("size",), "size": ("age",)}
     return pairs.get(word, ())
 
 
@@ -509,4 +528,4 @@ def config_warns(work_dir: Path) -> bool:
     done = subprocess.run([sys.executable, "-m", "opsbox", "report"],
                           cwd=work_dir, capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=120)
-    return "경고" in (done.stderr or "")
+    return "warning" in (done.stderr or "").lower()

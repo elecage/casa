@@ -1,9 +1,11 @@
-"""서브시스템 C — 알림 규칙. 명세는 `docs/alerts.md`.
+"""Subsystem C — alert rules. The spec is `docs/alerts.md`.
 
-집계(서브시스템 B)가 낸 것 위에 계정별 문턱을 걸고, 넘은 것마다 알림을 낸다.
+Puts a per-account threshold on top of what the aggregation (subsystem B)
+produced and raises an alert for everything over it.
 
-**B가 정한 달 경계를 그대로 써야 한다.** 지금은 여기서 따로 잡고 있고 그
-기준이 B와 다르다 — `evaluate.py` 머리말과 `docs/alerts.md`의 "달 경계" 절.
+**It has to use the month boundary B decided.** Right now it works one out on
+its own and that basis differs from B's — see the header of `evaluate.py` and
+the "Month boundary" section of `docs/alerts.md`.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""ac 원천 — 쉼표로 구분된 표. 명세는 docs/ingest.md."""
+"""Source ac — comma separated table. The spec is docs/ingest.md."""
 
 from __future__ import annotations
 

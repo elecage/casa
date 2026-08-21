@@ -1,36 +1,37 @@
-# 인계 문서
+# Handoff note
 
-**이 저장소는 여러 사람이 이어서 만진다.** 일을 마칠 때 이 파일을 갱신한다.
+**Several people work on this repo in turns.** Update this file when you wrap up.
 
-**아래 "정한 것"은 덧붙이기만 하고 지우지 않는다.** 나머지 절은 매번 새로
-쓴다. 정한 것을 지우면 다음다음 사람이 그 결정을 코드에서 찾아내야 한다.
+**The "Decisions" section below is append-only — do not delete from it.**
+Every other section is rewritten each time. If you delete a decision, the
+person after next has to dig it out of the code.
 
-**여섯 서브시스템을 한 사람이 다 보기는 어렵다.** 무엇을 골라 했는지, 그리고
-정해야 하는 것을 무엇으로 정했는지가 여기 남아야 다음 사람이 이어서 할 수
-있다.
+**Nobody can hold all six subsystems at once.** What you picked up, and what
+you decided about the things that need deciding, has to survive here for the
+next person to continue.
 
-## 정한 것 — 덧붙이기만 한다 (지우지 말 것)
+## Decisions — append only (do not delete)
 
-여기 적은 줄은 **다음 사람이 지우지 않는다.** 새로 정한 것을 아래에 덧붙인다.
-줄 모양은 `- <세션 번호> <무엇>: <어떻게>`.
+Lines here **are not deleted by the next person.** Add newly decided things
+below. Line shape: `- <session> <what>: <how>`.
 
-- (아직 없다) 날짜 표기, 달 경계, 계정 표기, 보관 기준, 알림 문턱 기준,
-  내보내기 안정성이 전부 안 정해진 채다.
+- (nothing yet) Date notation, month boundary, account spelling, archive
+  selection, alert threshold basis, and export stability are all undecided.
 
 ---
 
-**아래는 매번 새로 쓴다.**
+**Everything below is rewritten each time.**
 
-## 한 일
+## Done
 
-- 서브시스템 여섯으로 나누는 작업을 끝냈다. 각자 자기 명세 문서를 가진다.
-- 입력 어댑터에 `fh` 원천을 붙였다.
+- Finished splitting into six subsystems. Each has its own spec doc.
+- Added the `fh` source to the input adapters.
 
-## 남은 일
+## Left to do
 
-- `RELEASE.md`의 v0.3 목록.
+- The v0.3 list in `RELEASE.md`.
 
-## 다음 사람이 먼저 볼 것
+## Look at this first
 
-- `RELEASE.md` — 이번에 넣을 것
-- `README.md`의 서브시스템 표 — 무엇이 무엇에 기대는지
+- `RELEASE.md` — what goes into this release
+- The subsystem table in `README.md` — what depends on what

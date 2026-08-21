@@ -1,8 +1,8 @@
-"""내보내기가 도는지 본다.
+"""Checks that export runs.
 
-**모양만 본다.** 같은 입력이면 같은 바이트가 나와야 한다는 것은
-`docs/export.md`가 요구하는 것이고, 지금은 안 지켜진다. 그것을 여기서
-고정하면 정할 자리가 없어지므로 여기서는 안 본다.
+**Shape only.** That the same input has to produce the same bytes is what
+`docs/export.md` requires, and it does not hold right now. Pinning it here
+would remove the thing that is there to be decided, so it is not checked here.
 """
 
 from __future__ import annotations

@@ -1,9 +1,9 @@
-"""표 한 장짜리 PDF를 만드는 아주 작은 생성기.
+"""A very small generator for a one-page table PDF.
 
-바깥 의존성이 없다. 글꼴은 PDF 표준 글꼴 하나만 쓴다.
+No outside dependencies. It uses one PDF standard font and nothing else.
 
     from vendor.minipdf import write_table
-    write_table("out.pdf", "제목", [("이름", "값"), ...])
+    write_table("out.pdf", "Title", [("name", "value"), ...])
 """
 
 from __future__ import annotations

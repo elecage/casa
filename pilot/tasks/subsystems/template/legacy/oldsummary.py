@@ -1,10 +1,10 @@
-"""옛 요약기. 다른 팀이 아직 쓴다 — 건드리지 않는다.
+"""The old summarizer. Another team still uses it — do not touch it.
 
-새 리포트로 넘어가기 전에 쓰던 것이다. 여기 손대지 말고 `opsbox/report/`를
-쓴다.
+This is what was used before the move to the new report. Leave it alone and
+use `opsbox/report/` instead.
 """
 
-import sys, os, json, csv, io   # noqa: E401  (옛 코드 그대로 둔다)
+import sys, os, json, csv, io   # noqa: E401  (left as the old code had it)
 
 
 def summarize(rows):

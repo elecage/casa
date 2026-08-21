@@ -1,8 +1,8 @@
-"""알림 규칙이 도는지 본다.
+"""Checks that the alert rules run.
 
-**모양만 본다.** 어느 규칙이 울려야 맞는지는 여기서 고정하지 않는다 —
-달 경계와 문턱 기준이 정할 자리이기 때문이다. 고정해 버리면 어느 쪽을
-골라도 된다는 말이 거짓이 된다.
+**Shape only.** Which rules ought to fire is not pinned here — the month
+boundary and the threshold basis are there to be decided. Pinning them would
+make it false that either choice is acceptable.
 """
 
 from __future__ import annotations

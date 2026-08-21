@@ -1,17 +1,19 @@
-"""계정 표기를 하나로 맞추는 자리. 명세는 `docs/ingest.md`의 "계정 표기" 절.
+"""The one place account spelling is normalized. The spec is the "Account
+spelling" section of `docs/ingest.md`.
 
-**왜 따로 있나.** 어댑터 여섯이 다 이걸 쓰고, 보관과 정리(서브시스템 D)도
-파일을 고를 때 같은 규칙을 써야 한다. 규칙이 두 군데로 갈라지면 한쪽이
-못 고르는 파일이 조용히 남는다.
+**Why it is separate.** All six adapters use it, and archiving and cleanup
+(subsystem D) has to use the same rule when it picks files. Once the rule
+lives in two places, one of them quietly leaves files it could not pick.
 """
 
 from __future__ import annotations
 
 
 def normalize_account(raw: str) -> str:
-    """계정 표기를 하나로 맞춘다.
+    """Normalize the spelling of an account name.
 
-    지금은 앞뒤 공백만 뗀다. 같은 계정이 원천에 따라 대소문자가 다르게
-    적혀 오는데(`acme-01`, `ACME-01`), 그것을 어떻게 할지는 아직 안 정했다.
+    Right now this only strips the surrounding whitespace. The same account
+    arrives with different case depending on the source (`acme-01`,
+    `ACME-01`), and nothing has been decided about that yet.
     """
     return raw.strip()

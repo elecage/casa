@@ -1,6 +1,6 @@
 # vendor/
 
-바깥에서 가져와 저장소에 넣어 둔 것들. 네트워크 없이 돌아야 해서 여기 둔다.
-`pip install` 로 다시 받지 않는다.
+Third-party code checked into the repo. It lives here because this has to run
+without network access. Do not re-fetch it with `pip install`.
 
-- `minipdf.py` — 아주 작은 PDF 생성기. 표 하나짜리 문서를 만든다.
+- `minipdf.py` — a very small PDF writer. Produces a one-table document.

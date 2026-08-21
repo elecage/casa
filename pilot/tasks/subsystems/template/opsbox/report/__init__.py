@@ -1,12 +1,14 @@
-"""서브시스템 B — 집계와 리포트. 명세는 `docs/report.md`.
+"""Subsystem B — aggregation and report. The spec is `docs/report.md`.
 
-입력 어댑터(서브시스템 A)가 내놓은 레코드를 받아 달별·원천별·계정별로
-묶고 텍스트 리포트를 낸다.
+Takes the records the input adapters (subsystem A) hand back, groups them by
+month, by source and by account, and produces a text report.
 
-**여기서 정해지는 것 둘이 다른 서브시스템으로 넘어간다.**
+**Two things decided here carry into other subsystems.**
 
-- **달 경계**(`months.MONTH_BASIS`) — 알림 규칙(C)이 같은 기준을 써야 한다.
-- **날짜 표기**(`dates.DATE_STYLE`) — 보관과 정리(D)의 목록도 같은 표기여야 한다.
+- **Month boundary** (`months.MONTH_BASIS`) — the alert rules (C) have to use
+  the same basis.
+- **Date format** (`dates.DATE_STYLE`) — the manifest from archiving and
+  cleanup (D) has to use the same format.
 """
 
 from __future__ import annotations
@@ -21,7 +23,7 @@ from .totals import record_count, total_units
 
 
 def build(records) -> dict:
-    """리포트에 들어갈 것을 한 덩어리로 모은다."""
+    """Collect everything that goes into the report in one lump."""
     per_month: dict[str, list] = {}
     for record in records:
         per_month.setdefault(month_key(record), []).append(record)

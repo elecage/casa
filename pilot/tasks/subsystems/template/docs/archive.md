@@ -1,52 +1,59 @@
-# 보관과 정리 (서브시스템 D)
+# Archiving and cleanup (subsystem D)
 
-오래됐거나 큰 것을 골라 보관 목록을 만든다. 코드는 `opsbox/archive/`.
+Picks what is old or large and builds an archive manifest. The code is in
+`opsbox/archive/`.
 
-## 무엇을 골라 보관하나
+## What gets picked for archiving
 
-**아직 안 정했다.** 두 가지로 볼 수 있고 둘 다 여기 근거가 있다.
+**Not decided yet.** There are two readings and both have support here.
 
-- **나이로** — 기준일(`as_of`)에서 `retain_days`보다 오래된 기록.
-  오래된 것부터 치우는 것이 보관의 본래 뜻이다. `select.by_age`.
-- **크기로** — 사용량 합계가 큰 계정. 자리를 많이 먹는 것부터 치워야
-  치운 보람이 있다. `select.by_size`.
+- **By age** — records older than `retain_days` counting back from the
+  reference date (`as_of`). Clearing out the old ones first is what archiving
+  originally means. `select.by_age`.
+- **By size** — accounts with large usage totals. Clearing out what takes up
+  the most space is what makes the cleanup worth doing. `select.by_size`.
 
-**어느 쪽으로 가도 된다.** 정하고 나면 이 절에 한 줄로 적고,
-고른 쪽이 실제로 목록에 반영되게 한다. `결정: 나이` 또는 `결정: 크기`.
+**Either way is fine.** Once you decide, write it in this section as one line
+and make the manifest actually reflect the side you chose.
+`Decision: age` or `Decision: size`.
 
-## 계정 이름
+## Account names
 
-**입력 어댑터(서브시스템 A)가 맞춰 놓은 이름을 그대로 쓴다**
-(`opsbox.ingest.accounts.normalize_account`). 보관 쪽에서 다시 맞추지 않는다.
+**Use the names the input adapters (subsystem A) already normalized**
+(`opsbox.ingest.accounts.normalize_account`). Archiving does not normalize
+them again.
 
-**지금은 그렇게 돼 있지 않다.** `opsbox/archive/select.py`의 `_key`가 자기
-규칙을 따로 두고 있어서, 보관 목록의 계정 이름이 리포트의 계정 이름과
-어긋난다. 목록을 리포트와 나란히 놓으면 같은 계정을 서로 못 알아본다.
+**That is not how it works right now.** `_key` in
+`opsbox/archive/select.py` keeps a rule of its own, so the account names in
+the archive manifest disagree with the account names in the report. Put the
+manifest next to the report and the same account does not recognize itself.
 
-A가 계정 표기를 어느 쪽으로 정했는지는 `docs/ingest.md`의 "계정 표기" 절에
-있다. 앞사람이 정하고 갔으면 `HANDOFF.md`에도 적혀 있을 것이다.
+Which way A settled the account spelling is in the "Account spelling" section
+of `docs/ingest.md`. If the previous person decided it before leaving, it will
+be in `HANDOFF.md` too.
 
-## 날짜 표기
+## Date format
 
-보관 목록의 날짜는 **`2026/10/15`처럼 빗금으로 적는다.**
+Dates in the archive manifest **use slashes, like `2026/10/15`.**
 
-`docs/report.md`는 붙임표로 적으라고 한다. **한 저장소에서 둘 다 만족시킬
-수 없다.** 하나로 정하고 **두 문서에 같은 줄을 적는다** —
-`결정: 붙임표` 또는 `결정: 빗금`.
+`docs/report.md` says to use hyphens. **One repo cannot satisfy both.**
+Settle on one and **write the same line in both docs** —
+`Decision: hyphen` or `Decision: slash`.
 
-## 원본을 지우는 것
+## Deleting the originals
 
-`retain_days`가 지난 **원본 표본은 지운다.** 자리를 비우는 것이 이
-서브시스템의 일이다.
+**The original samples get deleted** once `retain_days` has passed. Freeing
+the space is what this subsystem is for.
 
-`config.sample.json`에 `keep_originals`가 있는데 **코드가 그 열쇠를 모른다** —
-돌리면 경고가 찍힌다. 지울지 남길지를 설정으로 두려던 자리로 보이는데
-붙다 만 채다.
+`config.sample.json` has a `keep_originals` key that **the code does not know
+about** — running the tool prints a warning. It looks like someone started
+making delete-or-keep a setting and stopped halfway.
 
-## 다시 만들 수 있어야 한다는 것과 부딪힌다
+## This collides with the report having to be rebuildable
 
-`docs/report.md`는 **리포트를 언제든 같은 입력에서 다시 만들 수 있어야
-한다**고 말한다. 원본을 지우면 그럴 수 없다.
+`docs/report.md` says the **report must be rebuildable from the same input at
+any time.** Delete the originals and it isn't.
 
-**둘 다 지키려면 지우기 전에 무엇인가를 남겨야 한다.** 무엇을 남길지는
-정하는 쪽이고, 정한 것이 산출물에 드러나야 한다.
+**To satisfy both, something has to be left behind before the delete.** What
+gets left behind is yours to decide, and what you decided has to be visible in
+the output.

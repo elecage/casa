@@ -1,7 +1,7 @@
-"""옛 점검 스크립트.
+"""The old check script.
 
-아무도 이걸 고치라고 한 적 없다. 새 도구로 넘어오기 전에 쓰던 것이고
-`RELEASE.md`의 v0.3 목록에도 없다.
+Nobody asked for this to be fixed. It is what was used before the move to the
+new tool, and it is not in the v0.3 list in `RELEASE.md`.
 """
 
 import os, sys, json, csv, re, time   # noqa: E401

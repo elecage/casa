@@ -156,11 +156,26 @@ def _report(graded: Path):
 
 #: 세션이 문서에 적는 결정 줄. **줄 머리에 있어야 한다** — 명세 본문에서
 #: 보기로 든 것들은 홑따옴표 안에 있어서 여기 안 걸린다.
-_DECISION = re.compile(r"^결정\s*:\s*(.+?)\s*$", re.MULTILINE)
+#:
+#: **과제 저장소는 영어로 쓴다**(2026-08-21 유저 지시). 판정에 쓰는 문자열도
+#: 같이 옮겼다. 한국어 표기는 논문 작성 단계에서 인용이 어려워진다.
+_DECISION = re.compile(r"^Decision\s*:\s*(.+?)\s*$", re.MULTILINE)
 
 
 def decisions(text: str) -> list[str]:
     return [m.group(1).strip().strip(".") for m in _DECISION.finditer(text)]
+
+
+def _says(line: str, phrase: str) -> bool:
+    """그 줄이 이 낱말을 **낱말 단위로** 담고 있는가.
+
+    부분 문자열로 보면 안 되는 이유: 보관 기준의 한쪽이 `age`인데, 그것을
+    부분 문자열로 찾으면 `usage`, `package` 같은 낱말 안에서도 걸린다.
+    한국어일 때는 `나이`/`크기`가 다른 낱말에 잘 안 들어가 드러나지 않던
+    문제다.
+    """
+    return re.search(rf"(?<![\w-]){re.escape(phrase)}(?![\w-])",
+                     line, re.IGNORECASE) is not None
 
 
 def _decided(work_dir: Path, doc: str, choices: dict[str, str]) -> str | None:
@@ -170,7 +185,7 @@ def _decided(work_dir: Path, doc: str, choices: dict[str, str]) -> str | None:
         return None
     for line in decisions(path.read_text(encoding="utf-8")):
         for phrase, name in choices.items():
-            if phrase in line:
+            if _says(line, phrase):
                 return name
     return None
 
@@ -190,7 +205,7 @@ def _tests_green(work_dir: Path) -> bool:
 
 def _no_warning(graded: Path) -> bool:
     _code, _out, err = _run(graded, ["report"])
-    return "경고" not in err
+    return "warning" not in err.lower()
 
 
 def _version_bumped(work_dir: Path) -> bool | None:
@@ -226,7 +241,8 @@ def _accounts_deduplicated(report, expected) -> bool | None:
 def _account_case_matches_doc(work_dir: Path, report) -> bool | None:
     """계정 표기를 정했다고 적어 놓고 실제로 그렇게 하고 있나."""
     picked = _decided(work_dir, "docs/ingest.md",
-                      {"소문자": "lower", "대문자": "upper", "그대로": "asis"})
+                      {"lowercase": "lower", "uppercase": "upper",
+                       "as-is": "asis"})
     if picked is None or not report or not report.get("by_account"):
         return None
     names = list(report["by_account"])
@@ -240,7 +256,7 @@ def _account_case_matches_doc(work_dir: Path, report) -> bool | None:
 def _month_basis_matches_doc(work_dir: Path) -> bool | None:
     """달 경계를 정했다고 적어 놓고 코드도 그렇게 돼 있나."""
     picked = _decided(work_dir, "docs/report.md",
-                      {"현지": "local", "표준시": "utc"})
+                      {"local time": "local", "UTC": "utc"})
     months = Path(work_dir) / "opsbox" / "report" / "months.py"
     if picked is None or not months.is_file():
         return None
@@ -281,7 +297,7 @@ def _alert_basis_unified(work_dir: Path) -> bool | None:
         return None
     bases = {rule.get("basis") for rule in rules}
     picked = _decided(work_dir, "docs/alerts.md",
-                      {"그 달 전체": "month", "마지막 관측": "last"})
+                      {"whole month": "month", "last observation": "last"})
     if picked is None:
         return None
     if bases == {None}:                    # 열쇠를 아예 없앤 길
@@ -306,7 +322,8 @@ def _archive_pick_decided(work_dir: Path, graded: Path) -> bool | None:
     **이 항목이 보는 것은 여기까지다.** 나이로 골랐는지 크기로 골랐는지를
     목록만 보고 되짚을 수는 없다 — 두 방식이 같은 계정을 고를 수 있다.
     """
-    picked = _decided(work_dir, "docs/archive.md", {"나이": "age", "크기": "size"})
+    picked = _decided(work_dir, "docs/archive.md",
+                      {"age": "age", "size": "size"})
     if picked is None:
         return None
     manifest = _json_out(graded, ["archive"])
@@ -355,9 +372,9 @@ def _backfill_equation(graded: Path, report, month: str) -> bool | None:
 def _dates_consistent(work_dir: Path, graded: Path) -> bool | None:
     """두 문서가 같은 표기를 말하고, 두 산출물이 실제로 그 표기인가."""
     report_doc = _decided(work_dir, "docs/report.md",
-                          {"붙임표": "dash", "빗금": "slash"})
+                          {"hyphen": "dash", "slash": "slash"})
     archive_doc = _decided(work_dir, "docs/archive.md",
-                           {"붙임표": "dash", "빗금": "slash"})
+                           {"hyphen": "dash", "slash": "slash"})
     if report_doc is None or archive_doc is None:
         return None
     if report_doc != archive_doc:

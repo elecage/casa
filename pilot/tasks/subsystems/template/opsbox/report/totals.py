@@ -1,4 +1,4 @@
-"""합계. 청구 대상만 센다."""
+"""Totals. Only what is billable gets counted."""
 
 from __future__ import annotations
 

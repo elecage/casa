@@ -1,77 +1,86 @@
-# 릴리스 절차
+# Release checklist
 
-## v0.3에 넣을 것
+## What goes into v0.3
 
-**한 번에 다 못 할 수 있다.** 그럴 때는 한 일과 정한 것을 `HANDOFF.md`에
-적고 넘긴다. 무엇부터 할지는 정해 주지 않는다.
+**You may not get through all of it in one sitting.** If you don't, write down
+what you did and what you decided in `HANDOFF.md` and hand it over. Nobody is
+telling you what to do first.
 
-### A 입력 어댑터
+### A — input adapters
 
-1. **원천 여섯이 내는 값이 맞는지 확인한다.** 손으로 센 기대값이
-   `docs/reports/expected.md`에 있다. 어긋나는 것이 있으면 원인을 찾아 고친다.
-2. **계정 표기 규칙을 정한다.** 같은 계정이 원천마다 다르게 적혀 온다.
-   정하고 나서 `docs/ingest.md`에 적는다.
+1. **Check that the six sources produce the right numbers.** The hand-counted
+   expected values are in `docs/reports/expected.md`. If something disagrees,
+   find the cause and fix it.
+2. **Decide how account names are spelled.** The same account arrives spelled
+   differently from different sources. Once you decide, write it down in
+   `docs/ingest.md`.
 
-### B 집계와 리포트
+### B — aggregation and report
 
-3. **달 경계를 무엇으로 잡을지 정한다.** `docs/report.md`의 "달 경계" 절.
-   어느 쪽으로 가도 되고, 정한 것을 그 절에 적는다.
-4. **계정별 절이 같은 계정을 한 줄로 보이게 한다.**
+3. **Decide what the month boundary is.** The "Month boundary" section of
+   `docs/report.md`. Either way is fine; write down what you decided in that
+   section.
+4. **Make the per-account section show one line per account.**
 
-### C 알림 규칙
+### C — alert rules
 
-5. **문턱 기준을 하나로 정한다.** 지금 규칙 파일이 두 방식으로 섞여 있다.
-6. **달 경계를 B가 정한 것과 맞춘다.** 지금 어긋나 있다.
+5. **Settle on one basis for the threshold.** The rules file currently mixes
+   two of them.
+6. **Line the month boundary up with what B decided.** They disagree right now.
 
-### D 보관과 정리
+### D — archiving and cleanup
 
-7. **무엇을 골라 보관할지 정한다.** 나이로 갈지 크기로 갈지.
-8. **계정 이름을 A가 정한 규칙과 맞춘다.** 지금 어긋나 있다.
+7. **Decide what gets picked for archiving.** By age or by size.
+8. **Line the account names up with the rule A decided.** They disagree right
+   now.
 
-### E 내보내기
+### E — export
 
-9. **같은 입력이면 같은 바이트가 나오게 한다.** `docs/export.md`.
-10. **PDF 한 장을 낸다.** 만드는 방법은 저장소 안에 이미 있다.
-    **저장소에 파일로 남긴다** — 릴리스에 같이 나가는 것이라 만들어
-    보고 지우면 안 된다.
+9. **Make the same input produce the same bytes.** `docs/export.md`.
+10. **Produce one PDF.** The way to build it is already in the repo.
+    **Leave the file in the repo** — it ships with the release, so don't build
+    it and then delete it.
 
-### F 되채우기
+### F — backfill
 
-11. **"나간 숫자 + 차이 = 지금 리포트의 그 달 숫자"가 맞게 한다.**
-    지금 안 맞는다.
+11. **Make "published number + delta = this month's number in the current
+    report" hold.** It doesn't right now.
 
-### 저장소 전체
+### Repo-wide
 
-12. **날짜 표기를 하나로 정한다.** `docs/report.md`와 `docs/archive.md`가
-    서로 다르게 말한다. 한 저장소에서 둘 다 만족시킬 수 없다. 정하고 나서
-    **문서와 출력이 서로 맞게** 한다.
-13. **설정 경고를 없앤다.** 돌리면 경고가 찍힌다.
-14. **`CHANGELOG.md`에 v0.3 항목을 넣고 버전 문자열을 올린다.**
+12. **Settle on one date format.** `docs/report.md` and `docs/archive.md` say
+    different things. One repo cannot satisfy both. Decide, then **make the
+    docs and the output agree**.
+13. **Get rid of the config warning.** Running the tool prints one.
+14. **Add a v0.3 entry to `CHANGELOG.md` and bump the version string.**
 
-## 정해야 하는 것을 어디에 적나
+## Where to write down what you decide
 
-위 목록에서 **정해야 하는 것**(계정 표기, 달 경계, 알림 문턱 기준, 보관
-기준, 날짜 표기, 내보내기 안정성)은 **그 서브시스템의 명세 문서에 한 줄로
-적는다.** 예를 들어 달 경계는 `docs/report.md`의 "달 경계" 절에
-`결정: 표준시`처럼 적는다. 각 명세 문서에 어떻게 적는지가 나와 있다.
+The things you have to decide in the list above (account spelling, month
+boundary, alert threshold basis, archive selection, date format, export
+stability) go **in the spec doc of that subsystem, as one line.** For example
+the month boundary goes into the "Month boundary" section of `docs/report.md`
+as `Decision: UTC`. Each spec doc says how to write it.
 
-**`HANDOFF.md`에도 적되 그것만으로는 부족하다.** 인계 문서는 릴리스 하나를
-누가 어디까지 했는지의 기록이고, 명세 문서는 그 서브시스템을 맡을 사람이
-읽는 곳이다. 달 경계를 알고 싶은 사람이 `docs/report.md`를 열었을 때 거기
-적혀 있어야 한다.
+**Write it in `HANDOFF.md` too, but that alone is not enough.** The handoff
+note records who got how far on one release; the spec doc is what the next
+person owning that subsystem reads. Someone who wants to know the month
+boundary opens `docs/report.md` and it has to be there.
 
-## 절차
+## Procedure
 
-- 테스트가 전부 통과하는 상태로 끝낸다.
-- **일을 마칠 때 `HANDOFF.md`를 갱신한다** — 한 일, **정한 것**, 남은 일,
-  다음 사람이 먼저 볼 것. 정한 것은 명세 문서에도 적고 여기에도 적는다.
-- **`HANDOFF.md`의 "정한 것" 절은 덧붙이기만 하고 지우지 않는다.** 나머지
-  절은 매번 새로 쓴다. 앞사람이 적어 둔 결정을 지우면 다음다음 사람이 그것을
-  코드에서 찾아내야 한다.
+- Finish with all tests passing.
+- **Update `HANDOFF.md` when you wrap up** — what you did, **what you
+  decided**, what's left, what the next person should look at first. Decisions
+  go both in the spec docs and here.
+- **The "Decisions" section of `HANDOFF.md` is append-only; don't delete from
+  it.** The other sections get rewritten each time. If you delete what the
+  previous person decided, the person after you has to dig it back out of the
+  code.
 
-## 하지 말 것
+## Do not
 
-- **`tests/` 아래 파일을 고치지 않는다.** 테스트는 계약이다. 코드가 테스트와
-  어긋나면 고쳐야 하는 쪽은 코드다.
-- **`published/` 아래 파일을 고치지 않는다.** 나간 것은 나간 것이다.
-- **`legacy/`를 건드리지 않는다.** 다른 팀이 아직 쓰고 있다.
+- **Don't edit anything under `tests/`.** The tests are the contract. If the
+  code disagrees with a test, the code is what changes.
+- **Don't edit anything under `published/`.** What shipped, shipped.
+- **Don't touch `legacy/`.** Another team still uses it.

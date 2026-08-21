@@ -1,7 +1,7 @@
-"""df 원천 — 자리를 고정한 표. 명세는 docs/ingest.md.
+"""Source df — fixed-width table. The spec is docs/ingest.md.
 
-열 경계는 아래 `COLUMNS`에 적힌 자리로 자른다. 표본이 바뀌면 이 자리도
-같이 봐야 한다.
+Column boundaries are cut at the positions listed in `COLUMNS` below. If the
+sample changes, these positions have to be checked along with it.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from .accounts import normalize_account
 
 PATTERN = "df-*.txt"
 
-#: (이름, 시작, 끝). 끝은 포함하지 않는다.
+#: (name, start, end). The end position is not included.
 COLUMNS = (
     ("account", 0, 10),
     ("at", 10, 29),

@@ -1,63 +1,69 @@
-# 입력 어댑터 (서브시스템 A)
+# Input adapters (subsystem A)
 
-`data/` 아래 파일을 읽어 `opsbox.record.Record` 목록으로 내놓는다. 집계도
-정렬도 여기서 하지 않는다. 코드는 `opsbox/ingest/`.
+Reads the files under `data/` and hands back a list of
+`opsbox.record.Record`. No aggregation and no sorting happens here. The code
+is in `opsbox/ingest/`.
 
-## 원천 여섯
+## The six sources
 
-| 원천 | 파일 | 형식 |
+| Source | File | Format |
 |---|---|---|
-| ac | `ac-*.csv` | 쉼표로 구분. 열은 `account,at,units,status` |
-| bd | `bd-*.tsv` | 탭으로 구분. 열은 `account,at,qty,qty_billed,status` |
-| cj | `cj-*.jsonl` | 한 줄에 JSON 하나. 열쇠는 `acct,ts,units,state` |
-| df | `df-*.txt` | 자리를 고정한 표. 아래 "자리 표" 참고 |
-| eg | `eg-*.txt` | 한 줄에 `key=value` 쌍들 |
-| fh | `fh-*.csv` | 쉼표로 구분. 열은 `customer,when,amount,flag` |
+| ac | `ac-*.csv` | Comma separated. Columns are `account,at,units,status` |
+| bd | `bd-*.tsv` | Tab separated. Columns are `account,at,qty,qty_billed,status` |
+| cj | `cj-*.jsonl` | One JSON object per line. Keys are `acct,ts,units,state` |
+| df | `df-*.txt` | Fixed-width table. See "Column positions (df)" below |
+| eg | `eg-*.txt` | `key=value` pairs, several per line |
+| fh | `fh-*.csv` | Comma separated. Columns are `customer,when,amount,flag` |
 
-## 수량을 무엇으로 세나
+## Which quantity gets counted
 
-**청구 대상 수량을 센다.** 원천이 수량을 한 벌만 주면 그것이 청구 수량이다.
+**Count the billed quantity.** If a source gives only one quantity, that one
+is the billed quantity.
 
-**bd는 수량을 두 벌로 준다.** `qty`는 원래 수량이고 `qty_billed`가 청구
-수량이다. 둘이 다른 기록이 있다 — 사후 정정이나 한도 적용으로 깎인 것이다.
-**`qty_billed`를 센다.**
+**bd gives two.** `qty` is the original quantity and `qty_billed` is the
+billed one. Some records differ between the two — they were corrected after
+the fact, or trimmed by a cap. **Count `qty_billed`.**
 
-## 자리 표 (df)
+## Column positions (df)
 
-자리는 0부터 세고, 끝 자리는 포함하지 않는다.
+Positions are 0-based and the end position is not included.
 
-| 열 | 시작 | 끝 | 비고 |
+| Column | Start | End | Note |
 |---|---|---|---|
-| account | 0 | 10 | 왼쪽 정렬 |
-| at | 10 | 29 | `YYYY-MM-DDTHH:MM:SS` 19자 |
-| units | 29 | **35** | **오른쪽 정렬, 여섯 자리** |
-| status | 36 | 44 | 왼쪽 정렬 |
+| account | 0 | 10 | left aligned |
+| at | 10 | 29 | `YYYY-MM-DDTHH:MM:SS`, 19 characters |
+| units | 29 | **35** | **right aligned, six characters** |
+| status | 36 | 44 | left aligned |
 
-표본이 바뀌면 이 표도 같이 본다.
+If the sample changes, check this table along with it.
 
-## 상태
+## Status
 
-`ok`, `adjusted`, `void` 셋이다. `void`만 집계에서 뺀다. `adjusted`는
-사후 정정된 것이라 그대로 센다(`opsbox.record.is_billable`).
+There are three: `ok`, `adjusted`, `void`. Only `void` is left out of the
+totals. `adjusted` was corrected after the fact and still counts
+(`opsbox.record.is_billable`).
 
-## 계정 표기
+## Account spelling
 
-**같은 계정이 원천마다 다르게 적혀 온다.** 대소문자가 다르고, 앞뒤에 공백이
-붙어 오는 원천도 있다. 예를 들어 `acme-01`, `ACME-01`, ` Acme-01 `은 전부
-같은 계정이다.
+**The same account arrives spelled differently from different sources.** The
+case differs, and some sources send surrounding whitespace. For example
+`acme-01`, `ACME-01` and ` Acme-01 ` are all the same account.
 
-지금 `normalize_account`는 **앞뒤 공백만 뗀다.** 대소문자를 어떻게 할지는
-아직 안 정했다.
+Right now `normalize_account` **only strips the surrounding whitespace.**
+Nothing has been decided about the case yet.
 
-**정하면 이 절에 한 줄로 적는다.** `결정: 소문자` 또는 `결정: 대문자`
-또는 `결정: 그대로`. 적어 두지 않으면 뒤에 오는 사람이 코드를 뒤져야 안다.
+**Once you decide, write it in this section as one line.**
+`Decision: lowercase` or `Decision: uppercase` or `Decision: as-is`. If it
+isn't written down, the next person has to read the code to find out.
 
-그 규칙을 쓰는 다른 서브시스템도 같이 맞춰야 한다 — **보관과 정리(서브시스템
-D)가 이 규칙으로 계정을 고르고, 되채우기(F)도 같은 규칙을 쓴다.**
+The other subsystems that use the rule have to follow it — **archiving and
+cleanup (subsystem D) picks accounts with this rule, and backfill (F) uses the
+same rule.**
 
-## 기록 시각
+## Record timestamps
 
-`opsbox._internal.timeparse.parse_ts`를 쓴다. 원천마다 표기가 달라서 어댑터가
-제각기 파싱하면 어긋난다. 구역 표시가 붙은 기록이 있는데, `parse_ts`는
-그것을 떼고 현지 시각으로 읽는다. 표준시로 읽어야 하는 자리는
-`to_utc`가 따로 있다 — 어느 쪽을 쓸지는 `docs/report.md`가 정한다.
+Use `opsbox._internal.timeparse.parse_ts`. Every source spells the timestamp
+differently, so adapters that each parse it themselves drift apart. Some
+records carry a zone offset; `parse_ts` drops it and reads the timestamp as
+local time. Where UTC is wanted there is a separate `to_utc` — which of the
+two applies is decided in `docs/report.md`.

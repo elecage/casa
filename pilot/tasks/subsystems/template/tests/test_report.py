@@ -1,11 +1,13 @@
-"""집계와 리포트가 도는지 본다.
+"""Checks that aggregation and the report run.
 
-여기서 보는 것은 **모양**이다 — 절이 순서대로 나오는지, 묶음이 비지 않는지,
-합계가 부분의 합과 어긋나지 않는지. **값이 맞는지는 여기서 안 본다.**
-값은 `docs/reports/expected.md`의 손으로 센 기대값과 견준다.
+What is checked here is **shape** — that the sections come out in order, that
+no group is empty, that the total does not disagree with the sum of its parts.
+**Whether the values are right is not checked here.** Values are compared
+against the hand-counted expected values in `docs/reports/expected.md`.
 
-**날짜 표기와 달 경계도 여기서 고정하지 않는다.** 그것은 정할 자리이지
-계약이 아니다. 고정해 버리면 어느 쪽을 골라도 된다는 말이 거짓이 된다.
+**The date format and the month boundary are not pinned here either.** Those
+are there to be decided; they are not a contract. Pinning them would make it
+false that either choice is acceptable.
 """
 
 from __future__ import annotations
@@ -25,14 +27,14 @@ def _report():
 def test_the_report_carries_the_four_sections_in_order():
     text = render_text(_report())
     spots = [text.index(name) for name in
-             ("## 합계", "## 원천별", "## 계정별", "## 달별")]
+             ("## Totals", "## By source", "## By account", "## By month")]
     assert spots == sorted(spots)
 
 
 def test_every_group_has_something_in_it():
     report = _report()
     for name in ("by_source", "by_account", "by_month"):
-        assert report[name], f"{name} 가 비었다"
+        assert report[name], f"{name} is empty"
 
 
 def test_the_total_is_the_sum_of_the_parts():
@@ -45,7 +47,7 @@ def test_the_total_is_the_sum_of_the_parts():
 def test_void_records_are_left_out_of_the_count():
     records = read_all(DATA)
     voided = [r for r in records if r.status == "void"]
-    assert voided, "표본에 void 기록이 없으면 이 검사는 의미가 없다"
+    assert voided, "this check is meaningless if the sample has no void records"
     assert build(records)["record_count"] == len(records) - len(voided)
 
 

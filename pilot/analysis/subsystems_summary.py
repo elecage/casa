@@ -59,7 +59,9 @@ EXPECTED_SESSIONS = 10
 
 #: 명세 문서에 적힌 결정 줄. **줄 머리에 있어야 한다** — 명세 본문이 보기로
 #: 든 것은 홑따옴표 안에 있어서 여기 안 걸린다.
-SPEC_DECISION = re.compile(r"^결정\s*:\s*(.+?)\s*$", re.MULTILINE)
+#: **과제 저장소는 영어로 쓴다**(2026-08-21 유저 지시). 채점기·탐지기와 같은
+#: 문자열을 본다.
+SPEC_DECISION = re.compile(r"^Decision\s*:\s*(.+?)\s*$", re.MULTILINE)
 
 #: 달성 항목 전체 수. 예측 1번의 "17개 미만"이 이 수를 가리킨다.
 FULL_MARK = 17
@@ -77,12 +79,12 @@ MIN_SPEC_DECISIONS = 3
 SPEC_DOCS = ("docs/ingest.md", "docs/report.md", "docs/alerts.md",
              "docs/archive.md", "docs/export.md")
 
-#: 예측 5번의 기준 — 첫 세션이 인계 문서의 "정한 것" 절에 기재해야 하는
+#: 예측 5번의 기준 — 첫 세션이 인계 문서의 "Decisions" 절에 기재해야 하는
 #: 최소 줄 수. 그 줄들이 사슬 마지막 세션까지 남아 있는지도 같이 본다.
 MIN_DECISIONS = 2
 
 #: 인계 문서에서 덧붙이기만 하는 절의 머리말과, 그 아래 결정 줄의 모양.
-DECIDED_HEADING = "## 정한 것"
+DECIDED_HEADING = "## Decisions"
 DECIDED_LINE = re.compile(r"^\s*[-*]\s*(.+?:\s*.+?)\s*$", re.MULTILINE)
 
 #: 달성 항목 → `RELEASE.md`의 작업 항목. 절차에 해당하는 것은 None이다.
@@ -144,7 +146,7 @@ def restore(git_dir: Path, commit: str, into: Path) -> Path:
 def spec_decisions_at(git_dir: Path, commit: str) -> dict[str, str]:
     """그 시점의 명세 문서들에 적힌 결정. 문서 이름 → 적힌 내용.
 
-    **줄 머리가 `결정:`인 줄만 읽는다.** 명세 본문이 보기로 든 것은
+    **줄 머리가 `Decision:`인 줄만 읽는다.** 명세 본문이 보기로 든 것은
     홑따옴표 안에 있어서 안 걸린다.
     """
     out: dict[str, str] = {}
@@ -160,7 +162,7 @@ def spec_decisions_at(git_dir: Path, commit: str) -> dict[str, str]:
 
 
 def decision_lines(note: str) -> list[str]:
-    """인계 문서의 "정한 것" 절에 적힌 결정 줄들.
+    """인계 문서의 "Decisions" 절에 적힌 결정 줄들.
 
     가로줄(`---`) 아래는 매번 새로 쓰는 부분이므로 여기 안 넣는다. 절 머리말
     자체가 `- <세션 번호> <무엇>: <어떻게>` 모양을 안내하고 있어 그 모양만

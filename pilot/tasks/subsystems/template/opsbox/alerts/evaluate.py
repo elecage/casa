@@ -1,9 +1,10 @@
-"""문턱을 넘었는지 본다. 명세는 `docs/alerts.md`.
+"""Checks whether a threshold was crossed. The spec is `docs/alerts.md`.
 
-**달 경계를 여기서 따로 잡고 있다.** 집계(서브시스템 B)에도 같은 판단이
-있는데 둘이 지금 서로 다르다 — B는 `opsbox/report/months.py`의
-`MONTH_BASIS`를 보고, 여기는 무조건 표준시로 옮겨 본다. 달 경계에 걸린
-기록에서 두 쪽 숫자가 갈린다.
+**The month boundary is worked out separately here.** The aggregation
+(subsystem B) makes the same judgement, and the two currently disagree — B
+reads `MONTH_BASIS` in `opsbox/report/months.py`, while this one always shifts
+to UTC. For records sitting on a month boundary the two sides' numbers come
+apart.
 """
 
 from __future__ import annotations
@@ -13,16 +14,16 @@ from ..record import is_billable
 
 
 def _month_of(record) -> str:
-    """이 기록이 어느 달 것인가.
+    """Which month this record belongs to.
 
-    구역 표시를 살려 표준시로 옮겨 본다.
+    Keeps the zone offset and shifts to UTC.
     """
     when = to_utc(record.at_raw) if record.at_raw else record.at
     return f"{when.year:04d}-{when.month:02d}"
 
 
 def monthly_totals(records) -> dict[tuple[str, str], int]:
-    """(계정, 달) -> 사용량 합계."""
+    """(account, month) -> units total."""
     out: dict[tuple[str, str], int] = {}
     for record in records:
         if not is_billable(record):
@@ -33,7 +34,7 @@ def monthly_totals(records) -> dict[tuple[str, str], int]:
 
 
 def last_seen(records) -> dict[str, int]:
-    """계정마다 가장 나중 기록의 사용량."""
+    """The units on each account's most recent record."""
     latest: dict[str, tuple] = {}
     for record in records:
         if not is_billable(record):
@@ -44,7 +45,7 @@ def last_seen(records) -> dict[str, int]:
 
 
 def fire(records, rules) -> list[dict]:
-    """문턱을 넘은 규칙마다 알림 하나."""
+    """One alert per rule whose threshold was crossed."""
     totals = monthly_totals(records)
     latest = last_seen(records)
     out = []

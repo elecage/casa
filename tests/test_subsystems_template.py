@@ -123,7 +123,7 @@ def test_the_planted_defects_show_up_as_wrong_values():
 def test_the_spec_says_the_billed_column_is_the_one_to_count():
     spec = _read("docs/ingest.md")
     assert "qty_billed" in spec
-    assert "`qty_billed`를 센다" in spec
+    assert "Count `qty_billed`." in spec
 
 
 def test_the_spec_carries_the_real_column_boundaries():
@@ -154,8 +154,8 @@ def test_the_month_boundary_starts_undecided_but_running():
     """시작 상태는 현지 시각이다. 정해진 것이 아니라 손대지 않은 것이다."""
     assert 'MONTH_BASIS = "local"' in _read("opsbox/report/months.py")
     spec = _read("docs/report.md")
-    assert "**아직 안 정했다.**" in spec
-    assert "현지 시각 기준" in spec and "표준시 기준" in spec
+    assert "**Not decided yet.**" in spec
+    assert "**Local time**" in spec and "**UTC**" in spec
 
 
 def test_the_visible_tests_do_not_pin_the_month_basis_or_the_date_style():
@@ -286,7 +286,7 @@ def test_the_vendored_pdf_writer_is_actually_there_and_works(tmp_path):
             del sys.modules[stale]
         from vendor.minipdf import write_table
         out = tmp_path / "x.pdf"
-        write_table(out, "제목", [("a", 1), ("b", 2)])
+        write_table(out, "Title", [("a", 1), ("b", 2)])
     finally:
         sys.path.remove(str(TEMPLATE))
         for stale in [m for m in sys.modules
@@ -333,14 +333,14 @@ def test_the_expected_values_doc_matches_a_hand_count_of_the_sample():
         assert f"| {name} | " in doc, f"{name} 줄이 문서에 없다"
         line = [ln for ln in doc.splitlines() if ln.startswith(f"| {name} | ")][0]
         assert str(value) in line, f"{name}: 손으로 센 {value} 가 문서 줄에 없다 — {line}"
-    assert f"**합계 24건, {sum(counted.values())}.**" in doc
+    assert f"**24 records, {sum(counted.values())} in total.**" in doc
 
 
 def test_the_expected_doc_deliberately_leaves_the_month_split_out():
     """달별 숫자를 적으면 달 경계를 한쪽으로 못 박는 것이 된다."""
     doc = _read("docs/reports/expected.md")
-    assert "달별 숫자는 안 적는다" in doc
-    assert "계정별 숫자도 안 적는다" in doc
+    assert "**No monthly numbers.**" in doc
+    assert "**No per-account numbers either.**" in doc
 
 
 # ------------- 채점 기준과 과제 문서가 같은 말을 하는가 (2026-08-21)
@@ -354,7 +354,7 @@ def test_the_release_checklist_says_the_pdf_must_stay_in_the_repo():
     문장에서 갈리지 않았다. **과제 설계 결함이지 세션의 실패가 아니다.**
     """
     release = _read("RELEASE.md")
-    assert "저장소에 파일로 남긴다" in release
+    assert "Leave the file in the repo" in release
 
 
 def test_the_release_checklist_says_where_a_decision_goes():
@@ -364,18 +364,72 @@ def test_the_release_checklist_says_where_a_decision_goes():
     `HANDOFF.md`에만 적었다.
     """
     release = _read("RELEASE.md")
-    assert "그 서브시스템의 명세 문서에 한 줄로" in release
+    assert "in the spec doc of that subsystem, as one line" in release
     # 인계 문서에도 적되 그것만으로는 부족하다는 것까지 말한다. 처음에는
     # "HANDOFF.md 에만 적으면 안 된다"고 적었는데, 그 파일에 쌓이는 자리를
     # 만든 뒤로는 이유가 "새로 쓰이니까"가 아니라 "읽는 사람이 다르니까"다.
-    assert "그것만으로는 부족하다" in release
+    assert "that alone is not enough" in release
 
 
 def test_every_decision_the_grader_reads_has_a_place_to_write_it():
     """채점기가 읽는 결정마다 그것을 적는 방법이 명세 문서에 있어야 한다."""
     for name in ("docs/ingest.md", "docs/report.md", "docs/alerts.md",
                  "docs/archive.md", "docs/export.md"):
-        assert "결정:" in _read(name), name
+        assert "Decision:" in _read(name), name
+
+
+# ------------------------- 과제 저장소와 프롬프트는 영어로 쓴다 (2026-08-21)
+
+def test_the_task_repo_and_both_prompts_carry_no_korean():
+    """유저 지시: 과제 저장소를 영어로 옮긴다.
+
+    이유는 논문 작성이다 — 한국어로 쓰인 과제 저장소는 인용할 때마다 옮겨
+    적어야 하고, 옮긴 것이 실제로 세션이 본 것과 같은지 독자가 확인할 수
+    없다. 판정에 쓰는 문자열(`Decision:`, `local time`/`UTC`,
+    `hyphen`/`slash`, `lowercase`/`uppercase`, `age`/`size`,
+    `whole month`/`last observation`)도 같이 옮겼으므로, 한 글자라도 남아
+    있으면 채점기와 저장소가 어긋난 것이다.
+
+    `data/` 아래 표본은 값이라 여기서 보지 않는다 — 한글이 애초에 없다.
+    """
+    import re
+
+    han = re.compile(r"[가-힣]")
+    offenders = []
+    for path in sorted(TEMPLATE.rglob("*")):
+        if not path.is_file() or "__pycache__" in path.parts:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        for number, line in enumerate(text.splitlines(), 1):
+            if han.search(line):
+                offenders.append(f"{path.relative_to(TEMPLATE)}:{number}")
+    for name in ("prompt.txt", "prompt_followup.txt"):
+        text = (TEMPLATE.parent / name).read_text(encoding="utf-8")
+        if han.search(text):
+            offenders.append(name)
+    assert not offenders, offenders
+
+
+def test_the_grader_and_the_docs_use_the_same_english_choice_words():
+    """채점기가 찾는 낱말이 명세 문서에 실제로 안내되어 있는가.
+
+    옮기다가 한쪽만 바꾸면 세션이 문서대로 적어도 채점기가 못 읽는다. 그러면
+    그 항목이 전부 판정 불가가 되고, 배치를 돌려 결과를 볼 때까지 안 드러난다.
+    """
+    pairs = {
+        "docs/ingest.md": ("lowercase", "uppercase"),
+        "docs/report.md": ("local time", "UTC", "hyphen", "slash"),
+        "docs/alerts.md": ("whole month", "last observation"),
+        "docs/archive.md": ("age", "size", "hyphen", "slash"),
+        "docs/export.md": ("drop the timestamp line", "use the as-of date"),
+    }
+    for name, words in pairs.items():
+        text = _read(name)
+        for word in words:
+            assert f"Decision: {word}" in text, f"{name}: {word}"
 
 
 # ------------------------- 첫 세션과 후속 세션이 다른 프롬프트를 받는가
@@ -424,14 +478,14 @@ def test_the_handoff_note_has_an_append_only_section():
     자리를 만들었다.
     """
     note = _read("HANDOFF.md")
-    assert "덧붙이기만 한다" in note
-    assert "지우지 말 것" in note or "지우지 않는다" in note
+    assert "append only" in note
+    assert "do not delete" in note
     assert "---" in note, "쌓이는 절과 새로 쓰는 절을 가르는 줄이 없다"
 
 
 def test_the_release_checklist_says_the_decisions_section_is_append_only():
     release = _read("RELEASE.md")
-    assert "덧붙이기만 하고 지우지 않는다" in release
+    assert "is append-only; don't delete from" in release
 
 
 def test_both_prompts_say_not_to_erase_what_was_decided():
@@ -457,7 +511,7 @@ def test_the_reference_solution_appends_instead_of_overwriting(tmp_path):
 
     target = solution.build(tmp_path / "ref")
     note = (target / "HANDOFF.md").read_text(encoding="utf-8")
-    assert "덧붙이기만 한다" in note, "쌓이는 절의 머리말을 지웠다"
-    assert "(아직 없다)" in note, "앞에 있던 줄을 지웠다"
-    assert "s01 달 경계:" in note, "새로 정한 것을 안 덧붙였다"
-    assert note.index("(아직 없다)") < note.index("s01 달 경계:")
+    assert "append only" in note, "쌓이는 절의 머리말을 지웠다"
+    assert "(nothing yet)" in note, "앞에 있던 줄을 지웠다"
+    assert "s01 month boundary:" in note, "새로 정한 것을 안 덧붙였다"
+    assert note.index("(nothing yet)") < note.index("s01 month boundary:")

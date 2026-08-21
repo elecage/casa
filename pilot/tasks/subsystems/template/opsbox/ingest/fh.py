@@ -1,4 +1,5 @@
-"""fh 원천 — 쉼표로 구분된 표인데 열 이름이 다르다. 명세는 docs/ingest.md."""
+"""Source fh — comma separated table with different column names. The spec is
+docs/ingest.md."""
 
 from __future__ import annotations
 
@@ -11,7 +12,7 @@ from .accounts import normalize_account
 
 PATTERN = "fh-*.csv"
 
-#: 이 원천이 쓰는 열 이름 -> 우리가 쓰는 이름.
+#: The column names this source uses -> the names we use.
 HEADERS = {"customer": "account", "when": "at", "amount": "units",
            "flag": "status"}
 

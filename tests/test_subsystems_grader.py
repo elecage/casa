@@ -97,9 +97,22 @@ def test_the_two_reference_solutions_really_differ(tmp_path):
 def test_only_a_line_that_starts_with_the_marker_counts_as_a_decision():
     """명세 본문이 보기로 든 것을 결정으로 읽으면 시작부터 통과가 된다."""
     grader = _load("subsystems_grader", GRADER)
-    body = ("정하면 이 절에 한 줄로 적는다. `결정: 소문자` 또는 `결정: 대문자`.\n"
-            "결정: 대문자\n")
-    assert grader.decisions(body) == ["대문자"]
+    body = ("Write it in this section as one line. `Decision: lowercase` or\n"
+            "`Decision: uppercase`.\n"
+            "Decision: uppercase\n")
+    assert grader.decisions(body) == ["uppercase"]
+
+
+def test_a_choice_word_inside_a_longer_word_is_not_read_as_that_choice():
+    """`age`를 부분 문자열로 찾으면 `usage`, `package` 안에서도 걸린다.
+
+    한국어 표기(`나이`/`크기`)일 때는 드러나지 않던 문제다. 과제 저장소를
+    영어로 옮기면서 생겼다.
+    """
+    grader = _load("subsystems_grader", GRADER)
+    assert grader._says("Decision: age", "age") is True
+    assert grader._says("we looked at usage totals", "age") is False
+    assert grader._says("Decision: Age", "age") is True
 
 
 def test_a_spec_with_no_decision_line_yields_nothing():
