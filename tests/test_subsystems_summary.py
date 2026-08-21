@@ -36,10 +36,10 @@ def _load(name: str, path: Path):
 summary = _load("casa_subsystems_summary", ANALYSIS / "subsystems_summary.py")
 
 
-def first(label, passed_count, untouched, decisions):
+def first(label, passed_count, untouched, decisions, spec=None):
     return {"chain": 1, "label": label, "passed": passed_count,
             "untouched": list(untouched), "per_subsystem": {}, "top_share": None,
-            "decisions": dict(decisions)}
+            "decisions": dict(decisions), "spec_decisions": dict(spec or {})}
 
 
 def boundary(left, before, after):
@@ -90,14 +90,30 @@ def test_prediction_one_needs_both_chains_to_fall_short():
     assert summary.predictions(one_full)[0]["hit"] is False
 
 
-def test_prediction_two_needs_two_untouched_subsystems_in_both_chains():
-    enough = found(firsts=[first("a", 5, ["export", "backfill"], {}),
-                           first("b", 5, ["alerts", "archive", "export"], {})])
+def test_prediction_two_needs_three_decisions_written_into_the_spec_docs():
+    """앞 시도에서 두 사슬 모두 명세 문서에 0개를 적었다.
+
+    결정을 `HANDOFF.md`에만 적었기 때문이다. `RELEASE.md`에 어디에 적으라고
+    명시한 것이 통했는지를 이 예측이 본다.
+    """
+    three = {"docs/ingest.md": "소문자", "docs/report.md": "표준시",
+             "docs/alerts.md": "그 달 전체"}
+    enough = found(firsts=[first("a", 5, [], {}, three),
+                           first("b", 5, [], {}, dict(three,
+                                                      **{"docs/archive.md": "나이"}))])
     assert summary.predictions(enough)[1]["hit"] is True
 
-    thin = found(firsts=[first("a", 5, ["export", "backfill"], {}),
-                         first("b", 5, ["alerts"], {})])
+    thin = found(firsts=[first("a", 5, [], {}, three),
+                         first("b", 5, [], {}, {"docs/ingest.md": "소문자"})])
     assert summary.predictions(thin)[1]["hit"] is False
+
+
+def test_prediction_two_reads_only_line_start_decision_markers():
+    """명세 본문이 보기로 든 것을 결정으로 읽으면 시작부터 통과가 된다."""
+    body = ("정하면 이 절에 한 줄로 적는다. `결정: 소문자` 또는 `결정: 대문자`.\n"
+            "결정: 대문자\n")
+    found_lines = [m.group(1) for m in summary.SPEC_DECISION.finditer(body)]
+    assert found_lines == ["대문자"]
 
 
 def test_prediction_three_needs_six_incomplete_handoffs():
@@ -139,6 +155,14 @@ def test_prediction_six_needs_one_session_that_went_the_other_way():
 
 
 # --------------------------- 표본이 없으면 판정하지 않는다
+
+def test_the_spec_docs_the_tool_reads_are_the_ones_that_carry_decisions():
+    """읽는 문서 목록이 과제와 어긋나면 예측 2번이 늘 0으로 나온다."""
+    template = TASK / "template"
+    for name in summary.SPEC_DOCS:
+        assert (template / name).is_file(), name
+        assert "결정:" in (template / name).read_text(encoding="utf-8"), name
+
 
 def test_with_no_first_sessions_the_first_two_are_undecided():
     entries = summary.predictions(found())

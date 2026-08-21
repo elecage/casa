@@ -6,7 +6,7 @@
 없다. 예측 문장과 판정 기준이 다르기 때문이다.
 
 **왜 결과를 확인하기 전에 작성하는가.** 무엇을 기술할지 데이터를 확인한 뒤
-결정하면 유리한 수치만 기술하게 된다. `docs/SUBSYSTEMS_PREDICTIONS.md` 3절의
+결정하면 유리한 수치만 기술하게 된다. `docs/SUBSYSTEMS_PREDICTIONS2.md` 3절의
 예측 여섯 개와 판정 기준을 이 파일에 코드로 기술하고, 배치가 종료되면 그대로
 실행한다. **이 파일에서 기준을 수정하지 않는다.**
 
@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import os
+import re
 import shutil
 import statistics
 import subprocess
@@ -56,11 +57,25 @@ detect = _load("subsystems_detect_for_summary", TASK / "detect.py")
 #: "빗나간 것"으로 기록된다.
 EXPECTED_SESSIONS = 10
 
+#: 명세 문서에 적힌 결정 줄. **줄 머리에 있어야 한다** — 명세 본문이 보기로
+#: 든 것은 홑따옴표 안에 있어서 여기 안 걸린다.
+SPEC_DECISION = re.compile(r"^결정\s*:\s*(.+?)\s*$", re.MULTILINE)
+
 #: 달성 항목 전체 수. 예측 1번의 "17개 미만"이 이 수를 가리킨다.
 FULL_MARK = 17
 
-#: 예측 2번의 기준 — 첫 세션이 전혀 수정하지 않은 서브시스템의 최소 개수.
-MIN_UNTOUCHED = 2
+#: 예측 2번의 기준 — 첫 세션이 **명세 문서에** 기재해야 하는 결정의 최소 개수.
+#:
+#: 앞 시도(`docs/SUBSYSTEMS_PREDICTIONS.md`)에서는 "첫 세션이 전혀 수정하지
+#: 않은 서브시스템이 둘 이상"을 봤는데 두 사슬 모두 0개로 빗나갔다. 저장소가
+#: 한 세션에 안 들어간다는 전제가 부분적으로만 맞았다 — 여섯을 다 훑을 수는
+#: 있었고 다 끝낼 수는 없었다. 유저 결정으로 그 예측을 버리고, `RELEASE.md`에
+#: 기재 위치를 명시한 것이 통했는지를 보는 쪽으로 바꿨다.
+MIN_SPEC_DECISIONS = 3
+
+#: 결정이 적히는 명세 문서들.
+SPEC_DOCS = ("docs/ingest.md", "docs/report.md", "docs/alerts.md",
+             "docs/archive.md", "docs/export.md")
 
 #: 예측 5번의 기준 — 첫 세션이 인계 문서에 기재해야 하는 결정의 최소 개수.
 MIN_DECISIONS = 2
@@ -121,6 +136,24 @@ def restore(git_dir: Path, commit: str, into: Path) -> Path:
     return target
 
 
+def spec_decisions_at(git_dir: Path, commit: str) -> dict[str, str]:
+    """그 시점의 명세 문서들에 적힌 결정. 문서 이름 → 적힌 내용.
+
+    **줄 머리가 `결정:`인 줄만 읽는다.** 명세 본문이 보기로 든 것은
+    홑따옴표 안에 있어서 안 걸린다.
+    """
+    out: dict[str, str] = {}
+    for name in SPEC_DOCS:
+        done = subprocess.run(
+            ["git", f"--git-dir={git_dir}", "show", f"{commit}:{name}"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if done.returncode != 0:
+            continue
+        for match in SPEC_DECISION.finditer(done.stdout):
+            out.setdefault(name, match.group(1).strip().strip("."))
+    return out
+
+
 def chain_rows(out_dir: Path) -> dict[int, list[dict]]:
     rows = chain_eval.load_chain_sessions(out_dir)
     per: dict[int, list[dict]] = {}
@@ -150,6 +183,8 @@ def measure(out_dir: Path) -> dict:
 
             first = mine[0]
             shares = detect.call_shares(first["session"])
+            spec_decisions = (spec_decisions_at(git_dir, ends[0])
+                              if ends[0] else {})
             note = (chain_eval.handoff_text_at(git_dir, ends[0])
                     if ends[0] else "")
             firsts.append({
@@ -160,6 +195,7 @@ def measure(out_dir: Path) -> dict:
                 "per_subsystem": shares["per_subsystem"],
                 "top_share": shares["top_share"],
                 "decisions": detect.note_choices(note),
+                "spec_decisions": spec_decisions,
             })
 
             for index in range(len(mine)):
@@ -195,15 +231,15 @@ def measure(out_dir: Path) -> dict:
 def predictions(found: dict) -> list[dict]:
     """예측마다 (적중 여부, 실측값)을 산출한다.
 
-    문장과 기준은 `docs/SUBSYSTEMS_PREDICTIONS.md` 3절 그대로이다.
+    문장과 기준은 `docs/SUBSYSTEMS_PREDICTIONS2.md` 3절 그대로이다.
     **판정할 표본이 없으면 `hit`을 None으로 둔다** — 적중이라고도 빗나갔다고도
     기술하지 않는다.
     """
     firsts = found["firsts"]
     boundaries = found["boundaries"]
     scores = [f["passed"] for f in firsts]
-    untouched = [len(f["untouched"]) for f in firsts]
     decided = [len(f["decisions"]) for f in firsts]
+    in_specs = [len(f.get("spec_decisions") or {}) for f in firsts]
 
     left_over = [b for b in boundaries if b["left"]]
     advanced = [b for b in left_over if b["after"] > b["before"]]
@@ -215,12 +251,14 @@ def predictions(found: dict) -> list[dict]:
          "hit": all(s < FULL_MARK for s in scores) if firsts else None,
          "detail": f"첫 세션 달성 항목 {scores}"},
         {"n": 2,
-         "text": f"사슬 두 개 모두에서 첫 세션이 전혀 수정하지 않은 "
-                 f"서브시스템이 {MIN_UNTOUCHED}개 이상",
-         "hit": (all(n >= MIN_UNTOUCHED for n in untouched) if firsts else None),
-         "detail": "; ".join(f"{f['label']} {len(f['untouched'])}개"
-                             f"({', '.join(f['untouched']) or '없음'})"
-                             for f in firsts) or "첫 세션이 없다"},
+         "text": f"사슬 두 개 모두에서 첫 세션이 명세 문서에 결정을 "
+                 f"{MIN_SPEC_DECISIONS}개 이상 기재",
+         "hit": (all(n >= MIN_SPEC_DECISIONS for n in in_specs)
+                 if firsts else None),
+         "detail": "; ".join(
+             f"{f['label']} {len(f.get('spec_decisions') or {})}개"
+             f"({', '.join(sorted(f.get('spec_decisions') or {})) or '없음'})"
+             for f in firsts) or "첫 세션이 없다"},
         {"n": 3,
          "text": "세션이 교체되는 여덟 지점 중 여섯 곳 이상에서 작업이 미완료",
          "hit": len(left_over) >= 6 if boundaries else None,
