@@ -95,12 +95,37 @@ def test_the_two_reference_solutions_really_differ(tmp_path):
 # ------------------------------------------- 문서에 적힌 결정을 읽는 방법
 
 def test_only_a_line_that_starts_with_the_marker_counts_as_a_decision():
-    """명세 본문이 보기로 든 것을 결정으로 읽으면 시작부터 통과가 된다."""
+    """표시자가 문장 안에 있으면 결정이 아니다.
+
+    명세 본문이 "이렇게 적어라"라며 표시자를 언급하는데, 그것을 결정으로
+    읽으면 시작 상태가 통과가 된다.
+    """
     grader = _load("subsystems_grader", GRADER)
-    body = ("Write it in this section as one line. `Decision: lowercase` or\n"
-            "`Decision: uppercase`.\n"
+    body = ("Write it in this section as one line that starts with the word\n"
+            "`Decision:`, a colon, and then one of lowercase or uppercase.\n"
             "Decision: uppercase\n")
     assert grader.decisions(body) == ["uppercase"]
+
+
+def test_a_decorated_marker_at_the_line_start_counts():
+    """세션은 표시자를 감싸 적는다. 배치 세 번에서 관측된 모양 전부다.
+
+    2026-08-21까지 채점기는 장식 없는 줄 머리만 읽었다. 세 배치의 첫 세션이
+    다섯 개 명세 문서에 결정을 다 적었는데 채점기는 세 번 다 0개로 셌고,
+    그것을 "세션이 명세 문서에 안 적는다"로 보고했다.
+    """
+    grader = _load("subsystems_grader", GRADER)
+    seen = {
+        "`Decision: lowercase`": "lowercase",
+        "**Decision: hyphen.**": "hyphen",
+        "**Decision: whole month.** All four rules now say month.":
+            "whole month",
+        "- Decision: age": "age",
+        "  Decision: UTC": "UTC",
+        "Decision: drop the timestamp line": "drop the timestamp line",
+    }
+    for line, value in seen.items():
+        assert grader.decisions(line) == [value], line
 
 
 def test_a_choice_word_inside_a_longer_word_is_not_read_as_that_choice():

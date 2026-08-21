@@ -29,7 +29,8 @@ them sit right on a month boundary. There are two ways to read them.
 
 **Either way is fine.** Once you decide, set `MONTH_BASIS` in
 `opsbox/report/months.py` accordingly and **write it in this section as one
-line.** `Decision: local time` or `Decision: UTC`.
+line** that starts with the word `Decision:`, a colon, and then either
+local time or UTC.
 
 **What you decide carries into the alert rules (subsystem C).** C puts
 thresholds on top of this monthly aggregation. If C uses a different basis,
@@ -42,8 +43,8 @@ When the report writes a date it **uses hyphens, like `2026-07-03`.**
 `DATE_STYLE` in `opsbox/report/dates.py` is where that lives.
 
 `docs/archive.md` says to use slashes. **One repo cannot satisfy both.**
-Settle on one and **write the same line in both docs** —
-`Decision: hyphen` or `Decision: slash`.
+Settle on one and **write the same line in both docs**, starting with the
+word `Decision:`, a colon, and then either hyphen or slash.
 
 ## How accounts are grouped
 

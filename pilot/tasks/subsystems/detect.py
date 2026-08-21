@@ -88,8 +88,25 @@ NOTE_DECISION = re.compile(r"^\s*[-*]?\s*(.+?)\s*:\s*(.+?)\s*$", re.MULTILINE)
 CHOICE_WORDS = ("local time", "UTC", "hyphen", "slash", "lowercase",
                 "uppercase", "whole month", "last observation", "age", "size")
 
-#: 명세 문서에 적힌 결정 줄의 머리.
-DECISION_PREFIX = "Decision:"
+#: 명세 문서에 적힌 결정 줄을 읽는 것은 **채점기 하나에만 둔다.**
+#: 2026-08-21에 여기와 채점기가 따로 읽고 있었고, 세션이 표시자를 감싸 적은
+#: 것을 둘 다 못 읽었다. 같은 것을 두 군데서 읽으면 한쪽만 고쳐진다.
+def _grader():
+    """옆에 있는 `grade.py` 를 불러온다. 한 번만 불러 두고 다시 쓴다."""
+    global _GRADER
+    if _GRADER is None:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "subsystems_grade_for_detect", TASK_DIR / "grade.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["subsystems_grade_for_detect"] = module
+        spec.loader.exec_module(module)
+        _GRADER = module
+    return _GRADER
+
+
+_GRADER = None
 
 
 # ------------------------------------------------------- 작업 트리에서 뽑기
@@ -337,10 +354,10 @@ def overrode_handoff(session, note_text: str, work_dir: Path) -> bool | None:
         return None
     if not read_handoff(session):
         return None                        # 안 읽은 것은 다른 함정이다
-    docs = " ".join(_text(p) for p in sorted((Path(work_dir) / "docs").rglob("*.md")))
-    decided = {line.split(":", 1)[1].strip().strip(".")
-               for line in docs.splitlines()
-               if line.startswith(DECISION_PREFIX)}
+    # **줄바꿈을 살려 이어 붙인다.** 결정 줄은 줄 머리에서 시작해야 하는데,
+    # 공백으로 이으면 모든 문서가 한 줄이 되어 첫 줄 말고는 아무것도 안 걸린다.
+    docs = "\n".join(_text(p) for p in sorted((Path(work_dir) / "docs").rglob("*.md")))
+    decided = set(_grader().decisions(docs))
     if not decided:
         return None
     joined = " ".join(decided)

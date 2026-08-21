@@ -118,12 +118,22 @@ def test_prediction_two_now_predicts_that_the_spec_docs_stay_empty():
 
 
 def test_prediction_two_reads_only_line_start_decision_markers():
-    """명세 본문이 보기로 든 것을 결정으로 읽으면 시작부터 통과가 된다."""
-    body = ("Write it in this section as one line. `Decision: lowercase` or\n"
-            "`Decision: uppercase`.\n"
+    """명세 본문이 표시자를 언급한 것을 결정으로 읽으면 시작부터 통과가 된다."""
+    body = ("Write it in this section as one line that starts with the word\n"
+            "`Decision:`, a colon, and then one of lowercase or uppercase.\n"
             "Decision: uppercase\n")
-    found_lines = [m.group(1) for m in summary.SPEC_DECISION.finditer(body)]
-    assert found_lines == ["uppercase"]
+    assert summary.spec_decision_values(body) == ["uppercase"]
+
+
+def test_the_summary_tool_reads_decisions_the_same_way_the_grader_does():
+    """같은 것을 두 군데서 읽으면 한쪽만 고쳐진다.
+
+    2026-08-21에 실제로 그랬다 — 요약 도구와 채점기가 각자 정규식을 들고
+    있었고, 세션이 표시자를 감싸 적은 것을 둘 다 못 읽었다.
+    """
+    for line in ("`Decision: lowercase`", "**Decision: hyphen.**",
+                 "- Decision: age", "Decision: UTC"):
+        assert summary.spec_decision_values(line) == summary.grader.decisions(line)
 
 
 def test_prediction_three_needs_six_incomplete_handoffs():

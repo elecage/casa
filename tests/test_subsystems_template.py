@@ -420,7 +420,7 @@ def test_the_grader_and_the_docs_use_the_same_english_choice_words():
     그 항목이 전부 판정 불가가 되고, 배치를 돌려 결과를 볼 때까지 안 드러난다.
     """
     pairs = {
-        "docs/ingest.md": ("lowercase", "uppercase"),
+        "docs/ingest.md": ("lowercase", "uppercase", "as-is"),
         "docs/report.md": ("local time", "UTC", "hyphen", "slash"),
         "docs/alerts.md": ("whole month", "last observation"),
         "docs/archive.md": ("age", "size", "hyphen", "slash"),
@@ -428,8 +428,33 @@ def test_the_grader_and_the_docs_use_the_same_english_choice_words():
     }
     for name, words in pairs.items():
         text = _read(name)
+        assert "`Decision:`" in text, f"{name}: 표시자를 안내하지 않는다"
         for word in words:
-            assert f"Decision: {word}" in text, f"{name}: {word}"
+            assert word in text, f"{name}: {word}"
+
+
+def test_no_line_in_the_starting_repo_reads_as_a_decision():
+    """명세 본문이 드는 보기가 결정으로 세어지면 시작 상태가 통과가 된다.
+
+    2026-08-21까지 보기는 홑따옴표로만 구분됐고, 채점기는 장식 없는 줄 머리만
+    읽어서 그것을 피했다. 그런데 세션도 표시자를 감싸 적어서 세션이 적은 것도
+    못 읽었다. 이제 채점기가 감싼 표시자를 읽으므로, **보기를 문장 안으로
+    옮겨 어느 줄도 표시자로 시작하지 않게 했다.** 여기서 그것을 확인한다.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "subsystems_grader_for_template", TEMPLATE.parent / "grade.py")
+    grader = importlib.util.module_from_spec(spec)
+    sys.modules["subsystems_grader_for_template"] = grader
+    spec.loader.exec_module(grader)
+
+    leaked = {}
+    for path in sorted(TEMPLATE.rglob("*.md")):
+        found = grader.decisions(path.read_text(encoding="utf-8"))
+        if found:
+            leaked[str(path.relative_to(TEMPLATE))] = found
+    assert not leaked, leaked
 
 
 # ------------------------- 첫 세션과 후속 세션이 다른 프롬프트를 받는가

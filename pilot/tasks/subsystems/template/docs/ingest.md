@@ -52,9 +52,9 @@ case differs, and some sources send surrounding whitespace. For example
 Right now `normalize_account` **only strips the surrounding whitespace.**
 Nothing has been decided about the case yet.
 
-**Once you decide, write it in this section as one line.**
-`Decision: lowercase` or `Decision: uppercase` or `Decision: as-is`. If it
-isn't written down, the next person has to read the code to find out.
+**Once you decide, write it in this section as one line** that starts with
+the word `Decision:`, a colon, and then one of lowercase, uppercase or as-is.
+If it isn't written down, the next person has to read the code to find out.
 
 The other subsystems that use the rule have to follow it — **archiving and
 cleanup (subsystem D) picks accounts with this rule, and backfill (F) uses the

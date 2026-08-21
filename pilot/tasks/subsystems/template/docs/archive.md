@@ -13,9 +13,9 @@ Picks what is old or large and builds an archive manifest. The code is in
 - **By size** — accounts with large usage totals. Clearing out what takes up
   the most space is what makes the cleanup worth doing. `select.by_size`.
 
-**Either way is fine.** Once you decide, write it in this section as one line
-and make the manifest actually reflect the side you chose.
-`Decision: age` or `Decision: size`.
+**Either way is fine.** Once you decide, write it in this section as one
+line that starts with the word `Decision:`, a colon, and then either age or
+size, and make the manifest actually reflect the side you chose.
 
 ## Account names
 
@@ -37,8 +37,8 @@ be in `HANDOFF.md` too.
 Dates in the archive manifest **use slashes, like `2026/10/15`.**
 
 `docs/report.md` says to use hyphens. **One repo cannot satisfy both.**
-Settle on one and **write the same line in both docs** —
-`Decision: hyphen` or `Decision: slash`.
+Settle on one and **write the same line in both docs**, starting with the
+word `Decision:`, a colon, and then either hyphen or slash.
 
 ## Deleting the originals
 

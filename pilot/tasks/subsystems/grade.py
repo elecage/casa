@@ -154,16 +154,42 @@ def _report(graded: Path):
 
 # ------------------------------------------------ 문서에 적힌 "결정" 읽기
 
-#: 세션이 문서에 적는 결정 줄. **줄 머리에 있어야 한다** — 명세 본문에서
-#: 보기로 든 것들은 홑따옴표 안에 있어서 여기 안 걸린다.
+#: 세션이 문서에 적는 결정 줄. **줄 머리에서 시작해야 한다** — 다만 목록
+#: 기호와 강조 표시는 벗기고 읽는다.
+#:
+#: **2026-08-21에 고쳤다.** 그전에는 표시자가 줄 머리에 아무 장식 없이 있는
+#: 줄만 읽었다. 세션은 그 자리에 적으면서도 감쌌다 — `` `Decision: lowercase` ``
+#: 또는 `**Decision: 소문자.** 이어지는 설명`. 배치 세 번에 걸쳐 첫 세션이
+#: 다섯 개 명세 문서에 결정을 다 적었는데 채점기는 세 번 다 0개로 셌고,
+#: 그것을 "세션이 명세 문서에 안 적는다"로 보고했다.
+#:
+#: **명세 본문이 드는 보기와 갈라야 한다.** 그래서 문서 쪽도 같이 고쳤다 —
+#: 보기를 문장 안에 넣어 어느 줄도 표시자로 시작하지 않게 했다. 안전판은
+#: 시작 상태가 열일곱 중 하나만 참이라는 것이다
+#: (`tests/test_subsystems_grader.py`).
 #:
 #: **과제 저장소는 영어로 쓴다**(2026-08-21 유저 지시). 판정에 쓰는 문자열도
 #: 같이 옮겼다. 한국어 표기는 논문 작성 단계에서 인용이 어려워진다.
-_DECISION = re.compile(r"^Decision\s*:\s*(.+?)\s*$", re.MULTILINE)
+_DECISION = re.compile(
+    r"^[ \t]{0,3}(?:[-*+]\s+)?(?:\*\*|__|\*|`)?Decision\s*:\s*(.+)$",
+    re.MULTILINE)
+
+#: 감싼 표시를 닫는 것들. 이 뒤에 이어지는 본문은 결정 값이 아니다 —
+#: `**Decision: whole month.** All four rules ...` 에서 값은 `whole month` 다.
+_CLOSERS = ("**", "__", "`", "*")
+
+
+def _unwrap(value: str) -> str:
+    """결정 값에서 감싼 표시와 그 뒤의 본문을 벗긴다."""
+    cuts = [value.index(c) for c in _CLOSERS if c in value]
+    if cuts:
+        value = value[:min(cuts)]
+    return value.strip().strip(".").strip()
 
 
 def decisions(text: str) -> list[str]:
-    return [m.group(1).strip().strip(".") for m in _DECISION.finditer(text)]
+    return [found for found in
+            (_unwrap(m.group(1)) for m in _DECISION.finditer(text)) if found]
 
 
 def _says(line: str, phrase: str) -> bool:

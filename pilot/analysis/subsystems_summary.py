@@ -51,17 +51,22 @@ chain_eval = _load("subsystems_chain_eval",
                    ROOT / "pilot" / "analysis" / "chain_eval.py")
 TASK = ROOT / "pilot" / "tasks" / "subsystems"
 detect = _load("subsystems_detect_for_summary", TASK / "detect.py")
+#: 결정 줄을 읽는 것은 채점기 하나에만 둔다. 2026-08-21에 여기와 채점기가
+#: 따로 읽고 있었고, 세션이 표시자를 감싸 적은 것을 둘 다 못 읽었다.
+grader = _load("subsystems_grade_for_summary", TASK / "grade.py")
 
 #: 이 배치가 완주하면 산출되어야 하는 세션 수. 예측 기준이 전부 이 수를
 #: 전제하므로, 덜 끝난 배치에 그대로 적용하면 "아직 산출되지 않은 것"이
 #: "빗나간 것"으로 기록된다.
 EXPECTED_SESSIONS = 10
 
-#: 명세 문서에 적힌 결정 줄. **줄 머리에 있어야 한다** — 명세 본문이 보기로
-#: 든 것은 홑따옴표 안에 있어서 여기 안 걸린다.
-#: **과제 저장소는 영어로 쓴다**(2026-08-21 유저 지시). 채점기·탐지기와 같은
-#: 문자열을 본다.
-SPEC_DECISION = re.compile(r"^Decision\s*:\s*(.+?)\s*$", re.MULTILINE)
+#: 명세 문서에 적힌 결정 줄을 읽는 방법. 채점기의 것을 그대로 쓴다.
+SPEC_DECISION = grader._DECISION
+
+
+def spec_decision_values(text: str) -> list[str]:
+    """그 문서에 적힌 결정 값들. 채점기와 같은 방식으로 읽는다."""
+    return grader.decisions(text)
 
 #: 달성 항목 전체 수. 예측 1번의 "17개 미만"이 이 수를 가리킨다.
 FULL_MARK = 17
@@ -146,8 +151,9 @@ def restore(git_dir: Path, commit: str, into: Path) -> Path:
 def spec_decisions_at(git_dir: Path, commit: str) -> dict[str, str]:
     """그 시점의 명세 문서들에 적힌 결정. 문서 이름 → 적힌 내용.
 
-    **줄 머리가 `Decision:`인 줄만 읽는다.** 명세 본문이 보기로 든 것은
-    홑따옴표 안에 있어서 안 걸린다.
+    **줄 머리에서 시작하는 줄만 읽는다.** 목록 기호와 강조 표시는 벗기고
+    읽는다 — 세션은 표시자를 홑따옴표나 굵은 글씨로 감싸 적는다. 명세 본문이
+    드는 보기는 문장 안에 있어서 안 걸린다.
     """
     out: dict[str, str] = {}
     for name in SPEC_DOCS:
@@ -156,8 +162,8 @@ def spec_decisions_at(git_dir: Path, commit: str) -> dict[str, str]:
             capture_output=True, text=True, encoding="utf-8", errors="replace")
         if done.returncode != 0:
             continue
-        for match in SPEC_DECISION.finditer(done.stdout):
-            out.setdefault(name, match.group(1).strip().strip("."))
+        for value in spec_decision_values(done.stdout):
+            out.setdefault(name, value)
     return out
 
 

@@ -21,8 +21,8 @@ of export** on the first line. One second apart and it is a different file.
 There is more than one way to fix it. Dropping that line works, and so does
 changing the timestamp from the time of export to **the reference date of the
 data** (`as_of` in `config`). **Either way is fine**; write what you decided
-in this section as one line. `Decision: drop the timestamp line` or
-`Decision: use the as-of date`.
+in this section as one line that starts with the word `Decision:`, a colon,
+and then either drop the timestamp line or use the as-of date.
 
 ## One PDF
 

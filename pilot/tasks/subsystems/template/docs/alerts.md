@@ -28,8 +28,8 @@ cannot mean the same thing.
 and this section agree afterwards. Whether to keep the `basis` key at all or
 drop it is part of what you decide.
 
-**Write it in this section as one line.** `Decision: whole month` or
-`Decision: last observation`.
+**Write it in this section as one line** that starts with the word
+`Decision:`, a colon, and then either whole month or last observation.
 
 ## Month boundary
 
