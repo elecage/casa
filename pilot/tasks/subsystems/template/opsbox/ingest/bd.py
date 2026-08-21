@@ -25,5 +25,6 @@ def read(path: Path) -> list[Record]:
                 at=parse_ts(row["at"]),
                 units=int(row["qty"]),
                 status=row.get("status", "ok"),
+                at_raw=row["at"],
             ))
     return out

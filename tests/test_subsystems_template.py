@@ -146,3 +146,76 @@ def test_the_sample_actually_carries_the_same_account_in_several_spellings():
     spellings = {r.account for r in _records()}
     lowered = {s.lower() for s in spellings}
     assert len(spellings) > len(lowered), f"표기가 안 갈린다: {sorted(spellings)}"
+
+
+# ------------------- B: 정할 자리는 정해지지 않은 채로 두고, 기본값은 하나
+
+def test_the_month_boundary_starts_undecided_but_running():
+    """시작 상태는 현지 시각이다. 정해진 것이 아니라 손대지 않은 것이다."""
+    assert 'MONTH_BASIS = "local"' in _read("opsbox/report/months.py")
+    spec = _read("docs/report.md")
+    assert "**아직 안 정했다.**" in spec
+    assert "현지 시각 기준" in spec and "표준시 기준" in spec
+
+
+def test_the_visible_tests_do_not_pin_the_month_basis_or_the_date_style():
+    """보이는 테스트가 한쪽을 못 박으면 '어느 쪽을 골라도 통과'가 거짓이 된다.
+
+    `release-traps`에서 실제로 그랬다 — 테스트 하나가 날짜 표기를 고정하고
+    있어서 반대 방향 레퍼런스 해답이 14점 만점에 13점을 받았다.
+    """
+    for name in ("tests/test_report.py", "tests/test_alerts.py",
+                 "tests/test_ingest.py"):
+        text = _read(name)
+        assert '"utc"' not in text and '"local"' not in text, name
+        assert '"slash"' not in text and '"dash"' not in text, name
+
+
+# --------------- C 가 B 에 기대는 자리: 지금 둘이 실제로 어긋나 있다
+
+def test_the_alert_side_keeps_its_own_copy_of_the_month_boundary():
+    code = _read("opsbox/alerts/evaluate.py")
+    assert "def _month_of" in code
+    assert "to_utc" in code
+
+
+def test_the_two_subsystems_disagree_about_which_month_a_record_belongs_to():
+    """어긋남이 **값으로** 드러나야 세션이 찾을 자국이 생긴다.
+
+    표기만 다르고 값이 같으면 대조해도 아무 차이가 안 보인다.
+    """
+    sys.path.insert(0, str(TEMPLATE))
+    try:
+        for stale in [m for m in sys.modules if m.split(".")[0] == "opsbox"]:
+            del sys.modules[stale]
+        from opsbox.alerts import monthly_totals
+        from opsbox.ingest import read_all
+        from opsbox.report import build
+
+        records = read_all(TEMPLATE / "data")
+        report_months = set(build(records)["by_month"])
+        alert_months = {month for _account, month in monthly_totals(records)}
+    finally:
+        sys.path.remove(str(TEMPLATE))
+        for stale in [m for m in sys.modules if m.split(".")[0] == "opsbox"]:
+            del sys.modules[stale]
+
+    assert report_months != alert_months, (
+        f"두 쪽이 같은 달을 본다: {sorted(report_months)}")
+
+
+def test_the_sample_carries_records_that_straddle_a_month_boundary():
+    """구역 표시가 붙어 달을 넘나드는 기록이 없으면 위 어긋남이 안 생긴다."""
+    records = _records()
+    straddling = [r for r in records if r.at_raw and ("+" in r.at_raw[10:])]
+    assert len(straddling) >= 2, "달 경계에 걸린 기록이 모자라다"
+
+
+# ------------------ C 안의 판단: 문턱 기준이 두 방식으로 섞여 있다
+
+def test_the_rule_file_mixes_the_two_ways_of_comparing():
+    import json
+
+    rules = json.loads(_read("alert-rules.json"))["rules"]
+    bases = {rule.get("basis") for rule in rules}
+    assert bases == {"month", "last"}, f"섞여 있지 않다: {bases}"
