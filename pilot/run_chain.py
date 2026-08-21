@@ -176,6 +176,7 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
             "task": task_dir.name, "chain": chain, "session_index": index,
             "label": label, "wall_s": round(time.time() - started, 1),
             "cli": cli, "budget": budget,
+            "budget_hard_cap": chain_budget.hard_cap_for(budget),
             "served_models": served_models(cli),
         }
 

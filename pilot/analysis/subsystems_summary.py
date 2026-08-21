@@ -342,7 +342,11 @@ def _order(entry: dict) -> int:
 
 
 def budget_stops(rows: list[dict]) -> list[str]:
-    """예산 상한에 도달하여 종료된 세션.
+    """**상한에 닿아 차단된** 세션.
+
+    예산을 넘는 것 자체는 차단이 아니다(2026-08-21에 예산을 무른 제한으로
+    바꿨다) — 그것은 `budget_overruns`가 센다. 여기서 세는 것은 도구를 더
+    쓸 수 없게 된 세션이다.
 
     **반드시 계수하여 기록한다.** 2026-08-21에 예산 훅이 설정 파일을 찾지
     못해 기본값으로 세션을 차단했는데, 오류가 발생하지 않아 실행 기록에는
@@ -350,11 +354,31 @@ def budget_stops(rows: list[dict]) -> list[str]:
     """
     out = []
     for row in rows:
-        budget = row["meta"].get("budget")
-        calls = ((row["meta"].get("audit") or {}).get("metrics") or {}).get(
+        meta = row["meta"]
+        cap = meta.get("budget_hard_cap")
+        calls = ((meta.get("audit") or {}).get("metrics") or {}).get(
             "n_tool_calls", 0)
-        if budget and calls >= budget:
-            out.append(f"{row['label']}({calls}/{budget})")
+        if cap and calls >= cap:
+            out.append(f"{row['label']}({calls}/{cap})")
+    return out
+
+
+def budget_overruns(rows: list[dict]) -> list[str]:
+    """예산을 넘긴 세션과 얼마나 넘겼는지.
+
+    **넘긴 양이 그 세션이 붙잡은 일의 크기를 재는 값이다**(2026-08-21 유저
+    지시). 예산에서 딱 자르면 어디서 멈췄는지가 일의 양이 아니라 우리가 넣은
+    수가 정한 것이 된다. 어떤 서브시스템에서 늘 크게 넘으면 그 서브시스템의
+    구현량이 큰 것이다.
+    """
+    out = []
+    for row in rows:
+        meta = row["meta"]
+        budget = meta.get("budget")
+        calls = ((meta.get("audit") or {}).get("metrics") or {}).get(
+            "n_tool_calls", 0)
+        if budget and calls > budget:
+            out.append(f"{row['label']}(+{calls - budget})")
     return out
 
 
@@ -392,9 +416,14 @@ def render(out_dir: Path) -> str:
     add("")
 
     stopped = budget_stops(rows)
-    add("## 예산 상한에 도달한 세션")
+    over = budget_overruns(rows)
+    add("## 예산을 넘긴 세션과 상한에 닿은 세션")
     add("")
-    add(f"- {len(stopped)}/{len(rows)}세션: {', '.join(stopped) or '없음'}")
+    add(f"- 예산을 넘긴 세션 {len(over)}/{len(rows)}: {', '.join(over) or '없음'}")
+    add("- 넘긴 양은 그 세션이 붙잡은 일의 크기를 나타낸다. 어떤 서브시스템에서")
+    add("  늘 크게 넘으면 그 서브시스템의 구현량이 큰 것이다.")
+    add(f"- 상한에 닿아 차단된 세션 {len(stopped)}/{len(rows)}: "
+        f"{', '.join(stopped) or '없음'}")
     add("- 절반을 넘으면 100호출이 이 저장소에 적합하지 않은 것이다"
         "(`docs/SUBSYSTEMS_PREDICTIONS6.md` 5절).")
     add("")

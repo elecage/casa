@@ -261,19 +261,34 @@ def test_missed_predictions_come_before_the_ones_that_held():
         False, None, True]
 
 
-# ------------------------- 예산 상한에 도달한 세션을 반드시 계수한다
+# ------------- 예산을 넘긴 것과 상한에 닿은 것을 갈라 계수한다
 
-def test_a_session_that_reached_the_budget_is_counted():
-    rows = [{"label": "c01s01",
-             "meta": {"budget": 100, "audit": {"metrics": {"n_tool_calls": 100}}}},
-            {"label": "c01s02",
-             "meta": {"budget": 100, "audit": {"metrics": {"n_tool_calls": 42}}}}]
-    assert summary.budget_stops(rows) == ["c01s01(100/100)"]
+def _row(label, calls, budget=30, cap=45):
+    return {"label": label,
+            "meta": {"budget": budget, "budget_hard_cap": cap,
+                     "audit": {"metrics": {"n_tool_calls": calls}}}}
+
+
+def test_only_a_session_that_hit_the_hard_cap_counts_as_blocked():
+    """예산을 넘는 것 자체는 차단이 아니다(2026-08-21에 무른 제한으로 바꿨다).
+
+    넘긴 세션까지 차단으로 세면 "상한이 이 저장소에 안 맞는다"는 판정이
+    실제보다 훨씬 자주 나온다.
+    """
+    rows = [_row("c01s01", 45), _row("c01s02", 33), _row("c01s03", 20)]
+    assert summary.budget_stops(rows) == ["c01s01(45/45)"]
+
+
+def test_going_over_the_budget_is_counted_separately_with_the_amount():
+    """**넘긴 양이 그 세션이 붙잡은 일의 크기를 재는 값이다**(유저 지시)."""
+    rows = [_row("c01s01", 45), _row("c01s02", 33), _row("c01s03", 20)]
+    assert summary.budget_overruns(rows) == ["c01s01(+15)", "c01s02(+3)"]
 
 
 def test_a_run_with_no_budget_recorded_counts_nothing():
     rows = [{"label": "c01s01", "meta": {"audit": {"metrics": {"n_tool_calls": 999}}}}]
     assert summary.budget_stops(rows) == []
+    assert summary.budget_overruns(rows) == []
 
 
 # ------------------- 덜 끝난 배치를 완주한 것처럼 읽지 않게 한다

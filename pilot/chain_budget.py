@@ -7,21 +7,29 @@ chosen by the thing being measured (docs/MULTISESSION_ARM.md section 5).
 The CLI has no turn cap, so the budget is enforced here, in code, which is
 also this project's standing rule about enforcement.
 
-Two stages, and the first one matters as much as the second:
+세 단계다. **예산은 가위가 아니라 안전판이다**(2026-08-21 유저 지시).
 
-    warning    a few calls before the cap, the session is told how many are
-               left. Without this window it could never write a handoff note,
-               because writing a file is itself a tool call — and the handoff
-               is the variable the arm exists to measure.
-    block      at the cap, every further tool call is refused. The session can
-               still produce a final text message.
+    warning    예산에 닿기 몇 호출 전, 몇 회 남았는지 알려 준다. 이 창이
+               없으면 인계 문서를 쓸 수가 없다 — 파일을 쓰는 것도 도구 호출
+               이고, 인계는 이 갈래가 재려는 것이기 때문이다.
+    over       **예산을 넘어도 막지 않는다.** 넘었다는 것과 얼마나 넘었는지를
+               알려 주고, 하던 것을 마무리하라고 말한다.
+    block      상한(`hard_cap`)에서 도구 호출을 막는다. 세션은 마지막 텍스트
+               메시지를 낼 수 있다.
 
-"Did it use the warning to leave a handoff?" is therefore an observation, not
-a given. That is the discipline dimension, measured rather than assumed.
+**왜 넘게 두는가.** 예산에서 딱 자르면 세션이 서브시스템 중간에서 끊긴다.
+그러면 어디서 멈췄는지가 일의 양이 아니라 우리가 넣은 수가 정한 것이 된다.
+일의 양은 서브시스템마다 다르고, 세션이 조금 넘겨서 하던 것을 끝내는 것은
+실제 작업에서 일어나는 일이다. **다만 과하게 넘어가면 안 된다** — 그래서
+상한을 둔다. 그리고 **얼마나 넘었는지가 그 서브시스템의 구현량을 재는
+값이다.** 어떤 서브시스템에서 늘 크게 넘으면 그 서브시스템이 큰 것이다.
+
+"경고를 받고 인계를 남겼는가"와 "얼마나 넘겼는가"가 둘 다 관측 대상이지
+전제가 아니다.
 
 Configuration comes from the workdir, written by the chain runner:
 
-    .casa-chain.json   {"budget": 60, "warn_at": 55}
+    .casa-chain.json   {"budget": 30, "warn_at": 25, "hard_cap": 45}
 """
 
 from __future__ import annotations
@@ -40,7 +48,17 @@ DEFAULT_WARN_MARGIN = 5
 CONFIG_NAME = ".casa-chain.json"
 
 
-def install(workdir: Path, budget: int, warn_margin: int = 5) -> None:
+def hard_cap_for(budget: int) -> int:
+    """예산을 넘어도 되는 데까지. 넘는 것은 허용하되 과하게는 안 된다.
+
+    예산의 절반만큼 더 준다(최소 10회). 예산 30이면 45다. 세션이 하던
+    서브시스템 하나를 끝내기에는 넉넉하고, 두셋을 더 하기에는 모자란다.
+    """
+    return budget + max(10, budget // 2)
+
+
+def install(workdir: Path, budget: int, warn_margin: int = 5,
+            hard_cap: int | None = None) -> None:
     """예산 훅을 작업 디렉토리에 배선한다.
 
     사슬 러너와 단발 러너가 함께 쓴다. 전역이 아니라 작업 디렉토리마다
@@ -53,7 +71,8 @@ def install(workdir: Path, budget: int, warn_margin: int = 5) -> None:
 
     (workdir / CONFIG_NAME).write_text(
         json.dumps({"budget": budget,
-                    "warn_at": max(1, budget - warn_margin)}, indent=2),
+                    "warn_at": max(1, budget - warn_margin),
+                    "hard_cap": hard_cap or hard_cap_for(budget)}, indent=2),
         encoding="utf-8")
     settings_path = workdir / ".claude" / "settings.json"
     settings_path.parent.mkdir(exist_ok=True)
@@ -114,13 +133,25 @@ def count_tool_calls(transcript: Path) -> int:
     return total
 
 
-def decide(used: int, budget: int, warn_at: int) -> tuple[int, str]:
-    """(exit code, message). Exit 2 blocks the call; 0 lets it through."""
-    if used >= budget:
+def decide(used: int, budget: int, warn_at: int,
+           hard_cap: int | None = None) -> tuple[int, str]:
+    """(exit code, message). Exit 2 blocks the call; 0 lets it through.
+
+    **예산을 넘는 것 자체는 막지 않는다.** 막는 것은 상한뿐이다.
+    """
+    cap = hard_cap or hard_cap_for(budget)
+    if used >= cap:
         return 2, (
-            f"세션 예산 소진 — 도구 호출 {used}/{budget}회.\n"
+            f"도구 호출 상한 — {used}회. 예산은 {budget}회였다.\n"
             "더 이상 도구를 쓸 수 없다. 지금까지 한 일과 다음에 이어서 할 일을 "
             "마지막 메시지로 정리하고 끝내라."
+        )
+    if used >= budget:
+        return 0, (
+            f"세션 예산을 넘었다 — 도구 호출 {used}회, 예산 {budget}회 "
+            f"({used - budget}회 초과). 하던 것을 마무리하고, 지금까지 한 일과 "
+            f"다음에 할 일을 저장소에 기록으로 남겨라. {cap}회에서 도구를 쓸 수 "
+            "없게 된다."
         )
     if used >= warn_at:
         return 0, (
@@ -151,7 +182,7 @@ def main() -> int:
         return 0
     used = count_tool_calls(Path(transcript))
 
-    code, message = decide(used, budget, warn_at)
+    code, message = decide(used, budget, warn_at, config.get("hard_cap"))
     if code == 2:
         sys.stderr.write(message + "\n")
         return 2

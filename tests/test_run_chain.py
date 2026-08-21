@@ -59,11 +59,11 @@ def test_budget_warns_before_it_blocks():
     """Without a window, no session could ever write a handoff note."""
     quiet, _ = chain_budget.decide(used=10, budget=60, warn_at=55)
     warn_code, warn_msg = chain_budget.decide(used=57, budget=60, warn_at=55)
-    stop_code, stop_msg = chain_budget.decide(used=60, budget=60, warn_at=55)
+    stop_code, stop_msg = chain_budget.decide(used=90, budget=60, warn_at=55)
 
     assert quiet == 0
     assert warn_code == 0 and "3회 남았다" in warn_msg
-    assert stop_code == 2 and "예산 소진" in stop_msg
+    assert stop_code == 2 and "상한" in stop_msg
 
 
 def test_warning_says_how_many_are_left():
@@ -71,9 +71,46 @@ def test_warning_says_how_many_are_left():
     assert "55/60" in message and "5회" in message
 
 
-def test_over_budget_stays_blocked():
-    code, _ = chain_budget.decide(used=999, budget=60, warn_at=55)
-    assert code == 2
+def test_going_over_the_budget_is_not_blocked():
+    """**예산은 가위가 아니라 안전판이다**(2026-08-21 유저 지시).
+
+    예산에서 딱 자르면 세션이 서브시스템 중간에서 끊기고, 어디서 멈췄는지가
+    일의 양이 아니라 우리가 넣은 수가 정한 것이 된다. 일의 양은 서브시스템마다
+    다르고, 조금 넘겨서 하던 것을 끝내는 것은 실제 작업에서 일어나는 일이다.
+    """
+    code, message = chain_budget.decide(used=61, budget=60, warn_at=55)
+    assert code == 0, "예산을 한 번 넘었다고 막으면 안 된다"
+    assert "1회 초과" in message
+    assert "90회에서" in message, "어디서 막히는지 알려 줘야 한다"
+
+
+def test_the_hard_cap_still_blocks():
+    """**과하게 넘어가는 것은 막는다.** 넘긴 양이 곧 관측값이지만 무한정은 아니다."""
+    below, _ = chain_budget.decide(used=89, budget=60, warn_at=55)
+    at_cap, message = chain_budget.decide(used=90, budget=60, warn_at=55)
+    assert below == 0
+    assert at_cap == 2 and "상한" in message
+
+
+def test_the_hard_cap_is_half_again_the_budget():
+    """예산 30이면 45다. 하던 서브시스템 하나를 끝내기에는 넉넉하고 두셋을
+    더 하기에는 모자란다. 작은 예산에서는 최소 10회를 준다."""
+    assert chain_budget.hard_cap_for(30) == 45
+    assert chain_budget.hard_cap_for(60) == 90
+    assert chain_budget.hard_cap_for(12) == 22
+
+
+def test_the_config_carries_the_hard_cap(tmp_path):
+    chain_budget.install(tmp_path, budget=30)
+    config = json.loads(
+        (tmp_path / ".casa-chain.json").read_text(encoding="utf-8"))
+    assert config == {"budget": 30, "warn_at": 25, "hard_cap": 45}
+
+
+def test_every_session_row_records_the_hard_cap():
+    """넘긴 양을 나중에 세려면 예산과 상한이 둘 다 기록에 있어야 한다."""
+    source = (ROOT / "pilot" / "run_chain.py").read_text(encoding="utf-8")
+    assert '"budget_hard_cap": chain_budget.hard_cap_for(budget),' in source
 
 
 def test_config_is_read_from_the_workdir(tmp_path):
@@ -94,7 +131,7 @@ def test_missing_or_broken_config_is_not_fatal(tmp_path):
 def test_install_budget_writes_config_and_hook(tmp_path):
     run_chain.install_budget(tmp_path, budget=60)
     config = json.loads((tmp_path / ".casa-chain.json").read_text(encoding="utf-8"))
-    assert config == {"budget": 60, "warn_at": 55}
+    assert config == {"budget": 60, "warn_at": 55, "hard_cap": 90}
 
     settings = json.loads(
         (tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8"))
