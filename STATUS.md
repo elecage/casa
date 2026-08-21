@@ -16,7 +16,11 @@
 1. **결과를 보기 전에** `harness/gates.json`의 `collection.state`를 `locked`로
    되돌린다.
 2. 숫자 요약을 커밋한다 — `results/`는 gitignore 대상이고 컨테이너가 사라지면
-   원자료도 같이 사라진다.
+   원자료도 같이 사라진다. 도구는 **결과를 보기 전에 미리 써 뒀다**:
+   `.venv/bin/python pilot/analysis/batch_summary.py results/chain5/release-traps
+   --task pilot/tasks/release-traps > docs/BIGGER_TASK_RESULTS.md`.
+   봉인한 예측 여섯 개의 문장과 문턱이 그 파일에 코드로 박혀 있고,
+   `tests/test_batch_summary.py`가 문턱이 바뀌면 깨진다.
 3. 봉인한 예측 여섯 개와 대조한다. **빗나간 것을 먼저 적는다.**
 4. **`pilot/tasks/release-traps/attribute.py`의 경로 표에 늘린 항목 다섯을
    넣는다** (2026-08-21 유저 지시: "과제 실험 끝나면 경로표에 추가").
