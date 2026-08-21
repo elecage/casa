@@ -281,3 +281,48 @@ def test_relative_paths_do_not_silently_empty_the_snapshot(tmp_path, monkeypatch
                "log", "--format=%s")
     assert "call 1" in log.stdout
     assert "baseline" in log.stdout
+
+
+# ------------------- 호출 번호는 뒤로 가지 않는다 (2026-08-21 본 배치 결함)
+
+def test_two_hooks_at_once_never_get_the_same_number():
+    """**읽고-더하고-쓰기를 하면 병렬 호출에서 같은 번호가 나온다.**
+
+    2026-08-21 본 배치 사슬 4에서 실제로 일어났다 — 번호가 175에서 12로
+    되감기고 81·84가 중복됐다. 커밋은 멀쩡했지만 그 이름표로 세션 구간을
+    나누는 분석이 통째로 어긋났다.
+    """
+    import concurrent.futures
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as raw:
+        state = Path(raw) / "state"
+        state.mkdir()
+        git_dir = Path(raw) / "nope.git"          # 없는 저장소여도 동작해야 한다
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            got = list(pool.map(lambda _: snapshot._next_index(state, git_dir),
+                                range(40)))
+    assert sorted(got) == list(range(1, 41)), f"번호가 겹치거나 빠졌다: {sorted(got)}"
+
+
+def test_the_number_continues_above_what_the_repo_already_has(tmp_path):
+    """이어 돌리기(`--resume`)에서 번호가 1부터 다시 시작하면 앞 세션들의
+    번호와 겹친다."""
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "call-count.txt").write_text("175", encoding="utf-8")
+    assert snapshot._next_index(state, tmp_path / "nope.git") == 176
+
+
+def test_the_number_continues_above_the_labels_in_the_snapshot_repo(tmp_path):
+    """세는 파일이 없어도 저장소에 찍힌 이름표에서 이어 붙인다."""
+    work = tmp_path / "w"
+    work.mkdir()
+    (work / "a.txt").write_text("1", encoding="utf-8")
+    git_dir = tmp_path / "s.git"
+    snapshot.install(work, git_dir)
+    (work / "a.txt").write_text("2", encoding="utf-8")
+    snapshot.take(work)                       # call 1
+    for claim in git_dir.glob("call-*.claim"):
+        claim.unlink()                        # 이어 돌리기: 맡아 둔 자리가 없다
+    assert snapshot._next_index(git_dir, git_dir) == 2

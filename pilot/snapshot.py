@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -131,23 +132,79 @@ def _load_config(workdir: Path) -> dict | None:
         return None
 
 
-def _next_index(state_dir: Path) -> int:
-    """이 세션의 다음 호출 번호.
+def _claim(state_dir: Path, index: int) -> bool:
+    """이 번호를 이 호출이 가져간다. 이미 누가 가져갔으면 거짓.
 
-    세어 두는 파일은 **스냅숏 저장소 옆**에 둔다 — 저장소가 세션마다 하나이니
-    번호도 세션마다 처음부터 올라간다. 2026-08-20 프로브에서 이 파일을 한 칸
-    위(여러 세션이 공유하는 디렉토리)에 두는 바람에 번호가 세션 경계를 넘어
-    계속 올라갔다(세션 2의 첫 커밋이 `call 47`). 데이터는 멀쩡했고 이름표만
-    틀렸지만, 그 이름표를 믿은 분석은 통째로 어긋난다.
+    파일 하나를 **`O_EXCL` 로** 만드는 것이 판정이다. 같은 번호를 두 호출이
+    동시에 시도하면 하나만 성공한다. 잠금 장치가 따로 필요 없고 POSIX 와
+    Windows 에서 같은 방식으로 동작한다.
     """
-    counter = state_dir / "call-count.txt"
     try:
-        value = int(counter.read_text(encoding="utf-8").strip())
+        handle = os.open(str(state_dir / f"call-{index}.claim"),
+                         os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        return False
+    except OSError:
+        return True          # 만들 수 없는 자리면 번호라도 진행시킨다
+    os.close(handle)
+    return True
+
+
+def _next_index(state_dir: Path, git_dir: Path) -> int:
+    """이 사슬의 다음 호출 번호.
+
+    세어 두는 것은 **스냅숏 저장소 옆**에 둔다. 사슬 하나가 저장소 하나를
+    쓰므로 번호는 그 사슬의 세션들에 걸쳐 이어진다.
+
+    **읽고-더하고-쓰기를 하지 않는다.** 그렇게 하면 도구를 병렬로 부르는
+    세션에서 두 훅이 같은 값을 읽고 같은 값을 쓴다. 2026-08-21 본 배치
+    사슬 4에서 실제로 일어났다 — 번호가 175에서 12로 되감기고 81·84가
+    중복됐다. 커밋 자체는 멀쩡했지만 그 이름표로 세션 구간을 나누는 분석이
+    통째로 어긋났다. 앞선 실수(번호를 한 칸 위 디렉토리에 두어 세션 경계를
+    넘어 이어진 것)와 원인이 다르고 증상이 비슷하다.
+
+    대신 번호마다 파일 하나를 `O_EXCL` 로 만들어 본다. 만들어지면 그 번호가
+    이 호출의 것이고, 이미 있으면 다음 번호로 넘어간다. **번호가 뒤로 가는
+    일이 원리적으로 없다.**
+    """
+    try:
+        state_dir.mkdir(parents=True, exist_ok=True)
+        taken = [int(p.name[5:-6]) for p in state_dir.glob("call-*.claim")
+                 if p.name[5:-6].isdigit()]
+    except OSError:
+        taken = []
+    index = max([*taken, _floor(state_dir, git_dir)], default=0)
+    while True:
+        index += 1
+        if _claim(state_dir, index):
+            return index
+
+
+def _floor(state_dir: Path, git_dir: Path) -> int:
+    """이미 쓰인 가장 큰 번호. 여기서부터 이어 붙인다.
+
+    **이어 돌리기 때문에 필요하다.** 중단된 배치를 `--resume` 으로 이으면
+    자리를 맡아 둔 파일이 아직 없는 사슬이 있고, 그러면 번호가 1부터 다시
+    시작해 앞 세션들의 번호와 겹친다. 앞서 쓰던 세는 파일과 저장소에 이미
+    찍힌 이름표를 둘 다 보고 큰 쪽을 바닥으로 삼는다.
+    """
+    floor = 0
+    try:
+        floor = int((state_dir / "call-count.txt").read_text(
+            encoding="utf-8").strip())
     except (OSError, ValueError):
-        value = 0
-    value += 1
-    counter.write_text(str(value), encoding="utf-8")
-    return value
+        pass
+    try:
+        done = subprocess.run(
+            ["git", f"--git-dir={git_dir}", "log", "--format=%s"],
+            capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=60)
+        labels = [int(m) for m in re.findall(r"^call (\d+)$", done.stdout,
+                                             re.MULTILINE)]
+        floor = max([floor, *labels], default=floor)
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return floor
 
 
 def take(workdir: Path) -> str | None:
@@ -161,7 +218,7 @@ def take(workdir: Path) -> str | None:
         return None
     git_dir = Path(config["git_dir"]).resolve()
     state_dir = Path(config.get("state_dir", git_dir.parent)).resolve()
-    index = _next_index(state_dir)
+    index = _next_index(state_dir, git_dir)
 
     _git(git_dir, workdir, "add", "-A")
     done = _git(git_dir, workdir, "-c", "user.name=casa",
