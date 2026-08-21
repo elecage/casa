@@ -261,3 +261,26 @@ def test_the_runner_hands_the_first_prompt_only_to_session_one():
     """소스에서 확인한다. 배선을 잊으면 파일만 만들고 아무 일도 안 일어난다."""
     source = (Path(run_chain.__file__)).read_text(encoding="utf-8")
     assert "first_prompt if index == 1 else next_prompt" in source
+
+def test_the_served_model_is_recorded_for_every_session():
+    """사전 예측 문서가 모델을 조건으로 적는데, 그것을 확인하는 기록이
+    지금까지 없었다.
+
+    `--model` 을 안 주면 CLI 기본값이 쓰이고 `meta.json` 에는 `null` 이
+    남는다. 2026-08-21에 서브시스템 보정 배치 4차를 그렇게 시작했다.
+    """
+    cli = {"modelUsage": {"claude-sonnet-5": {"costUSD": 3.16},
+                          "claude-haiku-4-5-20251001": {"costUSD": 0.001}}}
+    assert run_chain.served_models(cli) == ["claude-haiku-4-5-20251001",
+                                            "claude-sonnet-5"]
+
+
+def test_a_session_with_no_usage_record_lists_no_model():
+    """CLI가 시작조차 못 하면 사용량 기록이 없다. 없는 것을 지어내지 않는다."""
+    assert run_chain.served_models({"parse_error": True, "exit_code": 1}) == []
+    assert run_chain.served_models({}) == []
+
+
+def test_every_session_row_carries_the_served_model():
+    source = (ROOT / "pilot" / "run_chain.py").read_text(encoding="utf-8")
+    assert '"served_models": served_models(cli),' in source

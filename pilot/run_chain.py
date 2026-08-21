@@ -176,6 +176,7 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
             "task": task_dir.name, "chain": chain, "session_index": index,
             "label": label, "wall_s": round(time.time() - started, 1),
             "cli": cli, "budget": budget,
+            "served_models": served_models(cli),
         }
 
         transcript = collect_transcript(workdir, cli, out_dir, label, seen)
@@ -205,6 +206,23 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
                   file=sys.stderr)
             raise SystemExit(3)
     return rows
+
+
+def served_models(cli: dict) -> list[str]:
+    """이 세션을 실제로 서빙한 모델들.
+
+    **사전 예측 문서가 모델을 조건으로 적는데, 지금까지 그것을 확인하는
+    기록이 어디에도 없었다.** `--model` 을 안 주면 CLI 기본값이 쓰이고,
+    `meta.json` 에는 `null` 이 남는다. 2026-08-21에 서브시스템 보정 배치 4차를
+    `--model` 없이 시작했다 — 실제로 서빙한 모델은 앞 배치들과 같았지만
+    (`claude-sonnet-5`), 기록만으로는 그것을 확인할 수 없었고 배치 도중에
+    기본값이 바뀌어도 드러나지 않았을 것이다.
+
+    보조 모델이 섞여 나오는 것은 정상이다 — 요약이나 제목 생성에 작은 모델이
+    쓰인다. 그래서 하나로 접지 않고 나온 것을 전부 적는다.
+    """
+    usage = cli.get("modelUsage")
+    return sorted(usage) if isinstance(usage, dict) else []
 
 
 def chain_summary(rows: list[dict]) -> dict:
