@@ -383,9 +383,6 @@ def main() -> int:
     return 0
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
-
 
 # ------------------------------------------------- 달성 항목 8~12 (2026-08-21)
 
@@ -558,3 +555,7 @@ def _dropped_settled(graded: Path, work_dir: Path) -> bool | None:
             if "sjs" in line and any(word in line for word in decisions):
                 return True
     return False
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

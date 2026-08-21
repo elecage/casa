@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import importlib.util
+import shutil
 import sys
 from pathlib import Path
 
@@ -362,3 +363,27 @@ def test_keeping_the_source_requires_fixing_the_document(tmp_path):
         "**이 원천은 v0.4부터 받지 않기로 했다.** 보내던 쪽이 sjl로 옮겨 갔다.")
 
     assert grade.checkpoints(target)["dropped_source.settled"] is False
+
+
+def test_the_grader_runs_as_a_script_not_only_as_an_import(tmp_path):
+    """채점기를 **스크립트로** 돌려도 도는가.
+
+    2026-08-21에 이것 때문에 배치 하나를 버렸다. 새 채점 함수 다섯을
+    `if __name__ == "__main__"` 블록 **뒤에** 붙여 놨는데, 임포트하는 테스트는
+    파일 전체를 실행하므로 통과하고 **스크립트로 부르는 수집만** 터졌다.
+    러너는 `python grade.py <작업디렉토리>` 로 부른다.
+    """
+    import json
+    import subprocess
+
+    target = tmp_path / "start"
+    shutil.copytree(TASK / "template", target,
+                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+
+    done = subprocess.run([sys.executable, str(TASK / "grade.py"), str(target)],
+                          capture_output=True, text=True, encoding="utf-8",
+                          errors="replace", timeout=900)
+    assert done.returncode == 0, done.stderr[-800:]
+    payload = json.loads(done.stdout)          # 러너가 이 출력을 그대로 읽는다
+    assert payload["task"] == "release-traps"
+    assert payload["checkpoints"]["tests.green"] is True

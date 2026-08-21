@@ -70,12 +70,22 @@ def install(workdir: Path, budget: int, warn_margin: int = 5) -> None:
 
 
 def load_config(start: Path) -> dict:
-    """Read the chain config from the working directory, tolerating absence."""
-    try:
-        raw = json.loads((start / CONFIG_NAME).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return raw if isinstance(raw, dict) else {}
+    """작업 디렉토리에서 사슬 설정을 읽는다. **위로 거슬러 올라가며 찾는다.**
+
+    훅이 받는 `cwd`는 세션이 마지막으로 있던 자리라 작업 트리 뿌리가 아닐 수
+    있다. 그러면 설정을 못 찾고 **기본값(60)으로 조용히 떨어진다** — 2026-08-21에
+    100으로 준 예산이 60으로 깎여 세션이 61호출에서 잘렸고, 실패로도 안 보였다.
+    git 이 저장소 뿌리를 찾는 것과 같은 방식으로 위로 올라가며 찾는다.
+    """
+    here = Path(start)
+    for folder in (here, *here.parents):
+        try:
+            raw = json.loads((folder / CONFIG_NAME).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(raw, dict):
+            return raw
+    return {}
 
 
 def count_tool_calls(transcript: Path) -> int:

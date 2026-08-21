@@ -204,3 +204,26 @@ def test_ungradeable_session_does_not_kill_the_chain(tmp_path, monkeypatch):
     monkeypatch.setattr(sp, "run", lambda *a, **k: Broken())
     out = run_chain.grade(tmp_path, tmp_path)
     assert out["parse_error"] is True
+
+
+def test_the_budget_hook_finds_its_config_from_a_subdirectory(tmp_path):
+    """세션이 하위 폴더에 가 있어도 예산이 깎이면 안 된다.
+
+    2026-08-21에 실제로 그랬다. 훅이 받는 `cwd`가 작업 트리 뿌리가 아니면
+    설정을 못 찾고 기본값 60으로 조용히 떨어져, 100으로 준 예산이 61호출에서
+    잘렸다. 실패로도 안 보였다.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "casa_budget_subdir", ROOT / "pilot" / "chain_budget.py")
+    budget = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(budget)
+
+    work = tmp_path / "work"
+    (work / "usagectl" / "readers").mkdir(parents=True)
+    budget.install(work, 100)
+
+    assert budget.load_config(work).get("budget") == 100
+    assert budget.load_config(work / "usagectl").get("budget") == 100
+    assert budget.load_config(work / "usagectl" / "readers").get("budget") == 100
