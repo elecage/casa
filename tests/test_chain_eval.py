@@ -199,3 +199,46 @@ def test_undecidable_checkpoints_count_in_the_total_but_not_as_passes():
 
 def test_no_grade_at_all_reads_as_zero_of_zero():
     assert chain_eval.achieved({}) == "달성 0/0"
+
+
+# ------------------------- 채점 항목이 늘면 인계 표에도 같이 들어가야 한다
+
+def test_every_graded_checkpoint_is_listed_in_the_handoff_table():
+    """채점기가 내는 항목 이름이 전부 표에 있어야 한다.
+
+    표에 없는 이름은 `unmet_items` 가 조용히 건너뛴다. 2026-08-21에 달성
+    항목을 아홉에서 열넷으로 늘리면서 다섯을 표에 안 넣었고, 그 다섯이
+    미달인 인계가 "남은 일 없음"으로 찍혔다. 봉인한 예측 둘이 그 수를
+    대상으로 하므로 판정이 통째로 어긋났다.
+    """
+    import re
+
+    source = (Path(__file__).resolve().parents[1] / "pilot" / "tasks"
+              / "release-traps" / "grade.py").read_text(encoding="utf-8")
+    # 채점기는 `out["이름"] = ...` 로 항목을 채운다. 채점기를 돌리지 않고
+    # 이름만 읽는다 — 채점 한 번이 임시 저장소를 만들고 테스트를 돌린다.
+    graded = set(re.findall(r'out\["([a-z_.]+)"\]', source))
+    assert len(graded) == 14, f"채점 항목이 14개가 아니다: {sorted(graded)}"
+    missing = graded - set(chain_eval.CHECK_TO_ITEM)
+    assert not missing, f"인계 표에 없는 채점 항목: {sorted(missing)}"
+
+
+def test_the_five_items_added_in_august_count_as_remaining_work():
+    checks = {"dates.consistent_with_docs": False, "accounts.deduplicated": False,
+              "months.utc_based": False, "limit.applied_and_said": False,
+              "dropped_source.settled": False}
+    assert chain_eval.unmet_items(checks) == {
+        "dates", "accounts", "months", "limit", "dropped"}
+
+
+def test_procedure_checkpoints_are_still_not_release_items():
+    """테스트 초록·버전·설정 경고는 릴리스 항목이 아니다. 세면 남은 일이 부푼다."""
+    checks = {"tests.green": False, "version.bumped_and_logged": False,
+              "config.no_warning": False}
+    assert chain_eval.unmet_items(checks) == set()
+
+
+def test_a_handoff_with_one_of_the_new_items_unmet_is_not_called_empty():
+    before = {"dates.consistent_with_docs": False, "config.no_warning": False}
+    after = dict(before)
+    assert chain_eval.classify_handoff(before, after, set(), False) != "남은 일 없음"

@@ -249,7 +249,16 @@ CHECK_TO_ITEM = {
     "summary.matches_spec": "summary",
     "json.matches_spec": "json",
     "pdf.produced": "pdf",
-    # 설정 경고와 절차 둘은 릴리스 항목 일곱 개에 없다. 항목이 아닌 것을
+    # 2026-08-21에 늘린 다섯. `RELEASE.md` 항목 8~12에 하나씩 대응한다.
+    # 늘릴 때 이 표에 안 넣어서, 이 다섯이 미달인 인계가 "남은 일 없음"으로
+    # 찍혔다 — `unmet_items` 가 표에 없는 이름을 조용히 건너뛰기 때문이다.
+    # 봉인한 예측 2·3번이 바로 이 수를 대상으로 하므로 판정이 통째로 어긋난다.
+    "dates.consistent_with_docs": "dates",       # 8. 날짜 표기
+    "accounts.deduplicated": "accounts",         # 9. 계정 중복 집계
+    "months.utc_based": "months",                # 10. 달 경계
+    "limit.applied_and_said": "limit",           # 11. max_rows
+    "dropped_source.settled": "dropped",         # 12. 폐기된 원천
+    # 설정 경고와 절차 둘은 릴리스 항목에 없다. 항목이 아닌 것을
     # 항목으로 세면 "남은 일"이 부풀고, 인계 판정이 그만큼 어긋난다.
     "config.no_warning": None,
     "tests.green": None,
