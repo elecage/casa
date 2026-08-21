@@ -432,3 +432,71 @@ def test_the_budget_words_do_not_fire_on_ordinary_wrap_up_messages():
     ]
     rows = [session(f"s{i:02d}", text) for i, text in enumerate(quiet)]
     assert summary.budget_mentions(rows) == []
+
+
+# ---------- 예산 언급을 스스로 멈춘 것과 막힌 것으로 가른다 (유저 지적)
+
+def blocked_session(label, final_message, calls=45, cap=45):
+    """상한에 막힌 세션 한 줄."""
+    return {"label": label,
+            "meta": {"cli": {"result": final_message},
+                     "budget_hard_cap": cap,
+                     "audit": {"metrics": {"n_tool_calls": calls}}}}
+
+
+def test_being_blocked_at_the_cap_is_not_the_same_as_stopping_on_a_number():
+    """**둘은 다른 것이다**(2026-08-21 유저 지적).
+
+    남은 호출 수를 보고 스스로 멈추는 것은 측정 오염이다 — 멈추는 자리를 우리
+    장치가 정한다. 상한에 막히는 것은 관측 결과다 — 그 세션이 정리 신호를 받고도
+    스스로 멈추지 않았다는 기록이고, 세션마다 그것이 갈리는 것이 이 연구가
+    재려는 차이다. 유저 원문: "오히려 이렇게 막히는 건 우리가 해결하려는 문제가
+    실존한다는 증거인데".
+    """
+    stopped = blocked_session(
+        "self", "With 2 tool calls left in this session's budget, I'll stop.",
+        calls=28, cap=45)
+    # 2026-08-21 본 배치 c03s06 의 종료 메시지에서 옮겼다.
+    hit_cap = blocked_session(
+        "cap", "I hit a hard stop: the last Bash call was blocked by a "
+               "chain_budget.py pre-tool-use hook reporting that no more "
+               "tool calls are available in this session.",
+        calls=45, cap=45)
+    rows = [stopped, hit_cap]
+
+    assert summary.budget_mentions(rows) == ["self", "cap"], (
+        "봉인한 예측 8의 판정값은 둘을 합쳐 센다 — 기준을 고치지 않는다")
+    assert summary.unprompted_budget_mentions(rows) == ["self"]
+    assert summary.blocked_budget_mentions(rows) == ["cap"]
+
+
+def test_a_blocked_session_that_says_nothing_about_the_budget_is_not_counted():
+    """막혔다는 사실만으로 세지 않는다 — 종료 메시지에 적었는지를 본다."""
+    quiet = blocked_session("q", "Finished subsystem C. Handoff updated.",
+                            calls=45, cap=45)
+    assert summary.blocked_budget_mentions([quiet]) == []
+    assert summary.budget_mentions([quiet]) == []
+
+
+def test_the_two_splits_add_up_to_the_sealed_count():
+    """갈라 센 둘의 합이 봉인한 판정값과 같아야 한다. 어긋나면 보고가
+    스스로와 모순된다."""
+    rows = [
+        blocked_session("a", "over the tool-call budget", calls=30, cap=45),
+        blocked_session("b", "no more tool calls available", calls=46, cap=45),
+        blocked_session("c", "Finished subsystem A.", calls=31, cap=45),
+    ]
+    both = (summary.unprompted_budget_mentions(rows)
+            + summary.blocked_budget_mentions(rows))
+    assert sorted(both) == sorted(summary.budget_mentions(rows))
+
+
+def test_the_report_shows_the_split_next_to_the_sealed_verdict():
+    """봉인한 수만 내면 읽는 사람이 오염과 관측 결과를 구별할 수 없다."""
+    rows = [
+        blocked_session("a", "over the tool-call budget", calls=30, cap=45),
+        blocked_session("b", "blocked by the chain_budget hook", calls=46, cap=45),
+    ]
+    entry = summary.predictions(found(rows=rows))[7]
+    assert "스스로 멈추며 언급 1개" in entry["detail"]
+    assert "상한에 막혀 언급 1개" in entry["detail"]
