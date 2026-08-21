@@ -5,6 +5,7 @@ exercised by the W1.5 vertical slice, not unit tests.
 """
 
 import importlib.util
+import os
 import subprocess
 from pathlib import Path
 
@@ -149,6 +150,32 @@ def test_session_env_prepends_task_venv_to_path(tmp_path):
     assert env["PATH"].split(os.pathsep)[0] == str(binp)
 
 
+def test_the_child_env_sets_the_sandbox_flag_the_cli_accepts_when_root():
+    """root로 실행되면 `IS_SANDBOX`가 정확히 `1`이어야 한다.
+
+    CLI는 root로 `--dangerously-skip-permissions`를 쓰면 시작을 거부하고,
+    `IS_SANDBOX=1`만 그 예외로 받는다. 컨테이너가 설정해 두는 `yes` 같은
+    값은 받지 않는다. 2026-08-21에 서브시스템 보정 배치 4차가 그것 때문에
+    세션 둘을 각각 0.8초 만에 끝냈다 — 러너는 정상 종료로 기록했다.
+    """
+    env = {"IS_SANDBOX": "yes"}
+    run_sessions._allow_root_skip_permissions(env)
+    if getattr(os, "geteuid", None) is not None and os.geteuid() == 0:
+        assert env["IS_SANDBOX"] == "1"
+    else:
+        assert env["IS_SANDBOX"] == "yes", "root가 아니면 건드리지 않는다"
+
+
+def test_the_sandbox_flag_is_not_forced_when_not_root():
+    """유저 장비에서는 이 예외가 필요 없다. 값을 만들어 넣지 않는다."""
+    import unittest.mock
+
+    env: dict[str, str] = {}
+    with unittest.mock.patch.object(os, "geteuid", return_value=1000):
+        run_sessions._allow_root_skip_permissions(env)
+    assert env == {}
+
+
 def test_ml_shift_task_has_requirements():
     # the ML arm task DOES ship requirements -> ensure_task_venv would build.
     req = REPO / "pilot" / "tasks" / "ml-shift" / "template" / "requirements.txt"
@@ -161,3 +188,37 @@ def test_timeout_payload_is_not_infra_failure():
     payload = {"timed_out": True, "is_error": True, "exit_code": -1,
                "result": "session exceeded 1500s timeout"}
     assert run_sessions.is_infra_failure(payload) is False
+
+
+def test_a_session_the_cli_never_started_is_recognized():
+    """CLI가 결과 JSON을 한 줄도 안 내고 종료 코드를 남긴 경우.
+
+    2026-08-21에 관측된 모양이다. 컨테이너가 root로 돌고 있어 CLI가
+    `--dangerously-skip-permissions`를 거부했다.
+    """
+    payload = {"parse_error": True, "stdout_tail": "",
+               "stderr_tail": "--dangerously-skip-permissions cannot be used "
+                              "with root/sudo privileges for security reasons\n",
+               "exit_code": 1}
+    assert run_sessions.session_never_started(payload) is True
+
+
+def test_a_timed_out_session_did_start():
+    """시간 제한에 도달한 세션은 실행됐다. 배치를 멈출 이유가 아니다."""
+    payload = {"timed_out": True, "is_error": True, "exit_code": -1,
+               "result": "session exceeded 1800s timeout"}
+    assert run_sessions.session_never_started(payload) is False
+
+
+def test_a_normal_session_did_start():
+    payload = {"type": "result", "subtype": "success", "is_error": False,
+               "result": "done", "exit_code": 0}
+    assert run_sessions.session_never_started(payload) is False
+
+
+def test_the_chain_runner_stops_when_a_session_never_started():
+    """세션이 시작조차 못 했는데 다음 세션으로 넘어가면, 한 번도 실행되지
+    않은 배치가 정상 완주로 기록된다. 러너 소스에서 그 처리를 확인한다."""
+    source = (REPO / "pilot" / "run_chain.py").read_text(encoding="utf-8")
+    assert "session_never_started(cli)" in source
+    assert "raise SystemExit(3)" in source

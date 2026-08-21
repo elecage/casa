@@ -47,7 +47,8 @@ from casa.rules import load_rules  # noqa: E402
 import chain_budget  # noqa: E402
 import snapshot  # noqa: E402
 from run_sessions import (  # noqa: E402
-    check_auth, prepare_workdir, rules_for, run_headless, transcript_dir_for,
+    check_auth, prepare_workdir, rules_for, run_headless,
+    session_never_started, transcript_dir_for,
 )
 
 HOOK = Path(__file__).resolve().parent / "chain_budget.py"
@@ -191,6 +192,18 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
         score = row["grade"].get("milestone_score")
         print(f"  {label}  {row['wall_s']:>6.1f}s  마일스톤 {score}  "
               f"위반 {row['grade'].get('violations')}")
+
+        # CLI가 아예 시작하지 못했으면 **배치를 멈춘다.** 다음 세션도 같은
+        # 이유로 안 돌 것이고, 계속 돌리면 한 번도 실행되지 않은 세션 열 개가
+        # 정상 완주로 기록된다. 2026-08-21에 실제로 그렇게 될 뻔했다 —
+        # 컨테이너가 root라 CLI가 플래그를 거부했고, 다섯 세션이 각각 0.8초
+        # 만에 끝났는데 러너는 넘어갔다.
+        if session_never_started(cli):
+            print(f"ABORT: {label} 에서 CLI 가 세션을 시작하지 못했다 — "
+                  f"종료 코드 {cli.get('exit_code')}. "
+                  f"stderr: {str(cli.get('stderr_tail', ''))[:300]}",
+                  file=sys.stderr)
+            raise SystemExit(3)
     return rows
 
 
