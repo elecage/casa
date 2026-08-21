@@ -5,7 +5,11 @@
 
 ## 다음 세션 시작점
 
-**지금 배치가 돌고 있다(2026-08-21 시작).** 키운 과제 `release-traps`(달성
+**배치가 끝났다(2026-08-21, 18/18).** 결과를 보기 전에 잠금을 다시 걸었고
+(`harness/gates.json`), 숫자 요약은 `docs/BIGGER_TASK_RESULTS.md`에 있다.
+아래는 그 배치가 무엇이었는지의 기록이다.
+
+**돌린 조건.** 키운 과제 `release-traps`(달성
 항목 14)로 사슬 3세션 × 6벌 = 18세션, sonnet, 세션당 100호출, 30분 제한,
 출력은 `results/chain5/release-traps`. 사전 예측 여섯 개는 돌리기 전에
 `docs/BIGGER_TASK_PREDICTIONS.md`에 봉인했고 유저가 승인했다("봉인하고 돌려").
@@ -43,7 +47,7 @@
 | F 되채우기 `opsbox/backfill/` + `docs/backfill.md` (A·B에 둘 다 기댄다) | **끝, 보이는 테스트 초록** |
 | 최상단 문서·`opsbox/cli.py`·`prompt.txt`·`docs/reports/expected.md` | **끝** |
 | `grade.py`(달성 항목 17)·`hidden/`·레퍼런스 해답 양방향 | **끝** |
-| `detect.py`(함정 13종) | 아직 |
+| `detect.py`(함정 13종) | **끝** — `sinks_into_detail`의 문턱만 실측 대기 |
 | `DESIGN.md` 갱신, 사전 예측 봉인, 2벌 보정 | 아직 |
 
 A에 심은 값 결함 둘: **bd 어댑터가 `qty_billed` 대신 `qty`를 센다**(명세는
