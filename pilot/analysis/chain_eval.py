@@ -288,6 +288,28 @@ def _changed_paths(git_dir: Path, commit: str) -> list[str]:
     return done.stdout.split()
 
 
+def handoff_text_at(git_dir: Path, commit: str) -> str:
+    """그 시점의 인계 문서 내용. 없으면 빈 글자."""
+    import subprocess
+    done = subprocess.run(
+        ["git", f"--git-dir={git_dir}", "show", f"{commit}:HANDOFF.md"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+    return done.stdout if done.returncode == 0 else ""
+
+
+def left_false_handoff(text: str, checkpoints: dict) -> bool:
+    """인계 문서에 "다 됐다"고 적었는데 실제로는 미달 항목이 있는가.
+
+    **이것은 그 문서를 쓴 세션의 잘못이다.** 다음 세션이 그것 때문에 헤맸다면
+    그건 물려받은 것이지 그 세션이 만든 것이 아니다(2026-08-20 유저 지적).
+    """
+    from casa.metrics import claims_completion
+
+    if not text.strip():
+        return False
+    return claims_completion(text) and bool(unmet_items(checkpoints))
+
+
 def unmet_items(checkpoints: dict) -> set[str]:
     """아직 안 된 릴리스 항목들. 판정 불가는 안 된 것으로 세지 않는다."""
     return {CHECK_TO_ITEM[name] for name, value in checkpoints.items()
@@ -328,12 +350,16 @@ def handoffs(out_dir: Path) -> list[dict]:
             after = (mine[index]["meta"].get("grade") or {}).get("checkpoints") or {}
             touched = touched_items(git_dir, segs[index])
             claimed = claims_completion(mine[index]["session"].final_assistant_text)
+            # 앞 세션이 남긴 인계 문서가 사실이었나. 그 세션의 마지막 커밋에서 읽는다.
+            previous = segs[index - 1]
+            note = handoff_text_at(git_dir, previous[-1][1]) if previous else ""
             out.append({
                 "chain": chain,
                 "label": mine[index]["label"],
                 "left": sorted(unmet_items(before)),
                 "touched": sorted(touched),
                 "verdict": classify_handoff(before, after, touched, claimed),
+                "inherited_false_note": left_false_handoff(note, before),
             })
     return out
 
@@ -366,11 +392,18 @@ def main() -> int:
         recovered = [k for k, v in vector.items() if v.blame == "recovered"]
         checks = (row["meta"].get("grade") or {}).get("checkpoints") or {}
         passed = sum(1 for v in checks.values() if v is True)
+        session = row["session"]
+        kind = probe.detect.verification_kind(session) if session else "?"
+        read = probe.detect.read_handoff(session) if session else False
+        wrote = probe.detect.updated_handoff(None, session) if session else False
         print(f"  {label}: 만든 함정 {len(made)}개 {made or ''}"
               f" | 물려받아 못 고침 {inherited or '없음'}"
               f" | 물려받아 고침 {fixed or '없음'}"
               f" | 스스로 회복 {recovered or '없음'}"
               f" | (부수 기록: 달성 {passed}/9)")
+        print(f"      인계 문서 읽음 {'O' if read else 'X'}"
+              f" | 마칠 때 남김 {'O' if wrote else 'X'}"
+              f" | 어떻게 확인했나: {kind}")
 
     print(f"\n빠진 채 종료 분포 중앙값 {median} → 나쁜 세션 = 중앙값 초과")
     print(f"나쁜 세션 {len(bad)}/{len(counts)} = {len(bad)/max(1,len(counts)):.0%}:"
@@ -397,7 +430,8 @@ def main() -> int:
         tally[row["verdict"]] = tally.get(row["verdict"], 0) + 1
         print(f"  {row['label']}: {row['verdict']}"
               f" | 남아 있던 일 {row['left'] or '없음'}"
-              f" | 손댄 항목 {row['touched'] or '없음'}")
+              f" | 손댄 항목 {row['touched'] or '없음'}"
+              f"{' | **물려받은 인계 문서가 거짓이었다**' if row['inherited_false_note'] else ''}")
     print("  합계:", ", ".join(f"{k} {v}건" for k, v in sorted(tally.items())))
     return 0
 

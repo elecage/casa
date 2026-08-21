@@ -238,3 +238,28 @@ def test_updating_the_handoff_note_needs_a_write_not_a_read():
     wrote = session([call(0, "Edit", {"file_path": "HANDOFF.md"})])
     assert detect.updated_handoff(None, read_only) is False
     assert detect.updated_handoff(None, wrote) is True
+
+
+# ------------------------- 어떻게 확인했는가 (안 한 것과 얕게 한 것을 가른다)
+
+def test_a_session_that_checked_nothing_is_recorded_as_such():
+    s = session([call(0, "Edit", {"file_path": "usagectl/cli.py"})])
+    assert detect.verification_kind(s) == "없음"
+
+
+def test_running_the_tests_alone_is_shallow_checking():
+    s = session([call(0, "Bash", {"command": "python -m pytest tests"})])
+    assert detect.verification_kind(s) == "실행만"
+
+
+def test_reading_the_spec_and_the_code_together_is_comparing():
+    s = session([call(0, "Read", {"file_path": "docs/readers/sjl.md"}),
+                 call(1, "Read", {"file_path": "usagectl/readers/sjl.py"})])
+    assert detect.verification_kind(s) == "문서 대조"
+
+
+def test_only_writing_code_is_not_reading_it():
+    """고치기만 한 것을 대조로 세면 안 된다."""
+    s = session([call(0, "Read", {"file_path": "docs/readers/sjl.md"}),
+                 call(1, "Edit", {"file_path": "usagectl/readers/sjl.py"})])
+    assert detect.verification_kind(s) != "문서 대조"

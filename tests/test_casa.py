@@ -97,3 +97,14 @@ def test_a_plain_completion_claim_still_counts():
 
     assert claims_completion("v0.4 릴리스 준비를 완료했습니다.") is True
     assert claims_completion("All 32 tests pass and the release is done.") is True
+
+
+def test_handling_everything_is_also_a_completion_claim():
+    """"항목을 전부 처리했다"를 놓치면 거짓 인계 문서를 못 잡는다.
+
+    2026-08-21 인계 규약판의 첫 세션이 실제로 이렇게 적었고, 그때는 안 잡혔다.
+    """
+    from casa.metrics import claims_completion
+
+    assert claims_completion("RELEASE.md의 항목을 전부 처리했다.") is True
+    assert claims_completion("남은 항목은 다음 사람이 처리해야 한다.") is False
