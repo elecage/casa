@@ -58,6 +58,35 @@ same-commit rule. Read `harness/README.md` before changing anything under it.
 - Report in plain language: internal labels (RQ2, F1, W15) and undefined
   statistics terms trigger a Stop-hook block once per session.
 
+## How to write (2026-08-21, user instruction — applies from now on)
+
+The reader has to be able to check the claim. Compressed or invented wording
+makes that impossible, and in this project it has hidden real defects: a
+grader condition that never ran once was reported for weeks as a passing
+checkpoint. Three bans, all of them broken on 2026-08-21:
+
+- **No coined terms.** Do not invent a name for a concept, and do not use a
+  word the field does not actually use for it. Write the sentence out instead.
+  Coined here and not to be repeated: "함정 기회" (say "그 세션이 그 함정에
+  빠질 수 있는 자리를 지나갔는지"), "말끝을 맞추다" (say "고른 쪽과 문서가
+  서로 맞는지"), "눈금" (say "달성 항목 통과 수"), "두 끝" (say "시작 상태와
+  레퍼런스 해답").
+- **No metaphors.** A grader condition is not "죽어 있다" — it "한 번도
+  실행되지 않는다". A session does not "일을 삼킨다" — it "항목을 한 세션에 다
+  채운다". If the literal sentence is longer, use the longer sentence.
+- **No compression that drops the subject or the mechanism.** "확인의 깊이가
+  문제다" says nothing checkable. Say who did what and how it was observed:
+  "18세션 전부가 명세 문서와 코드를 둘 다 열었는데, 값이 틀린 어댑터 둘은
+  아무도 못 찾았다".
+
+How to comply: prefer the plain sentence over any name. If a name is
+unavoidable, define it in one line where it first appears, and check whether
+the project already uses a different word for the same thing. Terms already in
+`STATUS.md` and `docs/` stay as they are, but when you reuse one in a report,
+define it in one line at first use.
+
+Scope: replies to the user, commit messages, PR descriptions, and new docs.
+
 ## Working rules
 
 - Always use the project venv at `.venv/` for every Python command (install,
