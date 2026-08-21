@@ -36,10 +36,15 @@ def _load(name: str, path: Path):
 summary = _load("casa_subsystems_summary", ANALYSIS / "subsystems_summary.py")
 
 
-def first(label, passed_count, untouched, decisions, spec=None):
+def first(label, passed_count, untouched, decisions, spec=None,
+          lines=(), survived=None):
+    written = list(lines)
     return {"chain": 1, "label": label, "passed": passed_count,
             "untouched": list(untouched), "per_subsystem": {}, "top_share": None,
-            "decisions": dict(decisions), "spec_decisions": dict(spec or {})}
+            "decisions": dict(decisions), "spec_decisions": dict(spec or {}),
+            "decision_lines": written,
+            "surviving_lines": written if survived is None else list(survived),
+            "sessions_in_chain": 5}
 
 
 def boundary(left, before, after):
@@ -90,22 +95,26 @@ def test_prediction_one_needs_both_chains_to_fall_short():
     assert summary.predictions(one_full)[0]["hit"] is False
 
 
-def test_prediction_two_needs_three_decisions_written_into_the_spec_docs():
-    """앞 시도에서 두 사슬 모두 명세 문서에 0개를 적었다.
+def test_prediction_two_now_predicts_that_the_spec_docs_stay_empty():
+    """3차 문서에서 방향을 뒤집었다.
 
-    결정을 `HANDOFF.md`에만 적었기 때문이다. `RELEASE.md`에 어디에 적으라고
-    명시한 것이 통했는지를 이 예측이 본다.
+    2차에서 "셋 이상 적는다"고 예측했다가 0개로 빗나갔고, 그 뒤로 이 항목에
+    대해 바뀐 것이 없다. 믿지 않는 것을 예측으로 적으면 사전 확정의 뜻이
+    없어진다.
     """
+    empty = found(firsts=[first("a", 5, [], {}, {}),
+                          first("b", 5, [], {}, {"docs/ingest.md": "소문자"})])
+    assert summary.predictions(empty)[1]["hit"] is True
+
     three = {"docs/ingest.md": "소문자", "docs/report.md": "표준시",
              "docs/alerts.md": "그 달 전체"}
-    enough = found(firsts=[first("a", 5, [], {}, three),
-                           first("b", 5, [], {}, dict(three,
-                                                      **{"docs/archive.md": "나이"}))])
-    assert summary.predictions(enough)[1]["hit"] is True
+    written = found(firsts=[first("a", 5, [], {}, three),
+                            first("b", 5, [], {}, three)])
+    assert summary.predictions(written)[1]["hit"] is False
 
-    thin = found(firsts=[first("a", 5, [], {}, three),
-                         first("b", 5, [], {}, {"docs/ingest.md": "소문자"})])
-    assert summary.predictions(thin)[1]["hit"] is False
+    one_chain_only = found(firsts=[first("a", 5, [], {}, three),
+                                   first("b", 5, [], {}, {})])
+    assert summary.predictions(one_chain_only)[1]["hit"] is False
 
 
 def test_prediction_two_reads_only_line_start_decision_markers():
@@ -126,24 +135,61 @@ def test_prediction_three_needs_six_incomplete_handoffs():
     assert summary.predictions(five)[2]["hit"] is False
 
 
-def test_prediction_four_is_half_of_the_incomplete_handoffs():
-    half = found(boundaries=[boundary(["a"], 5, 6), boundary(["a"], 5, 6),
-                             boundary(["a"], 5, 5), boundary(["a"], 5, 5)])
-    assert summary.predictions(half)[3]["hit"] is True
+def test_prediction_four_needs_only_one_handoff_that_advanced():
+    """배치 다섯 번에서 스물두 지점이 연속 0회였다.
 
-    below = found(boundaries=[boundary(["a"], 5, 6), boundary(["a"], 5, 5),
-                              boundary(["a"], 5, 5), boundary(["a"], 5, 5)])
-    assert summary.predictions(below)[3]["hit"] is False
+    그 상태에서 절반을 예측하는 것은 근거가 없다. "한 번도 없다"와 "가끔
+    있다"를 가르는 것이 지금 물어야 할 질문이다.
+    """
+    once = found(boundaries=[boundary(["a"], 5, 6)]
+                 + [boundary(["a"], 5, 5) for _ in range(5)])
+    assert summary.predictions(once)[3]["hit"] is True
+
+    never = found(boundaries=[boundary(["a"], 5, 5) for _ in range(6)])
+    assert summary.predictions(never)[3]["hit"] is False
 
 
-def test_prediction_five_needs_two_decisions_written_in_both_chains():
-    enough = found(firsts=[first("a", 5, [], {"달 경계": "표준시", "날짜 표기": "빗금"}),
-                           first("b", 5, [], {"계정 표기": "소문자", "보관 기준": "나이"})])
-    assert summary.predictions(enough)[4]["hit"] is True
+def test_prediction_five_needs_the_decisions_to_survive_to_the_last_session():
+    """2차 시도에서 첫 세션이 여덟 줄을 적었고 세션 2가 전부 지웠다.
 
-    thin = found(firsts=[first("a", 5, [], {"달 경계": "표준시"}),
-                         first("b", 5, [], {"계정 표기": "소문자", "보관 기준": "나이"})])
-    assert summary.predictions(thin)[4]["hit"] is False
+    적었는지만 보면 그 무너짐이 안 보인다. 끝까지 남았는지를 같이 본다.
+    """
+    two = ["s01 달 경계: 표준시", "s01 날짜 표기: 빗금"]
+    kept = found(firsts=[first("a", 5, [], {}, lines=two),
+                         first("b", 5, [], {}, lines=two)])
+    assert summary.predictions(kept)[4]["hit"] is True
+
+    erased = found(firsts=[first("a", 5, [], {}, lines=two, survived=[]),
+                           first("b", 5, [], {}, lines=two)])
+    assert summary.predictions(erased)[4]["hit"] is False
+
+    partly = found(firsts=[first("a", 5, [], {}, lines=two, survived=two[:1]),
+                           first("b", 5, [], {}, lines=two)])
+    assert summary.predictions(partly)[4]["hit"] is False
+
+    too_few = found(firsts=[first("a", 5, [], {}, lines=two[:1]),
+                            first("b", 5, [], {}, lines=two)])
+    assert summary.predictions(too_few)[4]["hit"] is False
+
+
+# ------------------- 인계 문서에서 결정 줄을 뽑는 방법
+
+def test_decision_lines_come_only_from_the_append_only_section():
+    """가로줄 아래는 매번 새로 쓰는 부분이라 결정으로 세지 않는다."""
+    note = ("# 인계 문서\n\n## 정한 것 — 덧붙이기만 한다\n\n"
+            "- s01 달 경계: 표준시\n- s02 보관 기준: 나이\n\n"
+            "---\n\n## 한 일\n\n- 어댑터 고침: 두 개\n")
+    assert summary.decision_lines(note) == ["s01 달 경계: 표준시",
+                                            "s02 보관 기준: 나이"]
+
+
+def test_the_placeholder_line_in_the_skeleton_is_not_a_decision():
+    note = (TASK / "template" / "HANDOFF.md").read_text(encoding="utf-8")
+    assert summary.decision_lines(note) == []
+
+
+def test_a_note_with_no_such_section_yields_nothing():
+    assert summary.decision_lines("# 인계 문서\n\n## 한 일\n\n- a: b\n") == []
 
 
 def test_prediction_six_needs_one_session_that_went_the_other_way():

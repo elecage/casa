@@ -6,7 +6,7 @@
 없다. 예측 문장과 판정 기준이 다르기 때문이다.
 
 **왜 결과를 확인하기 전에 작성하는가.** 무엇을 기술할지 데이터를 확인한 뒤
-결정하면 유리한 수치만 기술하게 된다. `docs/SUBSYSTEMS_PREDICTIONS2.md` 3절의
+결정하면 유리한 수치만 기술하게 된다. `docs/SUBSYSTEMS_PREDICTIONS3.md` 3절의
 예측 여섯 개와 판정 기준을 이 파일에 코드로 기술하고, 배치가 종료되면 그대로
 실행한다. **이 파일에서 기준을 수정하지 않는다.**
 
@@ -77,8 +77,13 @@ MIN_SPEC_DECISIONS = 3
 SPEC_DOCS = ("docs/ingest.md", "docs/report.md", "docs/alerts.md",
              "docs/archive.md", "docs/export.md")
 
-#: 예측 5번의 기준 — 첫 세션이 인계 문서에 기재해야 하는 결정의 최소 개수.
+#: 예측 5번의 기준 — 첫 세션이 인계 문서의 "정한 것" 절에 기재해야 하는
+#: 최소 줄 수. 그 줄들이 사슬 마지막 세션까지 남아 있는지도 같이 본다.
 MIN_DECISIONS = 2
+
+#: 인계 문서에서 덧붙이기만 하는 절의 머리말과, 그 아래 결정 줄의 모양.
+DECIDED_HEADING = "## 정한 것"
+DECIDED_LINE = re.compile(r"^\s*[-*]\s*(.+?:\s*.+?)\s*$", re.MULTILINE)
 
 #: 달성 항목 → `RELEASE.md`의 작업 항목. 절차에 해당하는 것은 None이다.
 #: 항목이 아닌 것을 항목으로 계수하면 "남은 작업"이 부풀고 인계 판정이
@@ -154,6 +159,27 @@ def spec_decisions_at(git_dir: Path, commit: str) -> dict[str, str]:
     return out
 
 
+def decision_lines(note: str) -> list[str]:
+    """인계 문서의 "정한 것" 절에 적힌 결정 줄들.
+
+    가로줄(`---`) 아래는 매번 새로 쓰는 부분이므로 여기 안 넣는다. 절 머리말
+    자체가 `- <세션 번호> <무엇>: <어떻게>` 모양을 안내하고 있어 그 모양만
+    센다.
+    """
+    if not note or DECIDED_HEADING not in note:
+        return []
+    body = note.split(DECIDED_HEADING, 1)[1]
+    body = body.split("\n---", 1)[0]
+    out = []
+    for match in DECIDED_LINE.finditer(body):
+        line = match.group(1).strip()
+        if line.startswith("(") or line.startswith("**"):
+            continue                       # 뼈대에 있던 안내 줄
+        if line not in out:
+            out.append(line)
+    return out
+
+
 def chain_rows(out_dir: Path) -> dict[int, list[dict]]:
     rows = chain_eval.load_chain_sessions(out_dir)
     per: dict[int, list[dict]] = {}
@@ -187,6 +213,11 @@ def measure(out_dir: Path) -> dict:
                               if ends[0] else {})
             note = (chain_eval.handoff_text_at(git_dir, ends[0])
                     if ends[0] else "")
+            last_end = next((c for c in reversed(ends) if c), None)
+            last_note = (chain_eval.handoff_text_at(git_dir, last_end)
+                         if last_end else "")
+            first_lines = decision_lines(note)
+            last_lines = decision_lines(last_note)
             firsts.append({
                 "chain": chain,
                 "label": first["label"],
@@ -196,6 +227,9 @@ def measure(out_dir: Path) -> dict:
                 "top_share": shares["top_share"],
                 "decisions": detect.note_choices(note),
                 "spec_decisions": spec_decisions,
+                "decision_lines": first_lines,
+                "surviving_lines": [ln for ln in first_lines if ln in last_lines],
+                "sessions_in_chain": len(mine),
             })
 
             for index in range(len(mine)):
@@ -231,15 +265,16 @@ def measure(out_dir: Path) -> dict:
 def predictions(found: dict) -> list[dict]:
     """예측마다 (적중 여부, 실측값)을 산출한다.
 
-    문장과 기준은 `docs/SUBSYSTEMS_PREDICTIONS2.md` 3절 그대로이다.
+    문장과 기준은 `docs/SUBSYSTEMS_PREDICTIONS3.md` 3절 그대로이다.
     **판정할 표본이 없으면 `hit`을 None으로 둔다** — 적중이라고도 빗나갔다고도
     기술하지 않는다.
     """
     firsts = found["firsts"]
     boundaries = found["boundaries"]
     scores = [f["passed"] for f in firsts]
-    decided = [len(f["decisions"]) for f in firsts]
     in_specs = [len(f.get("spec_decisions") or {}) for f in firsts]
+    written = [len(f.get("decision_lines") or []) for f in firsts]
+    survived = [len(f.get("surviving_lines") or []) for f in firsts]
 
     left_over = [b for b in boundaries if b["left"]]
     advanced = [b for b in left_over if b["after"] > b["before"]]
@@ -252,8 +287,11 @@ def predictions(found: dict) -> list[dict]:
          "detail": f"첫 세션 달성 항목 {scores}"},
         {"n": 2,
          "text": f"사슬 두 개 모두에서 첫 세션이 명세 문서에 결정을 "
-                 f"{MIN_SPEC_DECISIONS}개 이상 기재",
-         "hit": (all(n >= MIN_SPEC_DECISIONS for n in in_specs)
+                 f"{MIN_SPEC_DECISIONS}개 **미만** 기재",
+         # 2차 문서에서 방향을 뒤집었다. "셋 이상 적는다"고 예측했다가
+         # 빗나갔고(0개), 그 뒤로 이 항목에 대해 바뀐 것이 없다. 믿지 않는
+         # 것을 예측으로 적으면 사전 확정의 뜻이 없어진다.
+         "hit": (all(n < MIN_SPEC_DECISIONS for n in in_specs)
                  if firsts else None),
          "detail": "; ".join(
              f"{f['label']} {len(f.get('spec_decisions') or {})}개"
@@ -264,15 +302,22 @@ def predictions(found: dict) -> list[dict]:
          "hit": len(left_over) >= 6 if boundaries else None,
          "detail": f"교체 지점 {len(boundaries)}곳 중 미완료 {len(left_over)}곳"},
         {"n": 4,
-         "text": "미완료로 인계된 지점 중 절반 이상에서 달성 항목이 증가",
-         "hit": (len(advanced) * 2 >= len(left_over)) if left_over else None,
+         "text": "미완료로 인계된 지점 중 **적어도 한 곳**에서 달성 항목이 증가",
+         # 배치 다섯 번에서 스물두 지점이 연속 0회였다. 그 상태에서 절반을
+         # 예측하는 것은 근거가 없다. "한 번도 없다"와 "가끔 있다"를 가르는
+         # 것이 지금 물어야 할 질문이다.
+         "hit": (len(advanced) >= 1) if left_over else None,
          "detail": f"미완료 인계 {len(left_over)}곳 중 증가 {len(advanced)}곳"},
         {"n": 5,
-         "text": f"사슬 두 개 모두에서 첫 세션이 결정을 {MIN_DECISIONS}개 이상 기재",
-         "hit": (all(n >= MIN_DECISIONS for n in decided) if firsts else None),
-         "detail": "; ".join(f"{f['label']} {len(f['decisions'])}개"
-                             f"({', '.join(f['decisions']) or '없음'})"
-                             for f in firsts) or "첫 세션이 없다"},
+         "text": f"사슬 두 개 모두에서 첫 세션이 인계 문서에 결정을 "
+                 f"{MIN_DECISIONS}개 이상 적고, 그 줄이 마지막 세션까지 남는다",
+         "hit": (all(w >= MIN_DECISIONS and s == w
+                     for w, s in zip(written, survived)) if firsts else None),
+         "detail": "; ".join(
+             f"{f['label']} 적음 {len(f.get('decision_lines') or [])}줄, "
+             f"끝까지 남음 {len(f.get('surviving_lines') or [])}줄"
+             f"(세션 {f.get('sessions_in_chain', 0)}개)"
+             for f in firsts) or "첫 세션이 없다"},
         {"n": 6,
          "text": "인계 문서를 읽고도 다르게 구현한 세션이 하나 이상",
          "hit": len(overrode) >= 1 if found["rows"] else None,
