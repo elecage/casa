@@ -44,7 +44,12 @@ def main(argv=None) -> int:
             print(report.render_text(built), end="")
     elif args.command == "alerts":
         fired = alerts.fire(records, alerts.load(args.root))
-        print(json.dumps(fired, ensure_ascii=False, indent=2))
+        # 어느 달을 놓고 셌는지 같이 낸다. 울린 것만 보면 리포트와 어긋난
+        # 달에 아무것도 안 울릴 때 그 어긋남이 안 보인다.
+        months = sorted({month for _account, month
+                         in alerts.monthly_totals(records)})
+        print(json.dumps({"months": months, "fired": fired},
+                         ensure_ascii=False, indent=2))
     elif args.command == "archive":
         as_of = datetime.fromisoformat(settings["as_of"])
         picked = archive.by_age(records, as_of, settings["retain_days"])
