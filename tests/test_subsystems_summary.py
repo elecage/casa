@@ -291,6 +291,40 @@ def test_a_run_with_no_budget_recorded_counts_nothing():
     assert summary.budget_overruns(rows) == []
 
 
+def test_a_run_with_the_budget_turned_off_counts_nothing():
+    """예산 0으로 돌리면 호출 수로는 아무것도 판정하지 않는다.
+
+    0을 예산으로 취급해 "999회가 0을 넘었다"고 세면 모든 세션이 초과로
+    잡힌다.
+    """
+    rows = [_row("c01s01", 999, budget=0, cap=None)]
+    assert summary.budget_stops(rows) == []
+    assert summary.budget_overruns(rows) == []
+
+
+# ------------------- 시간에 걸려 중단된 세션을 계수한다
+
+def test_sessions_cut_by_the_time_limit_are_counted_with_the_limit():
+    """예산이 없으면 세션을 끊는 것은 시간뿐이다. 시간에 걸린 세션은
+    프로세스가 죽어 인계 문서를 못 쓰고 끝나므로 반드시 계수한다."""
+    rows = [{"label": "c01s01", "meta": {"timed_out": True, "timeout_s": 300}},
+            {"label": "c01s02", "meta": {"timed_out": False, "timeout_s": 300}}]
+    assert summary.timed_out_sessions(rows) == ["c01s01(300s)"]
+
+
+def test_a_time_cut_recorded_only_inside_the_cli_payload_still_counts():
+    """앞선 배치들은 `timed_out` 을 세션 줄에 따로 안 적고 CLI 응답 안에만
+    남겼다. 그 기록도 세어야 예전 배치를 같은 도구로 읽을 수 있다."""
+    rows = [{"label": "c01s01", "meta": {"cli": {"timed_out": True}}}]
+    assert summary.timed_out_sessions(rows) == ["c01s01"]
+
+
+def test_a_session_that_finished_on_its_own_is_not_counted_as_cut():
+    rows = [{"label": "c01s01", "meta": {"cli": {"timed_out": None}}},
+            {"label": "c01s02", "meta": {}}]
+    assert summary.timed_out_sessions(rows) == []
+
+
 # ------------------- 덜 끝난 배치를 완주한 것처럼 읽지 않게 한다
 
 def test_an_unfinished_batch_says_so_before_the_prediction_table(tmp_path,

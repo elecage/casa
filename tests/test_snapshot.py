@@ -158,7 +158,10 @@ def test_budget_and_snapshot_hooks_coexist(tmp_path):
         encoding="utf-8"))
     assert "PreToolUse" in settings["hooks"]
     assert "PostToolUse" in settings["hooks"]
-    assert (work / ".casa-chain.json").is_file()
+    # 설정 파일은 작업 트리 **밖**이다 — 안에 두면 세션이 예산과 상한을 읽을
+    # 수 있고, 그러면 훅 메시지에서 수를 뺀 뜻이 없어진다.
+    assert not (work / ".casa-chain.json").exists()
+    assert (tmp_path / ".casa-chain.json").is_file()
 
 
 def test_the_single_session_runner_takes_a_budget():

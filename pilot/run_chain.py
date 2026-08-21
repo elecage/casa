@@ -178,6 +178,11 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
             "cli": cli, "budget": budget,
             "budget_hard_cap": chain_budget.hard_cap_for(budget),
             "served_models": served_models(cli),
+            # 예산이 없으면 세션을 끊는 것은 시간뿐이다. 시간에 걸려 끊긴
+            # 세션은 인계 문서를 못 쓰고 끝나므로, 몇 세션이 그렇게 끊겼는지가
+            # 그 갈래를 판단하는 값이다.
+            "timed_out": bool(cli.get("timed_out")),
+            "timeout_s": timeout_s,
         }
 
         transcript = collect_transcript(workdir, cli, out_dir, label, seen)
@@ -249,7 +254,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--chains", type=int, default=1)
     ap.add_argument("--sessions", type=int, default=6)
     ap.add_argument("--budget", type=int, default=60,
-                    help="tool calls per session")
+                    help="tool calls per session; 0 이면 예산 훅을 아예 "
+                         "배선하지 않고 --timeout-min 으로만 제한한다")
     ap.add_argument("--out", default="results/chain")
     ap.add_argument("--model", default=None)
     ap.add_argument("--timeout-min", type=int, default=40)

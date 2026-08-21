@@ -382,6 +382,25 @@ def budget_overruns(rows: list[dict]) -> list[str]:
     return out
 
 
+def timed_out_sessions(rows: list[dict]) -> list[str]:
+    """제한 시간에 걸려 **중단된** 세션.
+
+    예산을 0으로 두고 시간으로만 제한하면(2026-08-21 유저 지시) 세션을 끊는
+    것은 시간뿐이다. 시간에 걸린 세션은 프로세스가 죽으므로 **인계 문서를
+    쓰지 못하고 끝난다.** 다음 세션은 남은 작업과 낡은 인계 문서를 물려받는다.
+    그래서 몇 세션이 이렇게 끊겼는지가 그 갈래를 판단하는 값이고, 반드시
+    계수하여 기록한다 — 중단된 세션도 실행 기록에는 한 줄로 남기 때문에
+    세지 않으면 정상 완주와 구별되지 않는다.
+    """
+    out = []
+    for row in rows:
+        meta = row["meta"]
+        if meta.get("timed_out") or (meta.get("cli") or {}).get("timed_out"):
+            limit = meta.get("timeout_s")
+            out.append(f"{row['label']}({limit}s)" if limit else row["label"])
+    return out
+
+
 # ------------------------------------------------------------------- 출력
 
 def render(out_dir: Path) -> str:
@@ -426,6 +445,11 @@ def render(out_dir: Path) -> str:
         f"{', '.join(stopped) or '없음'}")
     add("- 절반을 넘으면 100호출이 이 저장소에 적합하지 않은 것이다"
         "(`docs/SUBSYSTEMS_PREDICTIONS6.md` 5절).")
+    cut = timed_out_sessions(rows)
+    add(f"- 제한 시간에 걸려 중단된 세션 {len(cut)}/{len(rows)}: "
+        f"{', '.join(cut) or '없음'}")
+    add("  예산을 0으로 두고 시간으로만 제한한 실행에서는 이것이 세션을 끊는")
+    add("  유일한 수단이다. 중단된 세션은 인계 문서를 쓰지 못하고 끝난다.")
     add("")
 
     add("## 세션별")
