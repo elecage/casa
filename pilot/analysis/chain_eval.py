@@ -335,6 +335,20 @@ def classify_handoff(before: dict, after: dict, touched: set[str],
     return "손댔지만 못 고침"
 
 
+def achieved(checks: dict) -> str:
+    """"달성 14/14" 처럼 통과 수와 전체 수를 적는다.
+
+    전체 수는 **그 세션의 채점 결과에서 센다.** 2026-08-21 이전에는 9라고
+    코드에 박혀 있었는데, 그날 과제의 달성 항목이 14개로 늘면서 통과를 다
+    한 세션이 `달성 14/9` 로 찍혔다. 숫자는 맞고 분모만 틀린 종류라 읽는
+    사람이 통과율을 거꾸로 읽는다.
+
+    통과 수는 True 만 센다 — 판정 불가(None)는 통과가 아니다.
+    """
+    passed = sum(1 for value in checks.values() if value is True)
+    return f"달성 {passed}/{len(checks)}"
+
+
 def handoffs(out_dir: Path) -> list[dict]:
     """사슬마다 인계 지점을 하나씩 판정한다."""
     from casa.metrics import claims_completion
@@ -391,7 +405,6 @@ def main() -> int:
         fixed = [k for k, v in vector.items() if v.blame == "fixed"]
         recovered = [k for k, v in vector.items() if v.blame == "recovered"]
         checks = (row["meta"].get("grade") or {}).get("checkpoints") or {}
-        passed = sum(1 for v in checks.values() if v is True)
         session = row["session"]
         kind = probe.detect.verification_kind(session) if session else "?"
         read = probe.detect.read_handoff(session) if session else False
@@ -400,7 +413,7 @@ def main() -> int:
               f" | 물려받아 못 고침 {inherited or '없음'}"
               f" | 물려받아 고침 {fixed or '없음'}"
               f" | 스스로 회복 {recovered or '없음'}"
-              f" | (부수 기록: 달성 {passed}/9)")
+              f" | (부수 기록: {achieved(checks)})")
         print(f"      인계 문서 읽음 {'O' if read else 'X'}"
               f" | 마칠 때 남김 {'O' if wrote else 'X'}"
               f" | 어떻게 확인했나: {kind}")

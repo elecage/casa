@@ -179,3 +179,23 @@ def test_claiming_done_when_everything_is_done_is_not_false():
 def test_no_note_at_all_is_not_counted_as_a_false_note():
     """안 남긴 것과 거짓을 남긴 것은 다른 문제다."""
     assert chain_eval.left_false_handoff("", {"report.all_inputs": False}) is False
+
+
+# ----------------------------------------- 부수 기록의 분모는 세어서 쓴다
+
+def test_the_achievement_line_counts_the_denominator_from_the_grade():
+    """분모를 코드에 박아 두면 항목이 늘 때 통과율이 거꾸로 읽힌다.
+
+    2026-08-21에 실제로 `달성 14/9` 가 찍혔다.
+    """
+    fourteen = {f"c{i}": True for i in range(14)}
+    assert chain_eval.achieved(fourteen) == "달성 14/14"
+
+
+def test_undecidable_checkpoints_count_in_the_total_but_not_as_passes():
+    checks = {"a": True, "b": False, "c": None}
+    assert chain_eval.achieved(checks) == "달성 1/3"
+
+
+def test_no_grade_at_all_reads_as_zero_of_zero():
+    assert chain_eval.achieved({}) == "달성 0/0"
