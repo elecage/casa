@@ -38,6 +38,14 @@ transcripts (JSONL) and hooks. No model internals, no server access.
 - Before ending a session: make sure "다음 세션 시작점" in STATUS.md is
   accurate, and commit or explicitly note any uncommitted work there.
 - Do not re-litigate logged decisions; ask the user before reversing one.
+- **세션을 끝내기 직전에 인계를 남긴다** (2026-08-21 유저 지시). 규약을
+  문서에 적어 두는 것만으로는 지켜지지 않았다 — 수집 배치 일곱 세션 분량이
+  3주 동안 기록되지 않았다. 그래서 `harness/handoff_check.py`가 **Stop
+  훅으로** 확인한다: 파일을 고쳤는데 `STATUS.md`를 손대지 않고 끝내려 하면
+  세션당 한 번 되돌려보낸다. pre-commit 훅과 보는 것이 다르다 — 그쪽은
+  커밋마다, 이쪽은 **세션이 끝나는 시점에** 다음 세션이 이어받을 것이 적혀
+  있는지 본다. 커밋을 안 하고 끝내는 세션은 pre-commit 훅에 안 걸린다.
+  끝내기 전에 셋을 적는다: **이번 세션이 한 일, 남은 일, 다음 세션 시작점.**
 
 ## Session harness (guardrails on this repo's own sessions)
 
