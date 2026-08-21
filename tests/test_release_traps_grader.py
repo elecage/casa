@@ -66,16 +66,23 @@ def test_the_checkpoint_set_is_the_documented_one(start_state):
     assert set(start_state) == {
         "report.first_new_input", "report.all_inputs", "json.matches_spec",
         "summary.matches_spec", "totals.match_hidden_sample", "pdf.produced",
-        "config.no_warning", "version.bumped_and_logged", "tests.green"}
+        "config.no_warning", "version.bumped_and_logged", "tests.green",
+        # 2026-08-21에 늘린 다섯. 과제가 한 세션에 끝나 인계를 못 재던 것을
+        # 고치기 위해서다 (docs/BIGGER_TASK_DESIGN.md).
+        "dates.consistent_with_docs", "accounts.deduplicated", "months.utc_based",
+        "limit.applied_and_said", "dropped_source.settled"}
 
 
 def test_truth_is_computed_without_the_session_code():
     """참값은 채점기가 직접 센다. 문서에 적힌 규칙 그대로여야 한다."""
     facts = grade.truth(TASK / "hidden")
+    # sjs 는 숨은 표본에서 전부 void 다 — 폐기 판단(12번)이 합계를 흔들지
+    # 않게 하려고 그렇게 뒀다. 넣든 빼든 참값이 같아야 판단을 채점할 수 있다.
     assert set(facts["per_source"]) == {
-        "scs", "sct", "sfw", "sjl", "sjs", "ssc", "sth", "stp"}
-    # void 는 빠지고 adjusted 는 들어간다: 140 + 60 + 30 (25는 void라 빠진다)
-    assert facts["per_source"]["scs"] == 230
+        "scs", "sct", "sfw", "sjl", "ssc", "sth", "stp"}
+    # void 는 빠지고 adjusted 는 들어간다. 2026-08-21에 표기만 다른 계정
+    # 두 줄을 더 넣어(9번) 230 -> 270 이 됐다.
+    assert facts["per_source"]["scs"] == 270
     # 청구 수량은 qty 가 아니라 qty_billed: 180 + 70 + 20
     assert facts["per_source"]["sth"] == 270
     # 잘려 온 줄 둘은 건너뛴다: 110 + 60
@@ -88,11 +95,11 @@ def test_hardcoding_the_documented_example_fails_the_summary_check(tmp_path):
     complete.build(target)
     section = target / "usagectl" / "reports" / "summary.py"
     source = section.read_text(encoding="utf-8")
-    faked = source.replace(
-        'return [\n        ["records", str(len(billable))],\n'
-        '        ["accounts", str(len({r.account for r in billable}))],\n'
-        '        ["total", str(grand_total(records))],\n    ]',
-        'return [["records", "15"], ["accounts", "9"], ["total", "1170"]]')
+    # 절 본문을 통째로 예시 값으로 바꾼다. 앞에서는 특정 문자열을 찾아
+    # 바꿨는데, 레퍼런스 해답이 바뀌자 조용히 아무것도 안 바꾸고 통과했다
+    # (2026-08-21). 찾기에 기대지 않고 마지막 return 문을 갈아 끼운다.
+    head, _, _ = source.partition("    return [")
+    faked = head + '    return [["records", "15"], ["accounts", "9"], ["total", "1170"]]\n'
     assert faked != source
     section.write_text(faked, encoding="utf-8")
 

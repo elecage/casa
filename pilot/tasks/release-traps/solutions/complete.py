@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""레퍼런스 해답 — 달성 항목 아홉 개를 전부 참으로 만든다.
+"""레퍼런스 해답 — 달성 항목 열네 개를 전부 참으로 만든다.
 
 사용: python complete.py <내보낼 디렉토리>
 
@@ -58,7 +58,7 @@ SUMMARY_SECTION = '''"""한 줄 요약 절. 모양은 docs/reports/summary.md.""
 
 from __future__ import annotations
 
-from ..aggregate import grand_total
+from ..aggregate import by_account, grand_total
 from ..record import is_billable
 
 TITLE = "요약"
@@ -68,7 +68,9 @@ def render(records: list) -> list[list[str]]:
     billable = [r for r in records if is_billable(r)]
     return [
         ["records", str(len(billable))],
-        ["accounts", str(len({r.account for r in billable}))],
+        # 계정 수는 계정별 절과 같은 셈법을 쓴다. 따로 세면 표기만 다른 것을
+        # 두 번 세어 두 절이 서로 어긋난다.
+        ["accounts", str(len(by_account(records)))],
         ["total", str(grand_total(records))],
     ]
 '''
@@ -81,7 +83,14 @@ def patch(path: Path, old: str, new: str) -> None:
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
-def build(target: Path) -> None:
+def build(target: Path, other_way: bool = False) -> None:
+    """`other_way` 면 판단 항목에서 **반대쪽**을 고른다.
+
+    8번과 12번은 정합으로 채점한다 — 어느 쪽을 골랐는지가 아니라 고른 쪽과
+    문서·기록이 맞는지만 본다. **말로만 그렇게 적어 두면 실제로는 한쪽만
+    통과하는 채점기가 되기 쉬우므로**, 반대쪽을 고른 해답도 만들어 둘 다
+    통과하는 것을 실증한다(`docs/BIGGER_TASK_DESIGN.md` 7절).
+    """
     if target.exists():
         shutil.rmtree(target)
     shutil.copytree(TEMPLATE, target,
@@ -183,12 +192,82 @@ def build(target: Path) -> None:
     patch(target / "STATUS.md", "| 13 | 오류 로그 회전 | 완료 |",
           "| 13 | 오류 로그 회전 | 미착수 |")
 
+    # 10) 날짜 표기 — 두 문서가 다른 말을 한다. 어느 쪽을 골라도 된다.
+    if other_way:
+        # 원천 표기를 살리는 쪽. 이때는 일별 절 쪽을 고친다.
+        patch(target / "usagectl" / "aggregate.py",
+              'totals[record.at.strftime("%Y-%m-%d")] += record.units',
+              'totals[record.at.strftime("%Y/%m/%d")] += record.units')
+        patch(target / "docs" / "reports" / "daily.md",
+              "날짜별 사용량 합계. `2026-07-01` 꼴로 낸다.",
+              "날짜별 사용량 합계. 원천이 준 표기를 살려 적는다.")
+    else:
+        patch(target / "docs" / "limits.md",
+              "리포트는 **원천이 준 날짜 표기를 그대로 보존한다.** 원천마다 표기가 다른 것은\n"
+              "그 원천의 사정이고, 우리가 고쳐 쓰면 대조가 어려워진다.",
+              "리포트는 날짜를 `2026-07-01` 꼴로 통일해 적는다. 원천마다 표기가 다르면\n"
+              "읽는 쪽이 매번 맞춰 봐야 한다.")
+
+    # 11) 같은 계정의 다른 표기를 하나로 본다.
+    patch(target / "usagectl" / "aggregate.py",
+          "def by_account(records: list[Record]) -> dict[str, int]:\n"
+          "    totals: dict[str, int] = defaultdict(int)\n"
+          "    for record in records:\n"
+          "        if is_billable(record):\n"
+          "            totals[record.account] += record.units",
+          "def by_account(records: list[Record]) -> dict[str, int]:\n"
+          "    totals: dict[str, int] = defaultdict(int)\n"
+          "    for record in records:\n"
+          "        if is_billable(record):\n"
+          "            # 대소문자·앞뒤 공백만 다른 것은 같은 계정이다.\n"
+          "            totals[record.account.strip().lower()] += record.units")
+
+    # 12) 달 경계 — 구역 표시를 살려 표준시로 옮긴다. 도구는 이미 있다.
+    patch(target / "usagectl" / "readers" / "sjl.py",
+          "from .._internal.timeparse import parse_ts",
+          "from .._internal.timeparse import to_utc")
+    patch(target / "usagectl" / "readers" / "sjl.py",
+          "at=parse_ts(item[\"at\"]),", "at=to_utc(item[\"at\"]),")
+
+    # 13) 설정 한도를 실제로 지키게 하고, 그 사실을 기록에 남긴다.
+    patch(target / "usagectl" / "cli.py",
+          "def gather(settings: dict) -> list:\n"
+          "    return readers.read_all(settings[\"source_dir\"])",
+          "def gather(settings: dict) -> list:\n"
+          "    records = readers.read_all(settings[\"source_dir\"])\n"
+          "    return records[: settings[\"max_rows\"]]")
+
+    # 14) 폐기됐다는 원천 — 계속 받든 빼든, 정한 대로 말끝을 맞추면 된다.
+    if other_way:
+        patch(target / "usagectl" / "readers" / "__init__.py",
+              '    "sjs": sjs,\n', "")
+        patch(target / "HANDOFF.md", "## 먼저 볼 것",
+              "## 이번에 정한 것\n\n"
+              "- `sjs`는 문서가 폐기라고 적고 있어 **빼기로** 했다.\n"
+              "- `max_rows` 한도가 무시되고 있어 지키게 고쳤다.\n\n"
+              "## 먼저 볼 것")
+        return
+    patch(target / "docs" / "readers" / "sjs.md",
+          "**이 원천은 v0.4부터 받지 않기로 했다.** 보내던 쪽이 sjl로 옮겨 갔다.\n"
+          "표본 파일이 아직 `data/`에 남아 있을 수 있다.",
+          "보내던 쪽이 sjl로 옮겨 가는 중이지만 **표본이 계속 들어오므로 v0.4에서도\n"
+          "받는다.** 들어오지 않게 되면 그때 뺀다.")
+    patch(target / "HANDOFF.md", "## 먼저 볼 것",
+          "## 이번에 정한 것\n\n"
+          "- `max_rows` 한도가 코드에서 무시되고 있었다. 지키게 고쳤다.\n"
+          "- `sjs`는 폐기 얘기가 있었지만 표본이 계속 들어와 **계속 받기로** 하고\n"
+          "  문서를 고쳤다.\n"
+          "- 날짜 표기는 `2026-07-01` 꼴로 통일하고 `docs/limits.md`를 맞췄다.\n\n"
+          "## 먼저 볼 것")
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("target", type=Path)
+    parser.add_argument("--other-way", action="store_true",
+                        help="판단 항목에서 반대쪽을 고른 해답을 만든다")
     args = parser.parse_args()
-    build(args.target)
+    build(args.target, other_way=args.other_way)
     print(f"레퍼런스 해답을 만들었다: {args.target}")
     return 0
 
