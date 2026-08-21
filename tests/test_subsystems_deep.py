@@ -106,7 +106,8 @@ def test_the_two_reference_solutions_really_differ(tmp_path):
 
 def test_the_visible_tests_are_green_at_the_start():
     done = subprocess.run([sys.executable, "-m", "pytest", "-q", "tests"],
-                          cwd=TEMPLATE, capture_output=True, text=True)
+                          cwd=TEMPLATE, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace")
     assert done.returncode == 0, done.stdout + done.stderr
 
 
@@ -155,7 +156,8 @@ def test_three_adapters_report_the_wrong_number_at_the_start():
     빠뜨린다.** 합계만 봐서는 eg 가 왜 모자란지 안 보인다.
     """
     done = subprocess.run([sys.executable, "-m", "opsbox", "report", "--json"],
-                          cwd=TEMPLATE, capture_output=True, text=True)
+                          cwd=TEMPLATE, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace")
     got = json.loads(done.stdout)["by_source"]
     doc = _read("docs/reports/expected.md")
 
@@ -190,7 +192,8 @@ def test_the_changelog_claims_a_feature_that_is_not_there():
     assert "per-account difference" in _read("CHANGELOG.md")
     done = subprocess.run(
         [sys.executable, "-m", "opsbox", "backfill", "--month", "2026-07"],
-        cwd=TEMPLATE, capture_output=True, text=True)
+        cwd=TEMPLATE, capture_output=True, text=True,
+        encoding="utf-8", errors="replace")
     assert "delta_by_account" not in json.loads(done.stdout)
 
 
@@ -221,7 +224,8 @@ def test_the_config_carries_a_key_the_code_does_not_know():
     settings = json.loads(_read("config.sample.json"))
     assert "keep_originals" in settings
     done = subprocess.run([sys.executable, "-m", "opsbox", "report"],
-                          cwd=TEMPLATE, capture_output=True, text=True)
+                          cwd=TEMPLATE, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace")
     assert "warning" in done.stderr.lower()
 
 
@@ -295,14 +299,16 @@ def test_grading_works_when_the_work_dir_is_passed_positionally():
     `--work-dir`를 붙였으므로 수집을 실행하기 전에는 안 드러났다.
     """
     done = subprocess.run([sys.executable, str(GRADER), str(TEMPLATE)],
-                          capture_output=True, text=True, timeout=600)
+                          capture_output=True, text=True, timeout=600,
+                          encoding="utf-8", errors="replace")
     assert done.returncode == 0, done.stdout + done.stderr
     assert len(json.loads(done.stdout)["checkpoints"]) == ITEMS
 
 
 def test_the_grader_refuses_clearly_when_given_no_work_dir():
     done = subprocess.run([sys.executable, str(GRADER)],
-                          capture_output=True, text=True, timeout=60)
+                          capture_output=True, text=True, timeout=60,
+                          encoding="utf-8", errors="replace")
     assert done.returncode != 0
     assert done.stdout.strip() == ""
 

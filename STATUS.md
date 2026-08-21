@@ -310,6 +310,18 @@ A에 심은 값 결함 둘: **bd 어댑터가 `qty_billed` 대신 `qty`를 센�
 **예산 30, 상한 45로 잡는다.** 방향 잡기 17 + 서브시스템 하나 8~13이 예산
 안에 들어가고, 조금 넘겨야 끝나는 세션은 상한 45까지 쓸 수 있다.
 
+**CI 가 Windows 에서 빨간 것을 고쳤다(2026-08-21).** 코드가 아니라 테스트가
+원인이었다. `os.geteuid` 는 POSIX 에만 있는데
+`test_the_sandbox_flag_is_not_forced_when_not_root` 가 그것을
+`unittest.mock.patch.object` 로 바꾸려다 Windows Python 3.10 에서
+`AttributeError` 를 냈다. 코드 쪽(`_allow_root_skip_permissions`)은
+`getattr(os, "geteuid", None)` 으로 이미 그 경우를 막고 있었다. `create=True`
+를 붙이고, `os.geteuid` 자체가 없는 경우를 판정하는 테스트를 하나 더 넣었다.
+같이 고친 것: `tests/test_subsystems_deep.py` 의 하위 프로세스 호출 여섯이
+인코딩을 지정하지 않아 Windows 기본 코덱(cp1252)으로 읽고 있었다. 채점기가
+한국어 오류 메시지를 내면 읽기 스레드가 거기서 죽는다. 여섯 전부에
+`encoding="utf-8", errors="replace"` 를 붙였다.
+
 **남은 일.**
 
 1. 보정 사슬 하나를 돌려 세션마다 실제로 몇 개를 하는지 본다

@@ -171,9 +171,21 @@ def test_the_sandbox_flag_is_not_forced_when_not_root():
     import unittest.mock
 
     env: dict[str, str] = {}
-    with unittest.mock.patch.object(os, "geteuid", return_value=1000):
+    # Windows 에는 `os.geteuid` 가 아예 없어서 `create=True` 없이는 이 테스트
+    # 자체가 AttributeError 로 실패한다. 판정 대상은 root 가 아닐 때의 동작이다.
+    with unittest.mock.patch.object(os, "geteuid", return_value=1000, create=True):
         run_sessions._allow_root_skip_permissions(env)
     assert env == {}
+
+
+def test_the_sandbox_flag_is_not_forced_where_there_is_no_geteuid():
+    """`os.geteuid` 가 없는 Windows 에서도 예외를 내지 않고 지나가야 한다."""
+    import unittest.mock
+
+    env = {"IS_SANDBOX": "yes"}
+    with unittest.mock.patch.object(os, "geteuid", None, create=True):
+        run_sessions._allow_root_skip_permissions(env)
+    assert env == {"IS_SANDBOX": "yes"}
 
 
 def test_ml_shift_task_has_requirements():
