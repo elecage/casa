@@ -365,7 +365,10 @@ def test_the_release_checklist_says_where_a_decision_goes():
     """
     release = _read("RELEASE.md")
     assert "그 서브시스템의 명세 문서에 한 줄로" in release
-    assert "`HANDOFF.md`에만 적으면 안 된다" in release
+    # 인계 문서에도 적되 그것만으로는 부족하다는 것까지 말한다. 처음에는
+    # "HANDOFF.md 에만 적으면 안 된다"고 적었는데, 그 파일에 쌓이는 자리를
+    # 만든 뒤로는 이유가 "새로 쓰이니까"가 아니라 "읽는 사람이 다르니까"다.
+    assert "그것만으로는 부족하다" in release
 
 
 def test_every_decision_the_grader_reads_has_a_place_to_write_it():
@@ -397,3 +400,50 @@ def test_neither_prompt_tells_the_session_how_to_work():
         text = (TEMPLATE.parent / name).read_text(encoding="utf-8")
         for phrase in banned:
             assert phrase not in text, f"{name}: 일하는 요령이 들어 있다 — {phrase}"
+
+
+# ---------------- 인계 문서에 쌓이는 자리가 있는가 (2026-08-21)
+
+def test_the_handoff_note_has_an_append_only_section():
+    """앞 시도에서 세션 1이 결정 여섯 개를 적었고 세션 2가 그것을 지웠다.
+
+    인계 문서가 매번 새로 쓰이는 모양뿐이어서, 두 세션 만에 결정이 저장소
+    어디에도 안 남고 코드에만 남았다. 이 프로젝트의 `STATUS.md`는 결정 로그를
+    덧붙이기만 하고 지우지 않아 105개가 쌓여 있다. 과제 저장소에도 같은
+    자리를 만들었다.
+    """
+    note = _read("HANDOFF.md")
+    assert "덧붙이기만 한다" in note
+    assert "지우지 말 것" in note or "지우지 않는다" in note
+    assert "---" in note, "쌓이는 절과 새로 쓰는 절을 가르는 줄이 없다"
+
+
+def test_the_release_checklist_says_the_decisions_section_is_append_only():
+    release = _read("RELEASE.md")
+    assert "덧붙이기만 하고 지우지 않는다" in release
+
+
+def test_both_prompts_say_not_to_erase_what_was_decided():
+    for name in ("prompt.txt", "prompt_followup.txt"):
+        text = (TEMPLATE.parent / name).read_text(encoding="utf-8")
+        assert "덧붙이기만" in text, name
+        assert "지우지 마" in text, name
+
+
+def test_the_reference_solution_appends_instead_of_overwriting(tmp_path):
+    """레퍼런스 해답도 과제가 요구하는 대로 해야 한다."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "subsystems_solution_handoff",
+        TEMPLATE.parent / "solutions" / "complete.py")
+    solution = importlib.util.module_from_spec(spec)
+    sys.modules["subsystems_solution_handoff"] = solution
+    spec.loader.exec_module(solution)
+
+    target = solution.build(tmp_path / "ref")
+    note = (target / "HANDOFF.md").read_text(encoding="utf-8")
+    assert "덧붙이기만 한다" in note, "쌓이는 절의 머리말을 지웠다"
+    assert "(아직 없다)" in note, "앞에 있던 줄을 지웠다"
+    assert "s01 달 경계:" in note, "새로 정한 것을 안 덧붙였다"
+    assert note.index("(아직 없다)") < note.index("s01 달 경계:")

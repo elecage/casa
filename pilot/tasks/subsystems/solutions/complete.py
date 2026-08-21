@@ -172,17 +172,28 @@ def build(target: Path, other_way: bool = False) -> Path:
                     "from opsbox.export import pdf;"
                     "pdf.write('summary.pdf', build(read_all(Path('data'))))"],
                    cwd=target, check=True, capture_output=True)
-    # 인계 문서.
-    (target / "HANDOFF.md").write_text(
-        "# 인계 문서\n\n## 한 일\n\nv0.3 목록을 전부 처리했다.\n\n"
-        "## 정한 것\n\n"
-        f"- 계정 표기: {'대문자' if case == 'upper' else '소문자'}\n"
-        f"- 달 경계: {'표준시' if basis == 'utc' else '현지 시각'}\n"
-        f"- 날짜 표기: {'빗금' if style == 'slash' else '붙임표'}\n"
-        f"- 알림 문턱 기준: {'마지막 관측' if alert_basis == 'last' else '그 달 전체'}\n"
-        f"- 보관 기준: {'크기' if pick == 'size' else '나이'}\n"
-        f"- 내보내기 안정성: {'기준일로 바꾼다' if stable == 'asof' else '시각 줄을 뺀다'}\n"
-        "\n## 남은 일\n\n없다.\n\n## 다음 사람이 먼저 볼 것\n\n- `CHANGELOG.md`\n",
+    # 인계 문서. **"정한 것" 절은 덧붙이고 나머지만 새로 쓴다** — 과제가
+    # 그렇게 요구하므로 레퍼런스 해답도 그렇게 해야 한다. 앞사람이 적어 둔
+    # 결정을 지우면 다음다음 사람이 그것을 코드에서 찾아내야 한다.
+    handoff = target / "HANDOFF.md"
+    decided = "\n".join([
+        f"- s01 계정 표기: {'대문자' if case == 'upper' else '소문자'}",
+        f"- s01 달 경계: {'표준시' if basis == 'utc' else '현지 시각'}",
+        f"- s01 날짜 표기: {'빗금' if style == 'slash' else '붙임표'}",
+        f"- s01 알림 문턱 기준: "
+        f"{'마지막 관측' if alert_basis == 'last' else '그 달 전체'}",
+        f"- s01 보관 기준: {'크기' if pick == 'size' else '나이'}",
+        f"- s01 내보내기 안정성: "
+        f"{'기준일로 바꾼다' if stable == 'asof' else '시각 줄을 뺀다'}",
+    ])
+    text = handoff.read_text(encoding="utf-8")
+    head, _, tail = text.partition("\n---\n")
+    kept = head if tail else text
+    handoff.write_text(
+        kept.rstrip() + "\n" + decided + "\n\n---\n\n"
+        "## 한 일\n\nv0.3 목록을 전부 처리했다.\n\n"
+        "## 남은 일\n\n없다.\n\n"
+        "## 다음 사람이 먼저 볼 것\n\n- `CHANGELOG.md`\n",
         encoding="utf-8")
     return target
 
