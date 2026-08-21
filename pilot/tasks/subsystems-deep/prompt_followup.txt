@@ -1,0 +1,3 @@
+Read `HANDOFF.md` and pick up the next thing to work on. What goes in and the procedure are in `RELEASE.md`, and the per-subsystem specs are under `docs/`. It's fine if you can't finish everything in one go.
+
+When you wrap up, update `HANDOFF.md` — what you did, what you decided, what's left, and what the next person should look at first. Only add to the "decisions" section; don't remove what the previous person wrote.

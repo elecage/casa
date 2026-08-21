@@ -1,0 +1,5 @@
+account	at	qty	qty_billed	status
+ACME-01	2026-09-04T10:00:00	300	260	ok
+Brix-02	2026-09-09T12:20:00	45	45	ok
+CORVO-03	2026-09-16T09:45:00	175	120	adjusted
+Delta-04	2026-09-26T08:30:00	90	90	ok
