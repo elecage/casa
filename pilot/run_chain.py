@@ -114,10 +114,35 @@ def completed_sessions(out_dir: Path, chain: int) -> int:
     return index
 
 
+#: 둘째 세션부터 주는 프롬프트. 없으면 첫 세션 것을 그대로 쓴다.
+FOLLOWUP_PROMPT = "prompt_followup.txt"
+
+
+def load_prompts(task_dir: Path) -> tuple[str, str]:
+    """(첫 세션 프롬프트, 후속 세션 프롬프트).
+
+    **왜 갈라 주는가.** 사슬의 둘째 세션부터는 앞사람이 하던 일을 이어받는
+    자리인데, 지금까지는 다섯 세션이 전부 "릴리스를 준비해라"라는 같은 말을
+    받았다. 실제로 새 세션을 여는 사람은 "어제 하던 거 이어서" 라고 말한다.
+    그 차이가 세션의 행동을 바꾸므로 조건에서 맞춰 준다.
+
+    **프롬프트로 역량을 조절하는 것이 아니다**(`harness/anchor.md`). 실제
+    사용자가 쓸 법한 말에 맞추는 것이고, 일하는 요령은 넣지 않는다.
+
+    후속 프롬프트 파일이 없는 과제는 첫 세션 것을 그대로 쓴다 — 사슬이 아닌
+    과제와 옛 과제 11종이 그렇다.
+    """
+    first = (task_dir / "prompt.txt").read_text(encoding="utf-8")
+    followup = task_dir / FOLLOWUP_PROMPT
+    if followup.is_file():
+        return first, followup.read_text(encoding="utf-8")
+    return first, first
+
+
 def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
               budget: int, model: str | None, timeout_s: int,
               resume: bool = False) -> list[dict]:
-    prompt = (task_dir / "prompt.txt").read_text(encoding="utf-8")
+    first_prompt, next_prompt = load_prompts(task_dir)
     relevant = [ln.strip() for ln in
                 (task_dir / "relevant_files.txt").read_text(
                     encoding="utf-8").splitlines() if ln.strip()]
@@ -142,7 +167,8 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
     for index in range(done + 1, sessions + 1):
         label = f"c{chain:02d}s{index:02d}"
         started = time.time()
-        cli = run_headless(workdir, prompt, model, timeout_s)
+        cli = run_headless(workdir, first_prompt if index == 1 else next_prompt,
+                           model, timeout_s)
         # 마지막 한 번 — 세션의 끝 편집을 훅이 못 잡고 끝나는 수가 있다.
         snapshot.take(workdir)
         row: dict = {

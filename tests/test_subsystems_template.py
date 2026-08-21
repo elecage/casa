@@ -341,3 +341,59 @@ def test_the_expected_doc_deliberately_leaves_the_month_split_out():
     doc = _read("docs/reports/expected.md")
     assert "달별 숫자는 안 적는다" in doc
     assert "계정별 숫자도 안 적는다" in doc
+
+
+# ------------- 채점 기준과 과제 문서가 같은 말을 하는가 (2026-08-21)
+
+def test_the_release_checklist_says_the_pdf_must_stay_in_the_repo():
+    """채점기는 저장소에 `.pdf` 파일이 남아 있어야 통과로 본다.
+
+    그 요구가 `RELEASE.md`에 안 적혀 있어서 두 사슬의 첫 세션이 모두
+    `export --out /tmp/out.pdf`로 만들어 확인만 하고 파일을 안 남겼다.
+    "PDF 한 장을 낸다"가 명령 실행으로 충족인지 파일이 남아야 충족인지
+    문장에서 갈리지 않았다. **과제 설계 결함이지 세션의 실패가 아니다.**
+    """
+    release = _read("RELEASE.md")
+    assert "저장소에 파일로 남긴다" in release
+
+
+def test_the_release_checklist_says_where_a_decision_goes():
+    """채점기는 각 명세 문서의 `결정:` 줄만 본다.
+
+    그 요구가 `RELEASE.md`에 없어서 두 사슬의 첫 세션이 모두 결정을
+    `HANDOFF.md`에만 적었다.
+    """
+    release = _read("RELEASE.md")
+    assert "그 서브시스템의 명세 문서에 한 줄로" in release
+    assert "`HANDOFF.md`에만 적으면 안 된다" in release
+
+
+def test_every_decision_the_grader_reads_has_a_place_to_write_it():
+    """채점기가 읽는 결정마다 그것을 적는 방법이 명세 문서에 있어야 한다."""
+    for name in ("docs/ingest.md", "docs/report.md", "docs/alerts.md",
+                 "docs/archive.md", "docs/export.md"):
+        assert "결정:" in _read(name), name
+
+
+# ------------------------- 첫 세션과 후속 세션이 다른 프롬프트를 받는가
+
+def test_the_task_carries_a_separate_prompt_for_follow_up_sessions():
+    first = (TEMPLATE.parent / "prompt.txt").read_text(encoding="utf-8")
+    followup = (TEMPLATE.parent / "prompt_followup.txt").read_text(encoding="utf-8")
+    assert first != followup
+    assert "이어서" in followup
+    assert "HANDOFF.md" in followup
+
+
+def test_neither_prompt_tells_the_session_how_to_work():
+    """프롬프트로 역량을 조절하지 않는다 (`harness/anchor.md`).
+
+    일하는 요령을 넣으면 세션마다 갈리던 행동이 한쪽으로 모이고, 그것이
+    검출하려는 차이다.
+    """
+    banned = ("믿지 말", "믿지말", "확인부터", "먼저 확인",
+              "의심", "검증부터", "꼼꼼히", "주의해")
+    for name in ("prompt.txt", "prompt_followup.txt"):
+        text = (TEMPLATE.parent / name).read_text(encoding="utf-8")
+        for phrase in banned:
+            assert phrase not in text, f"{name}: 일하는 요령이 들어 있다 — {phrase}"

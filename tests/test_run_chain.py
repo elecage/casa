@@ -227,3 +227,37 @@ def test_the_budget_hook_finds_its_config_from_a_subdirectory(tmp_path):
     assert budget.load_config(work).get("budget") == 100
     assert budget.load_config(work / "usagectl").get("budget") == 100
     assert budget.load_config(work / "usagectl" / "readers").get("budget") == 100
+
+
+# ------------- 첫 세션과 후속 세션에 다른 프롬프트를 준다 (2026-08-21)
+
+def test_a_task_with_a_follow_up_prompt_gives_a_different_one_to_later_sessions(
+        tmp_path):
+    """사슬의 둘째 세션부터는 앞사람 일을 이어받는 자리다.
+
+    지금까지는 다섯 세션이 전부 "릴리스를 준비해라"라는 같은 말을 받았다.
+    """
+    task = tmp_path / "task"
+    task.mkdir()
+    (task / "prompt.txt").write_text("처음부터 해줘\n", encoding="utf-8")
+    (task / "prompt_followup.txt").write_text("이어서 해줘\n", encoding="utf-8")
+
+    first, followup = run_chain.load_prompts(task)
+    assert first.strip() == "처음부터 해줘"
+    assert followup.strip() == "이어서 해줘"
+
+
+def test_a_task_with_no_follow_up_prompt_reuses_the_first_one(tmp_path):
+    """사슬이 아닌 과제와 옛 과제 11종이 그렇다."""
+    task = tmp_path / "task"
+    task.mkdir()
+    (task / "prompt.txt").write_text("하나뿐인 프롬프트\n", encoding="utf-8")
+
+    first, followup = run_chain.load_prompts(task)
+    assert first == followup
+
+
+def test_the_runner_hands_the_first_prompt_only_to_session_one():
+    """소스에서 확인한다. 배선을 잊으면 파일만 만들고 아무 일도 안 일어난다."""
+    source = (Path(run_chain.__file__)).read_text(encoding="utf-8")
+    assert "first_prompt if index == 1 else next_prompt" in source
