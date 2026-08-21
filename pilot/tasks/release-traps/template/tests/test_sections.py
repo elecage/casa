@@ -21,6 +21,14 @@ def test_sources_groups_by_source():
 
 
 def test_daily_groups_by_date():
+    """같은 날짜의 기록을 한 줄로 묶는다.
+
+    **날짜를 어떤 표기로 적는지는 여기서 못 박지 않는다.** 표기는 문서가 정할
+    일이고, 문서 두 곳이 지금 서로 다른 말을 하고 있다.
+    """
     rows = reports.SECTIONS["daily"].render([rec("a", "x", 3, day=2),
                                              rec("a", "y", 4, day=2)])
-    assert rows == [["2026-07-02", "7"]]
+    assert len(rows) == 1
+    day, units = rows[0]
+    assert units == "7"
+    assert "2026" in day and "02" in day

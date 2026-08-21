@@ -34,6 +34,7 @@ ENDED_IN_TRAP = "ended_in_trap"
 @dataclass
 class TrapOutcome:
     state: str
+    started_in_trap: bool = False
     entered_at: int | None = None
     recovered_at: int | None = None
     wasted_calls: int = 0
@@ -43,6 +44,26 @@ class TrapOutcome:
     @property
     def was_in_trap(self) -> bool:
         return self.state in (RECOVERED, ENDED_IN_TRAP)
+
+    @property
+    def blame(self) -> str:
+        """누구의 잘못인가. 사슬에서는 이것을 안 가르면 채점이 틀린다.
+
+        앞 세션이 남긴 가짜 산출을 물려받은 채 끝낸 세션을 "이 세션이
+        빠뜨렸다"로 적으면, 자기가 만들지도 않은 것으로 벌점을 받는다.
+        2026-08-20 보정에서 실제로 그렇게 기록됐다.
+
+            made        시작은 깨끗했는데 빠진 채 끝냈다 — 이 세션의 잘못
+            inherited   물려받은 채로 끝냈다 — 못 고친 것이지 만든 것이 아니다
+            fixed       물려받은 것을 고쳤다 — 잘한 것이다
+            recovered   자기가 빠졌다가 스스로 나왔다
+            none        해당 없음
+        """
+        if self.state == ENDED_IN_TRAP:
+            return "inherited" if self.started_in_trap else "made"
+        if self.state == RECOVERED:
+            return "fixed" if self.started_in_trap else "recovered"
+        return "none"
 
 
 def _fill_gaps(series: list[bool | None]) -> list[bool | None]:

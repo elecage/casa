@@ -1,3 +1,4 @@
 {"account": "acct-005", "at": "2026-07-02T08:00:00Z", "units": 70, "status": "ok"}
 {"account": "acct-005", "at": "2026-07-07T19:45:00Z", "units": 25, "status": "adjusted"}
 {"account": "acct-003", "at": "2026-07-09T12:10:00Z", "units": 110, "status": "ok"}
+{"account": "acct-005", "at": "2026-08-01T07:30:00+09:00", "units": 20, "status": "ok"}

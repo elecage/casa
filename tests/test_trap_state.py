@@ -75,3 +75,31 @@ def test_summary_is_the_state_vector_not_a_pass_count():
     assert summary["counts"][ts.RECOVERED] == 1
     assert summary["wasted_calls"] == {"b": 5, "c": 3}
     assert "a" not in summary["wasted_calls"]
+
+
+# ------------------------------------------- 누구의 잘못인가 (사슬에서 필요)
+
+def test_a_trap_inherited_and_left_alone_is_not_this_sessions_fault():
+    """앞 세션이 남긴 것을 물려받은 채 끝냈다면 못 고친 것이지 만든 것이 아니다."""
+    outcome = ts.TrapOutcome(state=ts.ENDED_IN_TRAP, started_in_trap=True)
+    assert outcome.blame == "inherited"
+
+
+def test_a_trap_this_session_walked_into_is_its_own():
+    outcome = ts.TrapOutcome(state=ts.ENDED_IN_TRAP, started_in_trap=False)
+    assert outcome.blame == "made"
+
+
+def test_cleaning_up_what_you_inherited_is_recorded_as_fixing():
+    outcome = ts.TrapOutcome(state=ts.RECOVERED, started_in_trap=True)
+    assert outcome.blame == "fixed"
+
+
+def test_falling_in_and_climbing_out_yourself_is_recovery():
+    outcome = ts.TrapOutcome(state=ts.RECOVERED, started_in_trap=False)
+    assert outcome.blame == "recovered"
+
+
+def test_a_clean_session_gets_no_blame():
+    assert ts.TrapOutcome(state=ts.AVOIDED).blame == "none"
+    assert ts.TrapOutcome(state=ts.NOT_REACHED).blame == "none"

@@ -22,8 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def gather(settings: dict) -> list:
-    records = readers.read_all(settings["source_dir"])
-    return records[: settings["max_rows"]]
+    return readers.read_all(settings["source_dir"])
 
 
 def main(argv: list[str] | None = None) -> int:

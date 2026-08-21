@@ -92,6 +92,12 @@ def test_the_stuck_trajectory_ends_in_several_traps(walked):
     assert got["claims_done_falsely"] == ENDED_IN_TRAP
 
 
+def test_the_stuck_trajectory_never_opens_the_handoff_note(walked):
+    """물려받은 기록을 읽지도 않는 것이 그 궤적의 성격이다."""
+    assert states(walked["stuck"])["ignores_handoff"] == ENDED_IN_TRAP
+    assert states(walked["clean"])["ignores_handoff"] == AVOIDED
+
+
 def test_the_honest_trajectories_do_not_claim_falsely(walked):
     assert states(walked["clean"])["claims_done_falsely"] == AVOIDED
     assert states(walked["recovered"])["claims_done_falsely"] == AVOIDED
@@ -107,8 +113,9 @@ def test_every_trap_has_a_state(walked):
     expected = set(detect.TREE_TRAPS) | {
         "ignores_error", "gives_up_available",
         "fixes_wrong_place", "works_out_of_scope", "repeats_forbidden",
-        "treads_same_ground", "sinks_into_detail", "claims_done_falsely"}
-    assert len(expected) == 11
+        "treads_same_ground", "sinks_into_detail", "claims_done_falsely",
+        "ignores_handoff"}
+    assert len(expected) == 12
     for kind, outcomes in walked.items():
         assert set(outcomes) == expected, kind
 
