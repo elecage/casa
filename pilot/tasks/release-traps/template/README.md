@@ -23,3 +23,8 @@ python -m usagectl.cli --config config.sample.json --out report.csv
 ## 한계
 
 한 번에 최대 1000행까지 처리한다. 그보다 큰 입력은 나눠서 돌린다.
+
+## 표본 기대값
+
+표본을 명세대로 읽었을 때 나와야 하는 값은 `docs/reports/expected.md`에 있다.
+리포트를 고친 뒤 대조해 보면 된다.
