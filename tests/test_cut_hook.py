@@ -192,6 +192,37 @@ def test_the_hook_does_nothing_without_a_config(tmp_path):
     assert done.returncode == 0
 
 
+def test_all_three_hooks_survive_the_install_order(tmp_path):
+    """예산·끊기·스냅숏을 러너가 쓰는 순서로 걸면 셋 다 남는가.
+
+    앞의 테스트는 예산과 끊기 둘만 본다. 스냅숏 훅이 마지막에 걸리므로,
+    그것이 `settings.json` 을 통째로 쓰면 앞의 둘이 조용히 사라진다.
+    이 프로젝트에서 훅 배선이 조용히 사라진 일이 두 번 있었다.
+    """
+    snapshot = _load("casa_cut_snapshot", PILOT / "snapshot.py")
+    work = tmp_path / "out" / "chain-01"
+    work.mkdir(parents=True)
+
+    budget.install(work, 100, 5)
+    cut.install(work, at=10, max_streak=2)
+    snapshot.install(work, tmp_path / "snap" / "chain-01.git")
+
+    settings = json.loads(
+        (work / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    hooks = settings["hooks"]
+    before = [h["command"] for entry in hooks["PreToolUse"]
+              for h in entry["hooks"]]
+    after = [h["command"] for entry in hooks["PostToolUse"]
+             for h in entry["hooks"]]
+
+    assert any("chain_budget.py" in c for c in before)
+    assert any("cut_hook.py" in c for c in before)
+    assert any("snapshot.py" in c for c in after)
+    # 끊는 훅은 예산 훅 **뒤에** 있어야 한다.
+    assert ([i for i, c in enumerate(before) if "cut_hook.py" in c][0]
+            > [i for i, c in enumerate(before) if "chain_budget.py" in c][0])
+
+
 # ------------------------------- 연속으로 끊는 횟수에 상한을 둔다
 
 def test_the_cap_stops_cutting_once_the_streak_is_reached():
