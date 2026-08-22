@@ -225,20 +225,116 @@ def replacement_spread(chains: list[list[dict]], keep_gains: list[int],
     }
 
 
+# ------------------------------------------- 봉인한 예측을 코드에 박는다
+
+#: **관측이 이보다 적으면 답했다고 하지 않는다**(`docs/CUT_PREDICTIONS.md` 4절).
+#: 관측이 적게 나온 뒤에 "차이가 유의하지 않다"로 쓰면 한 번도 검정력이 없었던
+#: 배치를 음성 결과로 보고하는 것이 된다.
+MIN_OCCURRENCES = 8
+
+#: 예측 3 — 끊는 쪽에서 시작된 세션 가운데 끊긴 것의 비율.
+CUT_RATE_RANGE = (0.10, 0.35)
+
+
+def cut_rate(chains: list[list[dict]]) -> float | None:
+    """끊는 쪽에서 시작된 세션 가운데 끊긴 것의 비율."""
+    rows = [row for chain in chains for row in chain]
+    if not rows:
+        return None
+    return sum(1 for row in rows if row.get("cut")) / len(rows)
+
+
+def sessions_per_chain(chains: list[list[dict]]) -> list[int]:
+    return [len(chain) for chain in chains]
+
+
+def cut_sessions_lost_nothing(chains: list[list[dict]],
+                              start: int | None = None) -> bool | None:
+    """예측 5 — 끊긴 세션 전후로 달성 항목이 줄지 않았는가.
+
+    열 호출 안에 편집이 일어날 수 있고 반쯤 된 채 끊길 수 있다. 줄었다면
+    끊는 시점을 편집 전으로 옮겨야 한다.
+    """
+    judged = False
+    for chain in chains:
+        before = start
+        for row in chain:
+            after = passed(row)
+            if row.get("cut") and before is not None and after is not None:
+                judged = True
+                if after < before:
+                    return False
+            if after is not None:
+                before = after
+    return True if judged else None
+
+
+def check_predictions(result: dict, keep: list[list[dict]],
+                      cut: list[list[dict]],
+                      start: int | None = None) -> list[dict]:
+    """봉인한 예측과 대조한다. **문턱은 이 파일에 박혀 있다.**
+
+    예측 6(인계 문서가 남는가)은 여기서 판정하지 않는다 — 그것은 트랜스크립트를
+    읽는 탐지기의 일이고, `pilot/analysis/chain_eval.py` 가 이미 계산한다.
+    같은 것을 두 군데서 읽으면 한쪽만 고쳐진다.
+    """
+    keep_side, cut_side = result["keep"], result["cut"]
+    spread = result["replacement_spread"]
+    out: list[dict] = []
+
+    def add(number: int, says: str, got) -> None:
+        out.append({"prediction": number, "says": says, "held": got})
+
+    if keep_side["judged"] < MIN_OCCURRENCES:
+        add(0, f"안 끊는 쪽에 깃발이 {MIN_OCCURRENCES}자리 이상 선다", None)
+    else:
+        add(0, f"안 끊는 쪽에 깃발이 {MIN_OCCURRENCES}자리 이상 선다", True)
+
+    one = (None if keep_side["gain_per_call_median"] is None
+           or cut_side["gain_per_call_median"] is None
+           else cut_side["gain_per_call_median"]
+           > keep_side["gain_per_call_median"])
+    add(1, "끊는 쪽이 호출당 더 많이 얻는다", one)
+
+    keep_n = sessions_per_chain(keep)
+    cut_n = sessions_per_chain(cut)
+    two = (None if not keep_n or not cut_n
+           else statistics.median(cut_n) > statistics.median(keep_n))
+    add(2, "끊는 쪽에서 세션이 더 많이 돈다", two)
+
+    rate = cut_rate(cut)
+    low, high = CUT_RATE_RANGE
+    add(3, f"끊긴 세션의 비율이 {low:.0%}~{high:.0%}",
+        None if rate is None else low <= rate <= high)
+
+    four = (None if spread.get("baseline") is None
+            else spread["better"] > spread["worse"])
+    add(4, "교체된 세션이 나은 경우가 더 많다", four)
+
+    add(5, "끊긴 세션이 저장소를 망가뜨리지 않는다",
+        cut_sessions_lost_nothing(cut, start))
+    return out
+
+
 def report(keep_dir: Path, cut_dir: Path, at: int = DEFAULT_AT,
            start: int | None = None) -> dict:
     keep = load_arm(keep_dir)
     cut = load_arm(cut_dir)
     keep_side = arm_summary(keep, at, start)
     cut_side = arm_summary(cut, at, start)
-    return {
+    result = {
         "at": at,
         "start_state": start,
         "keep": keep_side,
         "cut": cut_side,
         "replacement_spread": replacement_spread(
             cut, keep_side["gains"], at, start),
+        "sessions_per_chain": {"keep": sessions_per_chain(keep),
+                               "cut": sessions_per_chain(cut)},
+        "cut_rate": cut_rate(cut),
     }
+    result["predictions"] = check_predictions(result, keep, cut, start)
+    return result
 
 
 def render(result: dict) -> str:
@@ -266,6 +362,19 @@ def render(result: dict) -> str:
         lines.append(f"- 안 끊는 쪽 깃발 세션의 성과 중앙값: {spread['baseline']}")
         lines.append(f"- 그보다 낮음 {spread['worse']} / 같음 {spread['same']} / "
                      f"높음 {spread['better']}")
+
+    checks = result.get("predictions") or []
+    if checks:
+        # **빗나간 것을 먼저 적는다**(`docs/CUT_PREDICTIONS.md` 9절).
+        order = {False: 0, None: 1, True: 2}
+        lines += ["", "## 봉인한 예측과의 대조", "",
+                  "**빗나간 것을 먼저 적는다.**", "",
+                  "| | 예측 | 결과 |", "|---|---|---|"]
+        for item in sorted(checks, key=lambda c: order[c["held"]]):
+            got = {False: "**빗나감**", None: "판정 불가",
+                   True: "맞음"}[item["held"]]
+            label = "관측 하한" if item["prediction"] == 0 else item["prediction"]
+            lines.append(f"| {label} | {item['says']} | {got} |")
     return "\n".join(lines) + "\n"
 
 

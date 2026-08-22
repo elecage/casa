@@ -189,6 +189,78 @@ def test_the_arm_is_read_from_the_session_files(tmp_path):
     assert evaluate.passed(chains[0][1]) == 9
 
 
+# ------------------------------- 봉인한 예측이 코드에 박혀 있다
+
+def test_the_sealed_thresholds_are_pinned():
+    """문턱이 바뀌면 여기서 깨진다. 결과를 본 뒤에 문턱을 옮기면 안 된다."""
+    assert evaluate.MIN_OCCURRENCES == 8
+    assert evaluate.CUT_RATE_RANGE == (0.10, 0.35)
+    assert evaluate.DEFAULT_AT == 10
+
+
+def test_too_few_occurrences_is_reported_as_undecided_not_as_no_difference():
+    """관측이 모자라면 '차이 없음'이 아니라 '판정하지 못함'이다."""
+    keep = [[_row(1, 1, 10, 40), _row(1, 2, 12, 40)]]
+    cut = [[_row(2, 1, 10, 40), _row(2, 2, 10, 10, cut=True),
+            _row(2, 3, 18, 40)]]
+    result = {"keep": evaluate.arm_summary(keep, 10, 1),
+              "cut": evaluate.arm_summary(cut, 10, 1),
+              "replacement_spread": evaluate.replacement_spread(
+                  cut, [], 10, 1)}
+    checks = evaluate.check_predictions(result, keep, cut, start=1)
+    floor = next(c for c in checks if c["prediction"] == 0)
+    assert floor["held"] is None
+
+
+def test_the_cut_rate_prediction_uses_the_pinned_range():
+    # 세 세션 중 하나가 끊겼다 = 33%, 범위 안이다.
+    cut = [[_row(1, 1, 10, 40), _row(1, 2, 10, 10, cut=True),
+            _row(1, 3, 18, 40)]]
+    assert evaluate.cut_rate(cut) == 1 / 3
+    result = {"keep": evaluate.arm_summary([], 10, 1),
+              "cut": evaluate.arm_summary(cut, 10, 1),
+              "replacement_spread": evaluate.replacement_spread(
+                  cut, [], 10, 1)}
+    three = next(c for c in evaluate.check_predictions(result, [], cut, 1)
+                 if c["prediction"] == 3)
+    assert three["held"] is True
+
+
+def test_a_cut_that_lost_items_fails_prediction_five():
+    """열 호출 안의 편집이 반쯤 된 채 끊기면 항목이 줄 수 있다."""
+    kept = [[_row(1, 1, 10, 40), _row(1, 2, 10, 10, cut=True),
+             _row(1, 3, 18, 40)]]
+    assert evaluate.cut_sessions_lost_nothing(kept, start=1) is True
+
+    lost = [[_row(1, 1, 10, 40), _row(1, 2, 7, 10, cut=True),
+             _row(1, 3, 18, 40)]]
+    assert evaluate.cut_sessions_lost_nothing(lost, start=1) is False
+
+
+def test_missed_predictions_are_rendered_first():
+    result = {"at": 10, "start_state": 1,
+              "keep": {"occurrences": 9, "judged": 9, "gain_per_call": [],
+                       "gain_per_call_median": 0.05, "gains": [2],
+                       "gain_median": 2},
+              "cut": {"occurrences": 9, "judged": 9, "gain_per_call": [],
+                      "gain_per_call_median": 0.02, "gains": [1],
+                      "gain_median": 1},
+              "replacement_spread": {"replacements": [1], "baseline": 2,
+                                     "worse": 1, "same": 0, "better": 0},
+              "predictions": [
+                  {"prediction": 0, "says": "관측이 넉넉하다", "held": True},
+                  {"prediction": 1, "says": "끊는 쪽이 낫다", "held": False},
+                  {"prediction": 2, "says": "세션이 더 돈다", "held": None},
+              ]}
+    body = evaluate.render(result)
+    rows = [ln for ln in body.splitlines() if ln.startswith("| ")]
+    table = [ln for ln in rows if "빗나감" in ln or "판정 불가" in ln
+             or "맞음" in ln]
+    assert "빗나감" in table[0]
+    assert "판정 불가" in table[1]
+    assert "맞음" in table[2]
+
+
 def test_the_rendered_table_names_both_arms():
     result = {"at": 10, "start_state": 1,
               "keep": {"occurrences": 3, "judged": 3,
