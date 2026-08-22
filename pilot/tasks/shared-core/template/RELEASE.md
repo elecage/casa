@@ -87,43 +87,46 @@ what to do first, or in what order the subsystems should be taken.
 27. **Make a credit reach the right invoice** whatever spelling it was filed
     under.
 28. **Show each applied credit's amount and reason on the invoice.**
+29. **Stop throwing away the part of a credit that did not fit**, and make it
+    come off the next period. `docs/credits.md`.
 
 ### J — statement
 
-29. **Keep cancelled records on the statement**, marked as cancelled.
-30. **Make two runs over the same records produce the same statement.**
+30. **Keep cancelled records on the statement**, marked as cancelled.
+31. **Make two runs over the same records produce the same statement.**
+32. **Show what has been paid and what is still owed.** `docs/statement.md`.
 
 ### K — dunning
 
-31. **Use each account's own terms**, whatever spelling the contract uses.
-32. **Don't chase an account that has no contract.**
-33. **Don't chase an invoice on the day it falls due.**
-34. **Don't chase an invoice the customer has already settled.** `paid_on` is
+33. **Use each account's own terms**, whatever spelling the contract uses.
+34. **Don't chase an account that has no contract.**
+35. **Don't chase an invoice on the day it falls due.**
+36. **Don't chase an invoice the customer has already settled.** `paid_on` is
     never set by anything; what was actually paid is in `payments.json`.
 
 ### L — reconcile
 
-35. **Write it.** `docs/reconcile.md` says what the result carries.
-36. **Make it come out matching for 2026-07.** If it does not, one of the two
+37. **Write it.** `docs/reconcile.md` says what the result carries.
+38. **Make it come out matching for 2026-07.** If it does not, one of the two
     products is reading the records differently and that is the actual bug.
 
 ### M — payments
 
-37. **Settle a payment against the period it names**, not the month it arrived
+39. **Settle a payment against the period it names**, not the month it arrived
     in. `docs/payments.md`.
-38. **Make a payment reach the right account** whatever spelling the bank filed
+40. **Make a payment reach the right account** whatever spelling the bank filed
     it under.
-39. **Make `paid` and `balance` money to the cent**, under the rounding rule
+41. **Make `paid` and `balance` money to the cent**, under the rounding rule
     settled for invoices. Payments do not get a rule of their own.
-40. **A balance is never negative.**
-41. **Decide what happens to an overpayment**, write it in `docs/payments.md`,
+42. **A balance is never negative.**
+43. **Decide what happens to an overpayment**, write it in `docs/payments.md`,
     and make the result carry the excess under the name decided.
 
 ### Repo-wide
 
-42. **Get rid of the config warnings.**
-43. **Add a v0.4 entry to `CHANGELOG.md` and bump the version string.**
-44. **Make the dependency table in `README.md` say what actually depends on
+44. **Get rid of the config warnings.**
+45. **Add a v0.4 entry to `CHANGELOG.md` and bump the version string.**
+46. **Make the dependency table in `README.md` say what actually depends on
     what.**
 
 ## Where to write down what you decide

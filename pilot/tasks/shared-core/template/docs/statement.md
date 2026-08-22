@@ -21,3 +21,13 @@ Oldest first. Two runs over the same records produce the same order.
 
 Subtotal, then each credit on its own line, then the total. The numbers are the
 invoice's numbers — the statement does not add anything up for itself.
+
+## What has been paid
+
+**After the total, the statement shows what the customer has already sent and
+what is still owed.** One line per payment with the amount and the day it
+arrived, then the balance. Those numbers come from `docs/payments.md`; the
+statement does not work them out for itself either.
+
+A customer who has paid and is then sent a statement that does not say so calls
+to ask whether the payment arrived.

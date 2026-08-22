@@ -421,11 +421,15 @@ def check(records: list[Record], month: str) -> dict:
     # 두 제품이 같은 규칙을 쓰는지 산출물로 알 수 없다.
     _edit(target / "billsy/invoice.py", '        "account": account,',
           '        "account": wanted,')
-    # 총액은 음수가 되지 않는다. 남은 크레딧은 다음 기간으로 넘어간다.
+    # 총액은 음수가 되지 않는다. **남은 크레딧은 버리지 않고 적어 둔다.**
     _edit(target / "billsy/invoice.py",
           "    total = round_money(subtotal - sum_money(c[\"amount\"] for c in applied))",
-          "    owed = subtotal - sum_money(c[\"amount\"] for c in applied)\n"
-          "    total = round_money(owed if owed > 0 else 0)")
+          "    agreed = sum_money(c[\"amount\"] for c in applied)\n"
+          "    owed = subtotal - agreed\n"
+          "    total = round_money(owed if owed > 0 else 0)\n"
+          "    carried = round_money(-owed if owed < 0 else 0)")
+    _edit(target / "billsy/invoice.py", '        "credits": applied,',
+          '        "credits": applied,\n        "credit_carried": str(carried),')
 
     # ------------------------------------------------- I 크레딧
     # 크레딧이 어떤 표기로 적혔든 맞는 청구서에 닿는다.
@@ -434,8 +438,58 @@ def check(records: list[Record], month: str) -> dict:
           "        if normalize_account(entry[\"account\"]) == normalize_account(account):")
     _edit(target / "billsy/credits.py", "import json\n",
           "import json\n\nfrom core.accounts import normalize_account\n")
+    # 지난 기간에서 넘어온 부분을 이번 기간 크레딧에 얹는다. 넘어온 양은
+    # **지난 기간을 다시 계산해서** 얻는다 — 어디에도 저장돼 있지 않다.
+    _edit(target / "billsy/credits.py",
+          "def for_account(account: str, period: str) -> list[dict]:\n"
+          '    """The credits that come off this account\'s invoice for this'
+          ' period."""\n'
+          "    out = []\n",
+          "def _previous(period: str) -> str:\n"
+          '    """The period before this one."""\n'
+          "    year, _, month = period.partition(\"-\")\n"
+          "    if int(month) == 1:\n"
+          "        return f\"{int(year) - 1:04d}-12\"\n"
+          "    return f\"{int(year):04d}-{int(month) - 1:02d}\"\n\n\n"
+          "def carried_into(account: str, period: str):\n"
+          '    """What was left over from the period before, if anything."""\n'
+          "    from . import invoice as invoice_mod\n"
+          "    from .cli import _records\n\n"
+          "    before = _previous(period)\n"
+          "    if not all_credits().get(before):\n"
+          "        return None\n"
+          "    built = invoice_mod.build(_records(), account, before)\n"
+          "    left = built.get(\"credit_carried\")\n"
+          "    return left if left and float(left) > 0 else None\n\n\n"
+          "def for_account(account: str, period: str) -> list[dict]:\n"
+          '    """The credits that come off this account\'s invoice for this'
+          ' period."""\n'
+          "    out = []\n"
+          "    left = carried_into(account, period)\n"
+          "    if left is not None:\n"
+          '        out.append({"amount": left,\n'
+          '                    "reason": f"carried over from {_previous(period)}"})\n')
 
     # ------------------------------------------------- J 명세서
+    # 낸 것과 남은 것을 보여 준다. **수는 납부 쪽 것을 그대로 쓴다.**
+    _edit(target / "billsy/statement.py",
+          "def render(invoice: dict, usage: list[dict]) -> str:",
+          "def render(invoice: dict, usage: list[dict], settled=None) -> str:")
+    _edit(target / "billsy/statement.py",
+          '    out.append(f"total    {invoice[\'total\']}")\n'
+          '    return "\\n".join(out) + "\\n"',
+          '    out.append(f"total    {invoice[\'total\']}")\n'
+          "    if settled:\n"
+          '        for row in settled["payments"]:\n'
+          '            out.append(f"paid     {row[\'amount\']}"\n'
+          '                       f"  ({row[\'received_on\']})")\n'
+          '        out.append(f"balance  {settled[\'balance\']}")\n'
+          '    return "\\n".join(out) + "\\n"')
+    _edit(target / "billsy/cli.py",
+          "        print(statement.render(built, rows), end=\"\")",
+          "        print(statement.render(built, rows, payments.settle(built)),\n"
+          "              end=\"\")")
+
     # 취소된 기록은 청구되지 않지만 명세서에는 남는다.
     _edit(target / "billsy/statement.py",
           "            and month_key(r) == period\n"

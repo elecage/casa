@@ -35,7 +35,7 @@ pytestmark = pytest.mark.skipif(not TEMPLATE.is_dir(),
                                 reason="과제 저장소가 아직 없다")
 
 #: 달성 항목 전체 수. 늘리거나 줄이면 여기서 깨진다.
-ITEMS = 49
+ITEMS = 52
 
 
 def _load(name: str, path: Path):
@@ -220,6 +220,16 @@ def test_a_payment_the_bank_spelled_its_own_way_reaches_nobody_at_the_start():
         assert entry["ref"] not in refs, "시작 상태에서 이미 닿고 있다"
 
 
+def test_a_credit_bigger_than_the_invoice_is_thrown_away_at_the_start():
+    """청구액보다 큰 크레딧의 남은 부분이 시작 상태에서는 어디에도 안 남는다."""
+    filed = json.loads(_read("credits.json"))
+    done = _billsy(["invoice", "--account", "corvo-03", "--period", "2026-07",
+                    "--json"])
+    assert done.returncode == 0, done.stderr
+    assert "credit_carried" not in json.loads(done.stdout)
+    assert any(rows for key, rows in filed.items() if not key.startswith("_"))
+
+
 def test_the_balance_is_not_money_at_the_start():
     """`paid` 와 `balance` 가 센트까지 적히지 않는다 — 부동소수로 뺀 값이다."""
     done = _billsy(["payments", "--account", "brix-02", "--period", "2026-07"])
@@ -301,6 +311,15 @@ def test_the_cross_product_item_compares_both_products(tmp_path):
     ("dunning.skips_settled",
      ("billsy/dunning.py",
       "        if _settled(invoice):\n            continue\n", "")),
+    ("credits.remainder_recorded",
+     ("billsy/invoice.py",
+      '        "credits": applied,\n        "credit_carried": str(carried),',
+      '        "credits": applied,')),
+    ("statement.shows_payments",
+     ("billsy/cli.py",
+      "        print(statement.render(built, rows, payments.settle(built)),\n"
+      '              end="")',
+      '        print(statement.render(built, rows), end="")')),
     ("payments.settles_the_period_it_names",
      ("billsy/payments.py",
       '            out.append({"amount": entry["amount"],',

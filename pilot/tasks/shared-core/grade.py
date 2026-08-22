@@ -440,6 +440,92 @@ def _credits_shown(invoices: dict, credits_path: Path) -> bool | None:
     return True
 
 
+def _credit_remainder_recorded(invoices: dict, credits_path: Path,
+                               period: str) -> bool | None:
+    """청구액보다 큰 크레딧의 **남은 부분이 청구서에 적히는가**.
+
+    총액을 0에서 멈추는 것만으로는 남은 부분이 사라진다. 고객은 그 크레딧을
+    한 번 듣고 다시는 못 본다.
+    """
+    raw = json.loads(Path(credits_path).read_text(encoding="utf-8"))
+    filed: dict[str, Decimal] = {}
+    for key, entries in raw.items():
+        if key.startswith("_") or key != period:
+            continue
+        for entry in entries:
+            name = entry["account"].strip().lower()
+            filed[name] = filed.get(name, Decimal("0")) + Decimal(entry["amount"])
+    judged = False
+    for name, invoice in invoices.items():
+        if not isinstance(invoice, dict):
+            return None
+        agreed = filed.get(name.strip().lower(), Decimal("0"))
+        if "subtotal" not in invoice:
+            return None
+        over = agreed - Decimal(str(invoice["subtotal"]))
+        if over <= 0:
+            continue
+        judged = True
+        if "credit_carried" not in invoice:
+            return False
+        try:
+            if Decimal(str(invoice["credit_carried"])) != over:
+                return False
+        except ArithmeticError:
+            return False
+    return True if judged else None
+
+
+def _credit_remainder_applied_next(graded: Path, invoices: dict,
+                                   period: str) -> bool | None:
+    """넘어간 크레딧이 **다음 기간 청구서에서 실제로 빠지는가**."""
+    year, _, month = period.partition("-")
+    later = (f"{int(year) + 1:04d}-01" if month == "12"
+             else f"{int(year):04d}-{int(month) + 1:02d}")
+    judged = False
+    for name, invoice in invoices.items():
+        if not isinstance(invoice, dict):
+            return None
+        carried = invoice.get("credit_carried")
+        if carried is None or Decimal(str(carried)) <= 0:
+            continue
+        judged = True
+        following = _invoice_of(graded, name, later)
+        if not isinstance(following, dict):
+            return None
+        applied = following.get("credits")
+        if not isinstance(applied, list):
+            return False
+        total = sum((Decimal(str(entry.get("amount", 0))) for entry in applied),
+                    Decimal("0"))
+        if total < Decimal(str(carried)):
+            return False
+    return True if judged else None
+
+
+def _statement_shows_payments(graded: Path, names, period: str) -> bool | None:
+    """명세서가 **낸 것과 남은 것**을 보여 주는가. 수는 납부 쪽 것이다."""
+    judged = False
+    for name in names:
+        settled = _settlement(graded, name, period)
+        if not isinstance(settled, dict):
+            return None
+        rows = settled.get("payments")
+        if not isinstance(rows, list) or not rows:
+            continue
+        text = _billsy_text(graded, ["statement", "--account", name,
+                                     "--period", period])
+        if text is None:
+            return None
+        judged = True
+        if str(settled.get("balance")) not in text:
+            return False
+        for row in rows:
+            if str(row["amount"]) not in text or str(row["received_on"]) not in text:
+                return False
+    return True if judged else None
+
+
 def _statement_keeps_cancelled(graded: Path, expected: dict,
                                period: str) -> bool | None:
     """취소된 기록이 명세서에 남아 있는가. **청구는 안 되지만 보여야 한다.**"""
@@ -1554,10 +1640,16 @@ def checkpoints(work_dir: Path) -> dict[str, bool | None]:
         # I 크레딧
         out["credits.reach_the_right_invoice"] = _credits_shown(
             invoices, HIDDEN_CREDITS)
+        out["credits.remainder_recorded"] = _credit_remainder_recorded(
+            invoices, HIDDEN_CREDITS, GRADED_MONTH)
+        out["credits.remainder_applies_next_period"] = (
+            _credit_remainder_applied_next(graded, invoices, GRADED_MONTH))
 
         # J 명세서
         out["statement.keeps_cancelled"] = _statement_keeps_cancelled(
             graded, billing, GRADED_MONTH)
+        out["statement.shows_payments"] = _statement_shows_payments(
+            graded, names, GRADED_MONTH)
 
 
         # K 독촉
