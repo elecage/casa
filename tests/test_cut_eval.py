@@ -261,6 +261,142 @@ def test_missed_predictions_are_rendered_first():
     assert "맞음" in table[2]
 
 
+# ------------------- 초반 신호가 새 자료에서도 서는가 (예측 7)
+
+def test_the_two_groups_the_signal_splits_are_counted_separately(tmp_path):
+    """깃발이 선 세션만 세면 신호가 재현되는지 판정할 수 없다."""
+    rows = [
+        # 깃발이 섰고(문서만 읽었다) 항목을 못 늘렸다
+        _row(1, 1, 10, 40,
+             transcript=_transcript(tmp_path / "s1.jsonl", ["docs/a.md"] * 40)),
+        # 깃발이 안 섰고(코드를 열었다) 5를 늘렸다
+        _row(1, 2, 15, 40,
+             transcript=_transcript(tmp_path / "s2.jsonl",
+                                    ["core/months.py"] + ["docs/a.md"] * 39)),
+        # 깃발이 섰고 2를 늘렸다
+        _row(1, 3, 17, 40,
+             transcript=_transcript(tmp_path / "s3.jsonl", ["docs/b.md"] * 40)),
+    ]
+    split = evaluate.signal_split([rows], at=10, start=10)
+    assert split["flagged"]["n"] == 2
+    assert split["flagged"]["raised"] == 1
+    assert split["flagged"]["rate"] == 0.5
+    assert split["unflagged"]["n"] == 1
+    assert split["unflagged"]["rate"] == 1.0
+
+
+def test_a_session_whose_flag_cannot_be_judged_is_in_neither_group():
+    """트랜스크립트를 못 읽으면 어느 무리에도 넣지 않는다. 0으로 세지 않는다."""
+    split = evaluate.signal_split([[_row(1, 1, 10, 40)]], at=10, start=1)
+    assert split["flagged"]["n"] == 0
+    assert split["unflagged"]["n"] == 0
+
+
+def _split_rows(tmp_path, flagged_gains, unflagged_gains):
+    """지정한 성과대로 두 무리를 만든다. 세션마다 트랜스크립트가 따로 있다."""
+    rows, passing, index = [], 1, 1
+    for gains, opens_code in ((flagged_gains, False), (unflagged_gains, True)):
+        for gain in gains:
+            passing += gain
+            paths = (["core/months.py"] if opens_code else []) \
+                + ["docs/a.md"] * 40
+            rows.append(_row(1, index, passing, 40,
+                             transcript=_transcript(
+                                 tmp_path / f"p{index}.jsonl", paths)))
+            index += 1
+    return rows
+
+
+def test_prediction_seven_holds_when_the_unflagged_group_raises_more(tmp_path):
+    rows = _split_rows(tmp_path, [0] * 8, [3] * 8)
+    keep = [rows]
+    result = {"keep": evaluate.arm_summary(keep, 10, 1),
+              "cut": evaluate.arm_summary([], 10, 1),
+              "replacement_spread": evaluate.replacement_spread([], [], 10, 1),
+              "signal_split": evaluate.signal_split(keep, 10, 1)}
+    seven = next(c for c in evaluate.check_predictions(result, keep, [], 1)
+                 if c["prediction"] == 7)
+    assert seven["held"] is True
+
+
+def test_prediction_seven_is_missed_when_the_signal_does_not_separate(tmp_path):
+    """깃발이 선 쪽이 더 잘하면 신호가 뒤집힌 것이고, 빗나감으로 적어야 한다."""
+    rows = _split_rows(tmp_path, [3] * 8, [0] * 8)
+    keep = [rows]
+    result = {"keep": evaluate.arm_summary(keep, 10, 1),
+              "cut": evaluate.arm_summary([], 10, 1),
+              "replacement_spread": evaluate.replacement_spread([], [], 10, 1),
+              "signal_split": evaluate.signal_split(keep, 10, 1)}
+    seven = next(c for c in evaluate.check_predictions(result, keep, [], 1)
+                 if c["prediction"] == 7)
+    assert seven["held"] is False
+
+
+def test_prediction_seven_is_undecided_below_the_observation_floor(tmp_path):
+    """깃발이 관측 하한에 못 미치면 '차이 없음'이 아니라 '판정하지 못함'이다."""
+    rows = _split_rows(tmp_path, [0] * 3, [3] * 8)
+    keep = [rows]
+    result = {"keep": evaluate.arm_summary(keep, 10, 1),
+              "cut": evaluate.arm_summary([], 10, 1),
+              "replacement_spread": evaluate.replacement_spread([], [], 10, 1),
+              "signal_split": evaluate.signal_split(keep, 10, 1)}
+    seven = next(c for c in evaluate.check_predictions(result, keep, [], 1)
+                 if c["prediction"] == 7)
+    assert seven["held"] is None
+
+
+# ------------------- 세션마다 얼마를 늘렸는가 (서술 통계)
+
+def test_the_gain_spread_splits_by_position_in_the_chain():
+    """사슬 끝 상태에는 능력과 위치가 섞여 있다. 위치별로 갈라야 한다."""
+    first = [_row(1, 1, 11, 40), _row(1, 2, 14, 40)]
+    second = [_row(2, 1, 6, 40), _row(2, 2, 16, 40)]
+    spread = evaluate.gain_spread([first, second], at=10, start=1)
+    assert spread["by_position"] == {1: [5, 10], 2: [3, 10]}
+    assert spread["all"] == [3, 5, 10, 10]
+    assert spread["chain_end"] == [14, 16]
+
+
+def test_a_cut_session_is_left_out_of_the_capability_spread():
+    """우리가 도중에 끝낸 세션의 0은 관측이 아니다."""
+    rows = [_row(1, 1, 11, 40), _row(1, 2, 11, 10, cut=True),
+            _row(1, 3, 15, 40)]
+    spread = evaluate.gain_spread([rows], at=10, start=1)
+    assert spread["all"] == [4, 10]
+    assert 2 not in spread["by_position"]
+
+
+def test_the_spread_survives_a_single_session():
+    """표준편차를 낼 수 없어도 도구가 멈추지 않는다."""
+    spread = evaluate.gain_spread([[_row(1, 1, 11, 40)]], at=10, start=1)
+    assert spread["all"] == [10]
+    assert spread["sd"] is None
+
+
+def test_the_two_side_records_are_rendered():
+    result = {"at": 10, "start_state": 1,
+              "keep": {"occurrences": 3, "judged": 3, "gain_per_call": [],
+                       "gain_per_call_median": 0.05, "gains": [2],
+                       "gain_median": 2},
+              "cut": {"occurrences": 3, "judged": 3, "gain_per_call": [],
+                      "gain_per_call_median": 0.08, "gains": [5],
+                      "gain_median": 5},
+              "replacement_spread": {"replacements": [5], "baseline": 2,
+                                     "worse": 0, "same": 0, "better": 1},
+              "signal_split": {
+                  "flagged": {"n": 12, "raised": 4, "rate": 1 / 3,
+                              "gains": [0]},
+                  "unflagged": {"n": 20, "raised": 15, "rate": 0.75,
+                                "gains": [3]}},
+              "gain_spread": {"by_position": {1: [5, 10], 2: [3]},
+                              "all": [3, 5, 10], "median": 5, "sd": 3.61,
+                              "chain_end": [14, 16]}}
+    text = evaluate.render(result)
+    assert "33%" in text and "75%" in text
+    assert "[3, 5, 10]" in text
+    assert "[14, 16]" in text
+
+
 def test_the_rendered_table_names_both_arms():
     result = {"at": 10, "start_state": 1,
               "keep": {"occurrences": 3, "judged": 3,

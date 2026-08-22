@@ -23,6 +23,15 @@
 수도 있다. 평균만 적으면 그 사실이 안 보인다. 교체 세션의 성과를 정렬해서 다
 적고, 안 끊는 쪽 분포보다 낮은 것·같은 것·높은 것을 각각 센다.
 
+**이 배치가 부수적으로 기록하는 것 둘**(2026-08-22 유저 지시). 1차 지표와 별개로,
+안 끊는 쪽 자료만으로 앞서 나온 결과 둘을 다시 낸다.
+
+- `signal_split` — 깃발이 선 세션과 안 선 세션이 각각 몇 %나 달성 항목을
+  늘렸는가. 앞 배치의 33% 대 74%가 새 자료에서도 나오는지를 가린다. 예측 7로
+  봉인되어 있다.
+- `gain_spread` — 세션마다 늘린 항목 수의 분포. 사슬 끝 상태가 아니라 세션
+  단위다. 예측이 아니라 서술 통계다.
+
 사용:
 
     python pilot/analysis/cut_eval.py --keep results/cut/keep --cut results/cut/cut
@@ -125,6 +134,103 @@ def occurrences(chain_rows: list[dict], at: int = DEFAULT_AT,
         if after is not None:
             before = after
     return out
+
+
+def session_rows(chain_rows: list[dict], at: int = DEFAULT_AT,
+                 start: int | None = None) -> list[dict]:
+    """사슬 하나의 세션마다 (깃발, 늘린 항목 수, 쓴 호출 수).
+
+    `occurrences()` 와 달리 **깃발이 안 선 세션도 담는다.** 두 무리를 견줘야
+    초반 신호가 새 자료에서도 서는지 판정할 수 있고(`signal_split`), 세션마다
+    얼마를 늘렸는지의 분포를 낼 수 있다(`gain_spread`).
+    """
+    out = []
+    before = start
+    for index, row in enumerate(chain_rows):
+        after = passed(row)
+        out.append({
+            "chain": row.get("chain"),
+            "session_index": row.get("session_index", index + 1),
+            "flagged": flagged(row, at),
+            "cut": bool(row.get("cut")),
+            "gain": None if before is None or after is None else after - before,
+            "calls": calls_of(row),
+        })
+        if after is not None:
+            before = after
+    return out
+
+
+def signal_split(chains: list[list[dict]], at: int = DEFAULT_AT,
+                 start: int | None = None) -> dict:
+    """초반 신호가 갈라 놓은 두 무리가 실제로 다른가.
+
+    **안 끊는 쪽에서만 낸다.** 끊는 쪽은 깃발이 선 세션을 우리가 도중에
+    끝내므로 그 세션이 무엇을 할 수 있었는지가 관측되지 않는다.
+
+    앞 배치(`docs/EARLY_SIGNAL_RESULTS.md`)에서 초반 10호출에 `.py` 를 안 연
+    세션은 33%가, 연 세션은 74%가 달성 항목을 늘렸다. **그 수치는 무엇을 볼지를
+    70세션 전부를 보고 고른 값이라 낙관적이다.** 여기서 다시 내는 것이 그
+    신호가 새 자료에서도 서는지를 가리는 유일한 방법이다.
+    """
+    groups: dict[str, list[int]] = {"flagged": [], "unflagged": []}
+    for rows in chains:
+        for row in session_rows(rows, at, start):
+            if row["gain"] is None or row["flagged"] is None:
+                continue
+            groups["flagged" if row["flagged"] else "unflagged"].append(
+                row["gain"])
+
+    out: dict[str, dict] = {}
+    for key, gains in groups.items():
+        raised = sum(1 for gain in gains if gain > 0)
+        out[key] = {
+            "n": len(gains),
+            "raised": raised,
+            "rate": raised / len(gains) if gains else None,
+            "gains": sorted(gains),
+        }
+    return out
+
+
+def gain_spread(chains: list[list[dict]], at: int = DEFAULT_AT,
+                start: int | None = None) -> dict:
+    """세션마다 늘린 항목 수. **사슬 끝 상태가 아니라 세션 단위 분포다.**
+
+    사슬 끝 상태에는 세션의 능력과 사슬 안에서의 위치가 섞여 있다 — 뒤쪽 세션은
+    앞 세션이 해 둔 상태를 물려받는다. 위치별로 갈라 적어야 그 둘이 갈린다.
+
+    **끊긴 세션은 빼고 센다.** 우리가 도중에 끝낸 세션이 무엇을 할 수 있었는지는
+    관측되지 않았으므로, 그 0을 능력의 분포에 넣으면 우리가 만든 값을 관측으로
+    보고하는 것이 된다.
+
+    이것은 예측이 아니라 서술 통계다. `harness/anchor.md` 의 질문 ① 앞 절반
+    (세션마다 능력이 다른가)이 이 과제에서도 성립하는지를 부수적으로 기록한다.
+    """
+    by_position: dict[int, list[int]] = {}
+    every: list[int] = []
+    for rows in chains:
+        for row in session_rows(rows, at, start):
+            if row["gain"] is None or row["cut"]:
+                continue
+            by_position.setdefault(row["session_index"], []).append(row["gain"])
+            every.append(row["gain"])
+
+    ends: list[int] = []
+    for rows in chains:
+        scores = [value for value in (passed(row) for row in rows)
+                  if value is not None]
+        if scores:
+            ends.append(scores[-1])
+
+    return {
+        "by_position": {key: sorted(value)
+                        for key, value in sorted(by_position.items())},
+        "all": sorted(every),
+        "median": statistics.median(every) if every else None,
+        "sd": statistics.stdev(every) if len(every) > 1 else None,
+        "chain_end": sorted(ends),
+    }
 
 
 def _with_replacements(chain_rows: list[dict], at: int, start: int | None):
@@ -313,6 +419,17 @@ def check_predictions(result: dict, keep: list[list[dict]],
 
     add(5, "끊긴 세션이 저장소를 망가뜨리지 않는다",
         cut_sessions_lost_nothing(cut, start))
+
+    # 예측 7 — 초반 신호가 새 자료에서도 서는가. **안 끊는 쪽에서만 판정한다.**
+    # 깃발이 선 세션이 관측 하한에 못 미치면 참도 거짓도 아니고 판정 불가다.
+    split = result.get("signal_split") or {}
+    flag = split.get("flagged") or {}
+    plain = split.get("unflagged") or {}
+    seven = None
+    if (flag.get("rate") is not None and plain.get("rate") is not None
+            and flag.get("n", 0) >= MIN_OCCURRENCES):
+        seven = plain["rate"] > flag["rate"]
+    add(7, "깃발이 안 선 세션이 항목을 늘린 비율이 더 높다", seven)
     return out
 
 
@@ -332,6 +449,10 @@ def report(keep_dir: Path, cut_dir: Path, at: int = DEFAULT_AT,
         "sessions_per_chain": {"keep": sessions_per_chain(keep),
                                "cut": sessions_per_chain(cut)},
         "cut_rate": cut_rate(cut),
+        # 아래 둘은 **안 끊는 쪽에서만** 낸다. 끊는 쪽은 깃발이 선 세션을
+        # 우리가 도중에 끝내므로 그 세션의 성과가 관측되지 않는다.
+        "signal_split": signal_split(keep, at, start),
+        "gain_spread": gain_spread(keep, at, start),
     }
     result["predictions"] = check_predictions(result, keep, cut, start)
     return result
@@ -362,6 +483,43 @@ def render(result: dict) -> str:
         lines.append(f"- 안 끊는 쪽 깃발 세션의 성과 중앙값: {spread['baseline']}")
         lines.append(f"- 그보다 낮음 {spread['worse']} / 같음 {spread['same']} / "
                      f"높음 {spread['better']}")
+
+    split = result.get("signal_split")
+    if split:
+        lines += ["", "## 초반 신호가 새 자료에서도 서는가 (안 끊는 쪽)", ""]
+        lines.append("앞 배치에서는 깃발이 선 세션의 33%, 안 선 세션의 74%가 "
+                     "달성 항목을 늘렸다. **그 수치는 무엇을 볼지를 그 배치 "
+                     "전부를 보고 고른 값이라 낙관적이다.**")
+        lines.append("")
+        lines.append("| 초반 10호출에 `.py` 를 | 세션 | 항목을 늘림 |")
+        lines.append("|---|---|---|")
+        for name, key in (("하나도 안 열었다(깃발)", "flagged"),
+                          ("하나 이상 열었다", "unflagged")):
+            side = split.get(key) or {}
+            rate = side.get("rate")
+            lines.append(
+                f"| {name} | {side.get('n', 0)} | {side.get('raised', 0)}"
+                f"{'' if rate is None else f' ({rate:.0%})'} |")
+
+    spread_by_session = result.get("gain_spread")
+    if spread_by_session:
+        lines += ["", "## 세션마다 얼마를 늘렸는가 (안 끊는 쪽, 서술 통계)", ""]
+        lines.append("**사슬 끝 상태가 아니라 세션 단위 분포다.** 사슬 끝 "
+                     "상태에는 세션의 능력과 사슬 안에서의 위치가 섞여 있다.")
+        lines.append("")
+        lines.append(f"- 세션마다 늘린 항목 수(정렬): "
+                     f"{spread_by_session['all']}")
+        median = spread_by_session.get("median")
+        deviation = spread_by_session.get("sd")
+        lines.append(
+            f"- 중앙값 {'—' if median is None else median} / 표준편차 "
+            f"{'—' if deviation is None else f'{deviation:.2f}'}")
+        lines.append(f"- 사슬 끝 상태(정렬): {spread_by_session['chain_end']}")
+        lines.append("")
+        lines.append("| 사슬 안 몇 번째 세션인가 | 늘린 항목 수 |")
+        lines.append("|---|---|")
+        for position, gains in spread_by_session["by_position"].items():
+            lines.append(f"| {position} | {gains} |")
 
     checks = result.get("predictions") or []
     if checks:
