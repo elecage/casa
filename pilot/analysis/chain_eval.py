@@ -434,6 +434,43 @@ def verification_kind_of(session) -> str:
     return kind(session) if callable(kind) else "판정 불가"
 
 
+def state_table(vectors: dict[str, dict]) -> list[str]:
+    """함정마다 상태가 어떻게 갈렸는지.
+
+    **0이 무엇의 0인지 갈라 보기 위한 표다.** "빠진 채 종료 0건"은 세션들이
+    피했다는 뜻일 수도 있고 그 판정이 한 번도 실행되지 않았다는 뜻일 수도
+    있다. 이 프로젝트에서 후자를 전자로 읽은 것이 2026-08-22까지 세 번이다.
+    """
+    from casa.trap_state import AVOIDED, ENDED_IN_TRAP, NOT_REACHED, RECOVERED
+
+    names: list[str] = []
+    for vector in vectors.values():
+        for name in vector:
+            if name not in names:
+                names.append(name)
+
+    order = (ENDED_IN_TRAP, RECOVERED, AVOIDED, NOT_REACHED)
+    titles = {ENDED_IN_TRAP: "빠진 채 종료", RECOVERED: "회복",
+              AVOIDED: "피함", NOT_REACHED: "안 지나감"}
+    lines = ["", "=== 함정마다 상태 분포 ===",
+             "| 함정 | " + " | ".join(titles[s] for s in order) + " | 판정된 세션 |",
+             "|---|" + "---|" * (len(order) + 1)]
+    for name in sorted(names):
+        tally = {state: 0 for state in order}
+        for vector in vectors.values():
+            outcome = vector.get(name)
+            if outcome is not None and outcome.state in tally:
+                tally[outcome.state] += 1
+        judged = sum(v for s, v in tally.items() if s != NOT_REACHED)
+        lines.append(f"| {name} | "
+                     + " | ".join(str(tally[s]) for s in order)
+                     + f" | {judged} |")
+    lines.append("")
+    lines.append("**판정된 세션이 0이면 그 함정은 이 배치에서 한 번도 판정되지 "
+                 "않았다.** 세션들이 피한 것이 아니다.")
+    return lines
+
+
 def task_mismatch(rows: list[dict], task_dir: Path) -> str:
     """수집 기록이 말하는 과제와 판정에 쓰려는 과제가 다른가.
 
@@ -457,6 +494,9 @@ def task_mismatch(rows: list[dict], task_dir: Path) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("out_dir", type=Path)
+    ap.add_argument("--json", type=Path, default=None,
+                    help="판정 결과를 이 파일에 적는다. 판정은 배치마다 20분쯤 "
+                         "걸리므로, 다시 볼 일이 있으면 여기서 읽는다.")
     ap.add_argument("--task", type=Path,
                     default=ROOT / "pilot" / "tasks" / "release-traps")
     args = ap.parse_args()
@@ -498,6 +538,17 @@ def main() -> int:
         print(f"      인계 문서 읽음 {'O' if read else 'X'}"
               f" | 마칠 때 남김 {'O' if wrote else 'X'}"
               f" | 어떻게 확인했나: {kind}")
+
+    for line in state_table(vectors):
+        print(line)
+
+    if args.json:
+        Path(args.json).write_text(json.dumps(
+            {label: {name: {"state": o.state, "blame": o.blame}
+                     for name, o in vector.items()}
+             for label, vector in vectors.items()},
+            ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"\n판정 결과를 {args.json} 에 적었다. 다시 계산하지 않아도 된다.")
 
     print(f"\n빠진 채 종료 분포 중앙값 {median} → 나쁜 세션 = 중앙값 초과")
     print(f"나쁜 세션 {len(bad)}/{len(counts)} = {len(bad)/max(1,len(counts)):.0%}:"

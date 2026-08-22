@@ -342,3 +342,49 @@ def test_trap_vectors_passes_the_handoff_and_the_work_tree():
         encoding="utf-8")
     body = source.split("def trap_vectors(", 1)[1].split("\ndef ", 1)[0]
     assert "note_text=note" in body and "work_dir=work_dir" in body
+
+
+# ------- 0 이 무엇의 0인지 갈라 본다 (2026-08-22, 세 번 헛읽은 뒤)
+
+def _outcome(state):
+    from casa.trap_state import TrapOutcome
+    return TrapOutcome(state)
+
+
+def test_the_table_separates_avoided_from_never_judged():
+    """**"빠진 채 종료 0건"은 두 가지 뜻이다** — 세션들이 피했거나, 그 판정이
+    한 번도 실행되지 않았거나. 이 프로젝트에서 뒤엣것을 앞엣것으로 읽은 것이
+    세 번이다.
+    """
+    from casa.trap_state import AVOIDED, NOT_REACHED
+
+    vectors = {
+        "s1": {"피한것": _outcome(AVOIDED), "안잰것": _outcome(NOT_REACHED)},
+        "s2": {"피한것": _outcome(AVOIDED), "안잰것": _outcome(NOT_REACHED)},
+    }
+    lines = chain_eval.state_table(vectors)
+    body = "\n".join(lines)
+    avoided = [ln for ln in lines if ln.startswith("| 피한것 |")][0]
+    never = [ln for ln in lines if ln.startswith("| 안잰것 |")][0]
+
+    assert avoided.endswith("| 2 |"), avoided     # 판정된 세션 둘
+    assert never.endswith("| 0 |"), never         # 한 번도 판정 안 됨
+    assert "판정된 세션이 0이면" in body
+
+
+def test_every_trap_in_any_session_appears_in_the_table():
+    """한 세션에만 나온 함정이 표에서 빠지면 그 함정이 기록에서 사라진다."""
+    from casa.trap_state import AVOIDED, ENDED_IN_TRAP
+
+    vectors = {"s1": {"공통": _outcome(AVOIDED)},
+               "s2": {"공통": _outcome(AVOIDED), "하나만": _outcome(ENDED_IN_TRAP)}}
+    body = "\n".join(chain_eval.state_table(vectors))
+    assert "| 하나만 |" in body
+
+
+def test_the_runner_can_write_the_verdicts_to_a_file():
+    """판정이 배치마다 20분쯤 걸린다. 다시 볼 때 또 계산하지 않게 한다."""
+    source = (ROOT / "pilot" / "analysis" / "chain_eval.py").read_text(
+        encoding="utf-8")
+    assert '"--json"' in source
+    assert "다시 계산하지 않아도 된다" in source
