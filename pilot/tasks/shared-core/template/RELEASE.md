@@ -96,7 +96,7 @@ what to do first, or in what order the subsystems should be taken.
 ### K — dunning
 
 31. **Use each account's own terms**, whatever spelling the contract uses.
-32. **Don't chase a paid invoice.**
+32. **Don't chase an account that has no contract.**
 33. **Don't chase an invoice on the day it falls due.**
 
 ### L — reconcile
