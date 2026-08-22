@@ -122,7 +122,13 @@ def segments(sessions, marks) -> list[list[tuple[int, str]]]:
 
 
 def trap_vectors(out_dir: Path, task_dir: Path) -> dict[str, dict]:
-    """세션 이름표 → 함정 상태 벡터."""
+    """세션 이름표 → 함정 상태 벡터.
+
+    **판정에 쓸 탐지기를 `task_dir` 에서 가져온다.** 전에는 이 인자가 시작
+    상태 계산에만 쓰이고 판정은 `probe_eval` 에 못 박힌 과제의 탐지기가
+    했다(2026-08-22에 발견, 결과 하나를 버렸다).
+    """
+    probe.use_task(task_dir)
     start = probe.detect.tree_conditions(
         task_dir / "template", probe.grade.checkpoints(task_dir / "template"))
     rows = load_chain_sessions(out_dir)
@@ -387,6 +393,24 @@ def handoffs(out_dir: Path) -> list[dict]:
     return out
 
 
+def task_mismatch(rows: list[dict], task_dir: Path) -> str:
+    """수집 기록이 말하는 과제와 판정에 쓰려는 과제가 다른가.
+
+    **다르면 판정을 하지 않는다.** 다른 과제의 탐지기는 이 저장소에 없는
+    자리를 찾으므로 함정이 거의 안 켜지고, 그 0이 "세션들이 함정을 피했다"로
+    읽힌다. 2026-08-22에 실제로 그렇게 읽을 뻔했다.
+    """
+    names = {str((r.get("meta") or {}).get("task") or "") for r in rows}
+    names.discard("")
+    if not names:
+        return ""
+    if names != {Path(task_dir).name}:
+        return (f"과제가 다르다 — 수집 기록은 {sorted(names)} 인데 "
+                f"--task 는 {Path(task_dir).name} 이다. "
+                "판정을 멈춘다. 맞는 과제를 --task 로 준다.")
+    return ""
+
+
 # ------------------------------------------------------------------- 출력
 
 def main() -> int:
@@ -400,6 +424,11 @@ def main() -> int:
     if not rows:
         print("세션을 찾지 못했다.")
         return 1
+
+    mismatch = task_mismatch(rows, args.task)
+    if mismatch:
+        print(mismatch)
+        return 2
 
     vectors = trap_vectors(args.out_dir, args.task)
     counts = ended_in_trap_counts(vectors)

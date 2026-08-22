@@ -17,7 +17,8 @@ from pathlib import Path
 
 from casa.transcript import Session, ToolCall
 
-ANALYSIS = Path(__file__).resolve().parents[1] / "pilot" / "analysis"
+ROOT = Path(__file__).resolve().parents[1]
+ANALYSIS = ROOT / "pilot" / "analysis"
 
 
 def _load(name: str, path: Path):
@@ -242,3 +243,44 @@ def test_a_handoff_with_one_of_the_new_items_unmet_is_not_called_empty():
     before = {"dates.consistent_with_docs": False, "config.no_warning": False}
     after = dict(before)
     assert chain_eval.classify_handoff(before, after, set(), False) != "남은 일 없음"
+
+
+# --- 판정에 쓰는 탐지기가 --task 에서 와야 한다 (2026-08-22에 결과를 버렸다)
+
+def test_the_detector_comes_from_the_task_that_was_asked_for():
+    """`probe_eval` 에 과제가 못 박혀 있어서, 다른 과제의 탐지기로 판정한 적이
+    있다. 그 과제에 심어 둔 자리를 찾으니 함정이 거의 안 켜졌고, 그 0이
+    "세션들이 함정을 피했다"로 보였다.
+    """
+    deep = ROOT / "pilot" / "tasks" / "subsystems-deep"
+    chain_eval.probe.use_task(deep)
+    assert chain_eval.probe.detect.__file__ == str(deep / "detect.py")
+    assert chain_eval.probe.grade.__file__ == str(deep / "grade.py")
+
+    traps = ROOT / "pilot" / "tasks" / "release-traps"
+    chain_eval.probe.use_task(traps)
+    assert chain_eval.probe.detect.__file__ == str(traps / "detect.py")
+
+
+def test_trap_vectors_binds_the_detector_before_judging():
+    """`trap_vectors` 를 바로 부르는 쪽도 있으므로 여기서 묶어야 한다."""
+    source = (ROOT / "pilot" / "analysis" / "chain_eval.py").read_text(
+        encoding="utf-8")
+    body = source.split("def trap_vectors(", 1)[1].split("\ndef ", 1)[0]
+    assert "probe.use_task(task_dir)" in body
+
+
+def test_a_task_mismatch_stops_the_judgement():
+    """수집 기록이 말하는 과제와 다른 과제로 판정하면 멈춰야 한다."""
+    rows = [{"meta": {"task": "subsystems-deep"}},
+            {"meta": {"task": "subsystems-deep"}}]
+    assert chain_eval.task_mismatch(
+        rows, ROOT / "pilot" / "tasks" / "release-traps")
+    assert not chain_eval.task_mismatch(
+        rows, ROOT / "pilot" / "tasks" / "subsystems-deep")
+
+
+def test_records_without_a_task_name_do_not_block():
+    """옛 배치 기록에는 그 열쇠가 없다. 없다고 멈추면 옛 자료를 못 읽는다."""
+    assert not chain_eval.task_mismatch(
+        [{"meta": {}}], ROOT / "pilot" / "tasks" / "release-traps")
