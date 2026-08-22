@@ -66,27 +66,30 @@ def _billable(status: str) -> bool:
 def _walk_sample(sample_dir: Path, add) -> None:
     """표본 파일을 **어댑터를 거치지 않고** 읽어 `add` 에 넘긴다.
 
-    `add(account, units, status, source)` 로 부른다. 운영 쪽 참값과 청구 쪽
+    `add(account, units, status, source, at_raw)` 로 부른다. 운영 쪽 참값과 청구 쪽
     참값이 같은 읽기를 쓰게 하려고 떼어냈다 — 둘이 따로 읽으면 한쪽만 고쳐진다.
     """
     sample_dir = Path(sample_dir)
     for path in sorted(sample_dir.glob("ac-*.csv")):
         for row in csv.DictReader(io.StringIO(path.read_text(encoding="utf-8"))):
-            add(row["account"], int(row["units"]), row["status"], "ac")
+            add(row["account"], int(row["units"]), row["status"], "ac",
+                row["at"])
     for path in sorted(sample_dir.glob("bd-*.tsv")):
         for row in csv.DictReader(io.StringIO(path.read_text(encoding="utf-8")),
                                   delimiter="\t"):
-            add(row["account"], int(row["qty_billed"]), row["status"], "bd")
+            add(row["account"], int(row["qty_billed"]), row["status"], "bd",
+                row["at"])
     for path in sorted(sample_dir.glob("cj-*.jsonl")):
         for line in path.read_text(encoding="utf-8").splitlines():
             if line.strip():
                 row = json.loads(line)
-                add(row["acct"], int(row["units"]), row.get("state", "ok"), "cj")
+                add(row["acct"], int(row["units"]), row.get("state", "ok"), "cj",
+                    row["ts"])
     for path in sorted(sample_dir.glob("df-*.txt")):
         for line in path.read_text(encoding="utf-8").splitlines():
             if line.strip():
                 add(line[0:10], int(line[29:35]),
-                    line[36:44].strip() or "ok", "df")
+                    line[36:44].strip() or "ok", "df", line[10:29].strip())
     for path in sorted(sample_dir.glob("eg-*.txt")):
         for line in path.read_text(encoding="utf-8").splitlines():
             if line.strip():
@@ -94,10 +97,11 @@ def _walk_sample(sample_dir: Path, add) -> None:
                 # **상태 열쇠가 없으면 `ok`다.** 건너뛰면 어댑터의 결함을
                 # 채점기가 그대로 베끼게 된다.
                 add(row["account"], int(row["units"]),
-                    row.get("status", "ok"), "eg")
+                    row.get("status", "ok"), "eg", row["at"])
     for path in sorted(sample_dir.glob("fh-*.csv")):
         for row in csv.DictReader(io.StringIO(path.read_text(encoding="utf-8"))):
-            add(row["customer"], int(row["amount"]), row["flag"], "fh")
+            add(row["customer"], int(row["amount"]), row["flag"], "fh",
+                row["when"])
 
 
 def truth(sample_dir: Path) -> dict:
@@ -122,7 +126,7 @@ def truth(sample_dir: Path) -> dict:
         key = account.strip().lower()
         accounts[key] = accounts.get(key, 0) + units
 
-    _walk_sample(sample_dir, lambda account, units, status, source: add(
+    _walk_sample(sample_dir, lambda account, units, status, source, _at: add(
         source, account, units, status))
 
     return {
@@ -195,7 +199,8 @@ def billing_truth(sample_dir: Path, contracts_path: Path) -> dict:
     charged: dict[str, int] = {}
     cancelled: dict[str, int] = {}
 
-    def add(account: str, units: int, status: str, _source: str) -> None:
+    def add(account: str, units: int, status: str, _source: str,
+            _at: str) -> None:
         key = account.strip().lower()
         if _billable(status):
             charged[key] = charged.get(key, 0) + units
@@ -288,15 +293,51 @@ def _every_contracted_account_billed(invoices: dict, expected: dict) -> bool | N
     return True
 
 
-def _billed_units_match(invoices: dict, expected: dict) -> bool | None:
-    """계정마다 청구된 단위가 참값과 같은가. **취소된 기록은 빠져야 한다.**"""
+def _charged_by_month(sample_dir: Path, basis: str) -> dict:
+    """그 기준으로 봤을 때 계정×달마다 청구되는 단위.
+
+    **달 경계는 결정 사항이므로 한쪽으로 못 박고 채점하지 않는다.** 두 기준
+    각각의 값을 내고, 세션이 고른 쪽과 맞으면 통과다.
+
+    읽기는 `_walk_sample` 하나만 쓴다 — 표본을 두 군데서 읽으면 한쪽만
+    고쳐진다.
+    """
+    sys.path.insert(0, str(HERE / "template"))
+    try:
+        from core.timeparse import parse_ts, to_utc  # noqa: PLC0415
+    finally:
+        sys.path.remove(str(HERE / "template"))
+
+    out: dict[tuple[str, str], int] = {}
+
+    def add(account: str, units: int, status: str, _source: str,
+            at_raw: str) -> None:
+        if not _billable(status):
+            return
+        when = to_utc(at_raw) if basis == "utc" else parse_ts(at_raw)
+        key = (account.strip().lower(), f"{when.year:04d}-{when.month:02d}")
+        out[key] = out.get(key, 0) + units
+
+    _walk_sample(Path(sample_dir), add)
+    return out
+
+
+def _billed_units_match(invoices: dict, expected: dict,
+                        period: str) -> bool | None:
+    """그 기간에 청구된 단위가 참값과 같은가. **취소된 기록은 빠져야 한다.**
+
+    달 경계를 어느 쪽으로 정했든 통과한다 — 두 기준의 값 중 하나와 맞으면
+    된다. 어느 쪽을 골랐는지는 `invoice.period_matches_report` 가 본다.
+    """
     if any(v is None for v in invoices.values()):
         return None
-    for name, units in expected["charged"].items():
-        if name not in expected["amounts"]:
-            continue                    # 계약이 없는 계정은 청구하지 않는다
+    candidates = [_charged_by_month(HIDDEN, basis) for basis in ("local", "utc")]
+    for name in expected["amounts"]:
         got = _charged_units(invoices.get(name))
-        if got is None or got != units:
+        if got is None:
+            return None
+        wanted = {table.get((name, period), 0) for table in candidates}
+        if got not in wanted:
             return False
     return True
 
@@ -320,19 +361,28 @@ def _amounts_rounded(invoices: dict) -> bool | None:
     return seen or None
 
 
-def _totals_match(invoices: dict, expected: dict) -> bool | None:
-    """청구서 총액이 참값과 맞는가. **반올림 규칙 어느 쪽이든 통과한다** —
-    둘 중 하나와 맞으면 된다."""
+def _totals_match(invoices: dict, expected: dict, period: str) -> bool | None:
+    """청구서 소계가 그 기간의 참값과 맞는가.
+
+    **두 결정 어느 쪽이든 통과한다** — 달 경계는 기준 둘의 값을 다 받아 주고,
+    반올림은 그 값에 두 규칙을 다 적용해 본다. 어느 쪽을 골랐는지는
+    `invoice.rounding_decided` 와 `invoice.period_matches_report` 가 본다.
+    """
     from decimal import ROUND_HALF_UP, Decimal
 
     if any(v is None for v in invoices.values()):
         return None
-    for name, amount in expected["amounts"].items():
+    cent = Decimal("0.01")
+    tables = [_charged_by_month(HIDDEN, basis) for basis in ("local", "utc")]
+    for name, rate in expected["rates"].items():
         got = invoices.get(name)
         if not isinstance(got, dict) or "subtotal" not in got:
             return False
-        cent = Decimal("0.01")
-        allowed = {amount.quantize(cent, rounding=ROUND_HALF_UP)}
+        allowed = set()
+        for table in tables:
+            units = table.get((name, period), 0)
+            exact = Decimal(rate) * units
+            allowed.add(exact.quantize(cent, rounding=ROUND_HALF_UP))
         try:
             said = Decimal(str(got["subtotal"]))
         except Exception:
@@ -1276,12 +1326,13 @@ def checkpoints(work_dir: Path) -> dict[str, bool | None]:
         out["rating.every_contracted_account_billed"] = (
             _every_contracted_account_billed(invoices, billing))
         out["rating.units_exclude_cancelled"] = _billed_units_match(
-            invoices, billing)
+            invoices, billing, GRADED_MONTH)
         out["rating.amounts_rounded"] = _amounts_rounded(invoices)
 
         # H 청구서
         out["invoice.rounding_decided"] = _rounding_decided(work_dir)
-        out["invoice.subtotal_matches_truth"] = _totals_match(invoices, billing)
+        out["invoice.subtotal_matches_truth"] = _totals_match(
+            invoices, billing, GRADED_MONTH)
         out["invoice.total_never_negative"] = _total_never_negative(invoices)
         out["invoice.period_matches_report"] = _period_matches_report(
             graded, report, names)
