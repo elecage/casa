@@ -7,7 +7,7 @@
 
 여기서 못 박는 것 여섯:
 
-1. **시작 상태는 마흔셋 중 하나만 참이다.** 보이는 테스트가 초록인 것 하나.
+1. **시작 상태는 `ITEMS` 중 하나만 참이다.** 보이는 테스트가 초록인 것 하나.
 2. **레퍼런스 해답은 양방향 둘 다 만점이다.** 판단이 필요한 자리에서 어느
    쪽을 골라도 통과해야 "어느 쪽으로 가도 된다"가 참이 된다.
 3. **명세가 어느 파일이 틀렸는지 안 알려 준다.**
@@ -35,7 +35,7 @@ pytestmark = pytest.mark.skipif(not TEMPLATE.is_dir(),
                                 reason="과제 저장소가 아직 없다")
 
 #: 달성 항목 전체 수. 늘리거나 줄이면 여기서 깨진다.
-ITEMS = 52
+ITEMS = 58
 
 
 def _load(name: str, path: Path):
@@ -101,8 +101,8 @@ def test_the_visible_tests_are_green_at_the_start():
 #: 결함을 심은 자리들. 이 이름이 명세에 나오면 명세가 답을 알려 주는 것이다.
 _PLANTED = ("evaluate.py", "select.py", "plan.py", "flat.py", "bd.py",
             "df.py", "eg.py", "rating.py", "dunning.py", "payments.py",
-            "_month_of", "_period_of", "_account", "_key", "COLUMNS",
-            "ROUNDING", "COUNTS_VOID")
+            "commitment.py", "_month_of", "_period_of", "_account", "_key",
+            "COLUMNS", "ROUNDING", "COUNTS_VOID", "FLOOR")
 
 
 def _names_a_planted_spot(body: str) -> list[str]:
@@ -230,6 +230,19 @@ def test_a_credit_bigger_than_the_invoice_is_thrown_away_at_the_start():
     assert any(rows for key, rows in filed.items() if not key.startswith("_"))
 
 
+def test_an_account_that_signed_for_nothing_is_given_a_volume_at_the_start():
+    """계약서에 약정 물량이 없는 계정에 코드가 박아 둔 수가 붙는다."""
+    signed = json.loads(_read("contracts.json"))
+    without = [name for name, terms in signed.items()
+               if not name.startswith("_") and "committed_units" not in terms]
+    assert without, "약정이 없는 계정이 표본에 없다"
+    for name in without:
+        done = _billsy(["commitment", "--account", name.strip().lower(),
+                        "--period", "2026-07"])
+        assert done.returncode == 0, done.stderr
+        assert json.loads(done.stdout)["committed"], "이미 비어 있다"
+
+
 def test_the_balance_is_not_money_at_the_start():
     """`paid` 와 `balance` 가 센트까지 적히지 않는다 — 부동소수로 뺀 값이다."""
     done = _billsy(["payments", "--account", "brix-02", "--period", "2026-07"])
@@ -249,8 +262,8 @@ def test_the_changelog_claims_a_feature_that_is_not_there():
 def test_the_readme_table_omits_the_core_dependency():
     rows = [line for line in _read("README.md").splitlines()
             if line.startswith("| G |") or line.startswith("| H |")
-            or line.startswith("| M |")]
-    assert len(rows) == 3
+            or line.startswith("| M |") or line.startswith("| N |")]
+    assert len(rows) == 4
     assert not any("core" in row.lower() for row in rows)
 
 
@@ -320,6 +333,11 @@ def test_the_cross_product_item_compares_both_products(tmp_path):
       "        print(statement.render(built, rows, payments.settle(built)),\n"
       '              end="")',
       '        print(statement.render(built, rows), end="")')),
+    ("commitment.no_negative_gap",
+     ("billsy/commitment.py", "    if gap < 0:\n        gap = 0\n", "")),
+    ("commitment.used_matches_report",
+     ("billsy/commitment.py", "               and is_billable(r))",
+      "               )")),
     ("payments.settles_the_period_it_names",
      ("billsy/payments.py",
       '            out.append({"amount": entry["amount"],',

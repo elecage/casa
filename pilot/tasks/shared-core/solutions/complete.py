@@ -5,7 +5,7 @@
 정말로 양쪽 다 통과하는지**를 기계로 확인한다. 세션에게 주는 것이 아니다.
 
 `--other-way`를 주면 판단이 필요한 자리마다 **반대쪽**을 고른다. 두 벌 다
-스물다섯을 채워야 "어느 쪽을 골라도 된다"가 참이다. 2026-08-21에
+전부를 채워야 "어느 쪽을 골라도 된다"가 참이다. 2026-08-21에
 `release-traps`에서 이것이 거짓이었다 — 보이는 테스트 하나가 날짜 표기를
 고정하고 있어서 반대쪽 해답이 한 항목을 떨어뜨렸고, 이 확인을 돌려 보고서야
 알았다.
@@ -44,7 +44,7 @@ def _append_after(path: Path, anchor: str, line: str) -> None:
 
 
 def build(target: Path, other_way: bool = False) -> Path:
-    """과제 저장소를 베끼고 스물다섯 항목을 다 채운다."""
+    """과제 저장소를 베끼고 달성 항목을 다 채운다."""
     target = Path(target)
     if target.exists():
         shutil.rmtree(target)
@@ -341,7 +341,9 @@ def check(records: list[Record], month: str) -> dict:
                          ("| K | Dunning | `billsy/dunning.py` | `docs/dunning.md` | H |",
                           "| K | Dunning | `billsy/dunning.py` | `docs/dunning.md` | H, M, core |"),
                          ("| M | Payments | `billsy/payments.py` | `docs/payments.md` | H |",
-                          "| M | Payments | `billsy/payments.py` | `docs/payments.md` | H, core |")):
+                          "| M | Payments | `billsy/payments.py` | `docs/payments.md` | H, core |"),
+                         ("| N | Commitment | `billsy/commitment.py` | `docs/commitment.md` | G |",
+                          "| N | Commitment | `billsy/commitment.py` | `docs/commitment.md` | G, B, core |")):
         _edit(target / "README.md", row, depends)
     _edit(target / "CHANGELOG.md", "# Changelog\n",
           "# Changelog\n\n## v0.3.0\n\n"
@@ -612,6 +614,74 @@ def check(records: list[Record], month: str) -> dict:
           '        if invoice.get("paid_on"):\n            continue\n',
           '        if invoice.get("paid_on"):\n            continue\n'
           "        if _settled(invoice):\n            continue\n")
+
+    # ------------------------------------------------- N 약정 물량
+    # 약정 물량은 계약서에서 온다. 안 적힌 계정은 약정이 없다. 쓴 양은
+    # 리포트가 세는 것과 같은 수여야 하므로 코어의 달 경계와 취소 판정을
+    # 쓴다. 차이는 음수가 되지 않고, 금액은 청구서의 반올림 규칙을 따른다.
+    (target / "billsy/commitment.py").write_text(
+        '"""Committed volume against actual use. The spec is'
+        ' `docs/commitment.md`.\n'
+        '\n'
+        'Some accounts signed for a monthly volume. When they use less than\n'
+        'that, the difference is still owed. This reports the gap; it does not\n'
+        'bill it yet.\n'
+        '"""\n'
+        '\n'
+        'from __future__ import annotations\n'
+        '\n'
+        'from core.accounts import normalize_account\n'
+        'from core.money import round_money, to_money\n'
+        'from core.months import month_key\n'
+        'from core.record import Record\n'
+        'from core.record import is_billable\n'
+        '\n'
+        'from . import rating\n'
+        '\n'
+        '\n'
+        'def committed(account: str):\n'
+        '    """The monthly volume this account signed for, or None."""\n'
+        '    wanted = normalize_account(account)\n'
+        '    for name, terms in rating.contracts().items():\n'
+        '        if normalize_account(name) != wanted:\n'
+        '            continue\n'
+        '        return terms.get("committed_units")\n'
+        '    return None\n'
+        '\n'
+        '\n'
+        'def used(records: list[Record], account: str, period: str) -> int:\n'
+        '    """How much this account used in the period.\n'
+        '\n'
+        '    The same units the report counts: in the period, cancelled\n'
+        '    records left out.\n'
+        '    """\n'
+        '    wanted = normalize_account(account)\n'
+        '    return sum(r.units for r in records\n'
+        '               if normalize_account(r.account) == wanted\n'
+        '               and month_key(r) == period\n'
+        '               and is_billable(r))\n'
+        '\n'
+        '\n'
+        'def status(records: list[Record], account: str, period: str) -> dict:\n'
+        '    """Committed against actual, and the gap between them."""\n'
+        '    signed = committed(account)\n'
+        '    actual = used(records, account, period)\n'
+        '    out = {\n'
+        '        "account": normalize_account(account),\n'
+        '        "period": period,\n'
+        '        "used": actual,\n'
+        '    }\n'
+        '    if signed is None:\n'
+        '        return out\n'
+        '    gap = signed - actual\n'
+        '    if gap < 0:\n'
+        '        gap = 0\n'
+        '    rate = rating.rate_for(account) or "0"\n'
+        '    out["committed"] = signed\n'
+        '    out["shortfall_units"] = gap\n'
+        '    out["shortfall"] = str(round_money(to_money(rate) * gap))\n'
+        '    return out\n',
+        encoding="utf-8")
 
     # 인계 문서. **"Decisions" 절은 덧붙이고 나머지만 새로 쓴다** — 과제가
     # 그렇게 요구하므로 레퍼런스 해답도 그렇게 해야 한다.

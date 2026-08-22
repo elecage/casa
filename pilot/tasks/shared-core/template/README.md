@@ -13,6 +13,7 @@ Two products over one set of usage records. Standard library only.
     python -m billsy dunning --as-of 2026-09-01
     python -m billsy reconcile --month 2026-07
     python -m billsy payments --account acme-01 --period 2026-07
+    python -m billsy commitment --account acme-01 --period 2026-07
 
 ## The shared core
 
@@ -44,7 +45,7 @@ touched when the split happened in v0.2.0.
 | E | Export | `opsbox/export/` | `docs/export.md` | nothing |
 | F | Backfill | `opsbox/backfill/` | `docs/backfill.md` | A |
 
-## billsy — seven subsystems
+## billsy — eight subsystems
 
 | | What it does | Code | Spec | Depends on |
 |---|---|---|---|---|
@@ -55,6 +56,7 @@ touched when the split happened in v0.2.0.
 | K | Dunning | `billsy/dunning.py` | `docs/dunning.md` | H |
 | L | Reconcile | `billsy/reconcile.py` | `docs/reconcile.md` | B, G |
 | M | Payments | `billsy/payments.py` | `docs/payments.md` | H |
+| N | Commitment | `billsy/commitment.py` | `docs/commitment.md` | G |
 
 ## Tests
 

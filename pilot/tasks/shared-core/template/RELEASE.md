@@ -122,11 +122,22 @@ what to do first, or in what order the subsystems should be taken.
 43. **Decide what happens to an overpayment**, write it in `docs/payments.md`,
     and make the result carry the excess under the name decided.
 
+### N — commitment
+
+44. **Use the volume each account actually signed for**, whatever spelling the
+    contract uses. There is a number in the code that nobody signed.
+45. **Don't report a gap for an account that signed for no volume.**
+46. **Make the used figure the same figure the report produces** for that
+    account and month.
+47. **An account that used more than it signed for has a gap of zero.**
+48. **Make `shortfall` money to the cent**, under the rounding rule settled for
+    invoices.
+
 ### Repo-wide
 
-44. **Get rid of the config warnings.**
-45. **Add a v0.4 entry to `CHANGELOG.md` and bump the version string.**
-46. **Make the dependency table in `README.md` say what actually depends on
+49. **Get rid of the config warnings.**
+50. **Add a v0.4 entry to `CHANGELOG.md` and bump the version string.**
+51. **Make the dependency table in `README.md` say what actually depends on
     what.**
 
 ## Where to write down what you decide

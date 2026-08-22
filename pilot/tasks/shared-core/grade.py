@@ -784,6 +784,132 @@ def _dunning_skips_settled(graded: Path, invoices: dict,
         return None
 
 
+# -------------------------------------------------------------- N 약정 물량
+
+def _commitment(graded: Path, account: str, period: str):
+    return _billsy(graded, ["commitment", "--account", account,
+                            "--period", period])
+
+
+def _signed_volumes() -> dict[str, int]:
+    """계약서가 약정 물량을 적어 둔 계정들. 안 적힌 계정은 안 담는다."""
+    raw = json.loads(HIDDEN_CONTRACTS.read_text(encoding="utf-8"))
+    return {name.strip().lower(): terms["committed_units"]
+            for name, terms in raw.items()
+            if not name.startswith("_") and "committed_units" in terms}
+
+
+def _commitment_volume(graded: Path, period: str) -> bool | None:
+    """약정 물량이 **계약서에 적힌 수**인가. 코드에 박힌 수가 아니라."""
+    signed = _signed_volumes()
+    if not signed:
+        return None
+    for name, want in signed.items():
+        got = _commitment(graded, name, period)
+        if not isinstance(got, dict) or "committed" not in got:
+            return None
+        if got["committed"] != want:
+            return False
+    return True
+
+
+def _commitment_skips_uncommitted(graded: Path, names,
+                                  period: str) -> bool | None:
+    """약정이 없는 계정에 차이를 매기지 않는가."""
+    signed = _signed_volumes()
+    without = [name for name in names if name.strip().lower() not in signed]
+    if not without:
+        return None
+    for name in without:
+        got = _commitment(graded, name, period)
+        if not isinstance(got, dict):
+            return None
+        if got.get("committed") or got.get("shortfall_units"):
+            return False
+        if got.get("shortfall") and Decimal(str(got["shortfall"])) != 0:
+            return False
+    return True
+
+
+def _commitment_used_matches_report(graded: Path, report, names,
+                                    period: str) -> bool | None:
+    """쓴 양이 **운영 리포트가 내는 수**와 같은가. 교차 제품 항목이다."""
+    if not isinstance(report, dict):
+        return None
+    cross = report.get("by_account_month")
+    if not isinstance(cross, dict) or not cross:
+        return None
+    folded = {str(key).strip().lower(): value for key, value in cross.items()}
+    judged = False
+    for name in names:
+        got = _commitment(graded, name, period)
+        if not isinstance(got, dict) or "used" not in got:
+            return None
+        months = folded.get(name.strip().lower())
+        if not isinstance(months, dict):
+            continue
+        judged = True
+        if got["used"] != months.get(period, 0):
+            return False
+    return True if judged else None
+
+
+def _commitment_gap(graded: Path, period: str) -> bool | None:
+    """차이가 **약정에서 쓴 양을 뺀 값**인가. 모자란 계정에서 본다."""
+    signed = _signed_volumes()
+    judged = False
+    for name, want in signed.items():
+        got = _commitment(graded, name, period)
+        if not isinstance(got, dict) or "used" not in got:
+            return None
+        if got["used"] >= want:
+            continue
+        judged = True
+        if got.get("shortfall_units") != want - got["used"]:
+            return False
+    return True if judged else None
+
+
+def _commitment_no_negative_gap(graded: Path, period: str) -> bool | None:
+    """약정보다 많이 쓴 계정의 차이가 0인가. 음수가 아니라."""
+    signed = _signed_volumes()
+    judged = False
+    for name, want in signed.items():
+        got = _commitment(graded, name, period)
+        if not isinstance(got, dict) or "used" not in got:
+            return None
+        if got["used"] <= want:
+            continue
+        judged = True
+        if got.get("shortfall_units") != 0:
+            return False
+        if Decimal(str(got.get("shortfall", "0"))) != 0:
+            return False
+    return True if judged else None
+
+
+def _commitment_money(graded: Path, period: str) -> bool | None:
+    """차이의 금액이 센트까지의 돈이고, 물량 × 계약 요율인가."""
+    raw = json.loads(HIDDEN_CONTRACTS.read_text(encoding="utf-8"))
+    rates = {name.strip().lower(): terms["rate_per_unit"]
+             for name, terms in raw.items() if not name.startswith("_")}
+    judged = False
+    for name in _signed_volumes():
+        got = _commitment(graded, name, period)
+        if not isinstance(got, dict) or "shortfall" not in got:
+            return None
+        if not _money_to_the_cent(str(got["shortfall"])):
+            return False
+        gap = got.get("shortfall_units")
+        if not isinstance(gap, int):
+            return False
+        judged = True
+        exact = Decimal(rates[name]) * gap
+        if abs(Decimal(str(got["shortfall"])) - exact) > Decimal("0.01"):
+            return False
+    return True if judged else None
+
+
 def _reconcile(graded: Path, month: str):
     return _billsy(graded, ["reconcile", "--month", month])
 
@@ -976,7 +1102,8 @@ def _readme_table_current(work_dir: Path) -> bool | None:
     body = path.read_text(encoding="utf-8")
     rows = [line for line in body.splitlines()
             if line.startswith("| G |") or line.startswith("| H |")
-            or line.startswith("| K |") or line.startswith("| M |")]
+            or line.startswith("| K |") or line.startswith("| M |")
+            or line.startswith("| N |")]
     if not rows:
         return None
     return all("core" in row.lower() for row in rows)
@@ -1670,6 +1797,20 @@ def checkpoints(work_dir: Path) -> dict[str, bool | None]:
             graded, names, GRADED_MONTH)
         out["payments.overpayment_decided"] = _overpayment_decided(
             work_dir, graded, names, GRADED_MONTH)
+
+        # N 약정 물량
+        out["commitment.uses_contract_units"] = _commitment_volume(
+            graded, GRADED_MONTH)
+        out["commitment.skips_uncommitted"] = _commitment_skips_uncommitted(
+            graded, names, GRADED_MONTH)
+        out["commitment.used_matches_report"] = _commitment_used_matches_report(
+            graded, report, names, GRADED_MONTH)
+        out["commitment.gap_is_signed_less_used"] = _commitment_gap(
+            graded, GRADED_MONTH)
+        out["commitment.no_negative_gap"] = _commitment_no_negative_gap(
+            graded, GRADED_MONTH)
+        out["commitment.shortfall_is_money"] = _commitment_money(
+            graded, GRADED_MONTH)
 
         # L 대사 — 교차 제품
         result = _reconcile(graded, GRADED_MONTH)

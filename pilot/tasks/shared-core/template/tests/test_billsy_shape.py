@@ -5,7 +5,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from billsy import credits, dunning, payments, rating, statement  # noqa: E402
+from billsy import (commitment, credits, dunning, payments,  # noqa: E402
+                    rating, statement)
 
 
 def test_a_charge_line_carries_the_five_fields():
@@ -46,6 +47,13 @@ def test_a_settlement_carries_the_six_fields():
 def test_a_payment_row_is_amount_and_date_and_ref():
     for row in payments.for_account("acme-01", "2026-07"):
         assert set(row) == {"amount", "received_on", "ref"}
+
+
+def test_a_commitment_report_names_the_account_and_the_period():
+    got = commitment.status([], "acme-01", "2026-07")
+    assert got["account"].strip().lower() == "acme-01"
+    assert got["period"] == "2026-07"
+    assert isinstance(got["used"], int)
 
 
 def test_a_statement_renders_the_invoice_numbers():
