@@ -284,3 +284,20 @@ def test_records_without_a_task_name_do_not_block():
     """옛 배치 기록에는 그 열쇠가 없다. 없다고 멈추면 옛 자료를 못 읽는다."""
     assert not chain_eval.task_mismatch(
         [{"meta": {}}], ROOT / "pilot" / "tasks" / "release-traps")
+
+
+def test_a_task_without_that_judgement_is_reported_as_undecidable():
+    """과제마다 파일 구조가 다르므로 이 판정은 과제의 탐지기에 있다. 없는
+    과제도 있고, 그때 다른 과제의 것을 대신 쓰면 안 된다."""
+    class Bare:
+        pass
+    saved = chain_eval.probe.detect
+    try:
+        chain_eval.probe.detect = Bare()
+        assert chain_eval.verification_kind_of(object()) == "판정 불가"
+    finally:
+        chain_eval.probe.detect = saved
+
+
+def test_no_session_is_reported_as_undecidable():
+    assert chain_eval.verification_kind_of(None) == "판정 불가"

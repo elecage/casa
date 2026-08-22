@@ -393,6 +393,19 @@ def handoffs(out_dir: Path) -> list[dict]:
     return out
 
 
+def verification_kind_of(session) -> str:
+    """어떻게 확인했는가. **탐지기가 그 판정을 안 가지고 있으면 "판정 불가".**
+
+    과제마다 파일 구조가 다르므로 이 판정은 과제의 탐지기에 있다. 없는 과제도
+    있고, 그때 다른 과제의 것을 대신 쓰면 안 된다 — 2026-08-22에 그렇게 해서
+    결과 하나를 버렸다. 없으면 없다고 적는다.
+    """
+    if session is None:
+        return "판정 불가"
+    kind = getattr(probe.detect, "verification_kind", None)
+    return kind(session) if callable(kind) else "판정 불가"
+
+
 def task_mismatch(rows: list[dict], task_dir: Path) -> str:
     """수집 기록이 말하는 과제와 판정에 쓰려는 과제가 다른가.
 
@@ -444,7 +457,7 @@ def main() -> int:
         recovered = [k for k, v in vector.items() if v.blame == "recovered"]
         checks = (row["meta"].get("grade") or {}).get("checkpoints") or {}
         session = row["session"]
-        kind = probe.detect.verification_kind(session) if session else "?"
+        kind = verification_kind_of(session)
         read = probe.detect.read_handoff(session) if session else False
         wrote = probe.detect.updated_handoff(None, session) if session else False
         print(f"  {label}: 만든 함정 {len(made)}개 {made or ''}"
