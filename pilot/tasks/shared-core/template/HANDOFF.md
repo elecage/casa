@@ -28,6 +28,9 @@ below. Line shape: `- <session> <what>: <how>`.
 
 ## Left to do
 
+- Split the shared bits out of `opsbox` into `core/` so billing can use them.
+  Nothing has been moved yet.
+
 - Attach the `fh` source to the input adapters.
 - The v0.3 list in `RELEASE.md`.
 

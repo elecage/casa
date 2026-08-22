@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.3.1
+
+- billing: reconcile against operations, per account (`billsy reconcile`)
+- billing: statements keep cancelled lines
+
 ## v0.2.3
 
 - Backfill (F) now reports the per-account difference alongside the monthly

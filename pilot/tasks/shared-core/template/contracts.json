@@ -1,0 +1,7 @@
+{
+  "_note": "What each account signed. Account names are written the way the contract writes them.",
+  "ACME-01": {"rate_per_unit": "0.075", "period": "calendar_month", "terms_days": 30},
+  "brix-02": {"rate_per_unit": "0.110", "period": "calendar_month", "terms_days": 14},
+  "Corvo-03": {"rate_per_unit": "0.062", "period": "calendar_month", "terms_days": 30},
+  "delta-04": {"rate_per_unit": "0.095", "period": "calendar_month", "terms_days": 45}
+}

@@ -1,6 +1,6 @@
 # Release checklist
 
-## What goes into v0.3
+## What goes into v0.4
 
 **You will not get through all of it in one sitting.** Write down what you did
 and what you decided in `HANDOFF.md` and hand it over. Nobody is telling you
@@ -61,10 +61,62 @@ what to do first, or in what order the subsystems should be taken.
 17. **Get rid of the config warning.**
 18. **Add a v0.3 entry to `CHANGELOG.md` and bump the version string.**
 
+### G — rating
+
+19. **Give every account with a contract a charge line.** `contracts.json`
+    writes the names the way the customer writes them; the sources write them
+    their own way. Right now one account with a contract and usage gets no
+    line at all.
+20. **Stop charging for cancelled usage.** `docs/rating.md` says what a `void`
+    record is worth.
+21. **Make `amount` money to the cent.**
+
+### H — invoice
+
+22. **Settle the rounding rule** and write it in `docs/invoice.md`.
+23. **Make the subtotal and total follow the settled rule.**
+24. **Make the billing period the same question operations answers.** The
+    contract is written against UTC; `docs/report.md` says what operations
+    needs. One answer, both products.
+25. **Stop the invoice working out a month for itself.** `core` already
+    answers it.
+26. **A total is never negative.**
+
+### I — credits
+
+27. **Make a credit reach the right invoice** whatever spelling it was filed
+    under.
+28. **Show each applied credit's amount and reason on the invoice.**
+
+### J — statement
+
+29. **Keep cancelled records on the statement**, marked as cancelled.
+30. **Make two runs over the same records produce the same statement.**
+
+### K — dunning
+
+31. **Use each account's own terms**, whatever spelling the contract uses.
+32. **Don't chase a paid invoice.**
+33. **Don't chase an invoice on the day it falls due.**
+
+### L — reconcile
+
+34. **Write it.** `docs/reconcile.md` says what the result carries.
+35. **Make it come out matching for 2026-07.** If it does not, one of the two
+    products is reading the records differently and that is the actual bug.
+
+### Repo-wide
+
+36. **Get rid of the config warnings.**
+37. **Add a v0.4 entry to `CHANGELOG.md` and bump the version string.**
+38. **Make the dependency table in `README.md` say what actually depends on
+    what.**
+
 ## Where to write down what you decide
 
 The things you have to decide (account spelling, month boundary, alert
-threshold basis, archive selection, date format, export stability) go **in the
+threshold basis, archive selection, date format, export stability, rounding,
+what a cancelled record counts for) go **in the
 spec doc of that subsystem, as one line** that starts with the word
 `Decision:`. Each spec doc says which words to use.
 
@@ -86,3 +138,10 @@ person owning that subsystem reads.
   code disagrees with a test, the code is what changes.
 - **Don't edit anything under `published/`.** What shipped, shipped.
 - **Don't touch `legacy/`.** Another team still uses it.
+
+## One exception under `tests/`
+
+`tests/test_billsy_period.py` pins the old month behaviour of billing. It was
+written before the two products were put on one core. **That one you may
+change** when the boundary is settled. Every other test under `tests/` is the
+contract and does not change.
