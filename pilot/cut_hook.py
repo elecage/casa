@@ -19,9 +19,19 @@
 **강제는 코드에 있다.** 프롬프트에 "코드를 먼저 열어라"를 넣으면 그것이 바로
 우리가 검출하려는 차이를 없앤다(`harness/anchor.md`).
 
+**연속으로 끊는 횟수에 상한을 둔다**(2026-08-22 유저 지적). 끊는다고 다음
+세션이 더 나으리라는 보장이 없다 — 더 나쁠 수도 같을 수도 있다. 상한이 없으면
+사슬이 10호출짜리 토막을 계속 만들면서 호출 총량만 태우고, 그 사슬은 "끊기가
+손해다"가 아니라 "우리가 사슬을 굶겼다"를 보여 준다. 상한에 닿으면 그 다음
+세션은 신호가 켜져도 끊지 않고 끝까지 돌린다.
+
 설정은 러너가 작업 디렉토리 밖에 써 둔다 — 세션이 읽으면 안 된다:
 
-    .casa-cut.json   {"at": 10}
+    .casa-cut.json   {"at": 10, "streak": 1, "max_streak": 2}
+
+`streak` 은 **바로 앞까지 연속으로 끊긴 세션 수**이고 러너가 매 세션 전에
+새로 쓴다. 훅이 실제로 끊으면 같은 자리에 표시를 남겨서 러너가 셀 수 있게
+한다(`.casa-cut-mark.json`).
 """
 
 from __future__ import annotations
@@ -36,6 +46,9 @@ for _stream in (sys.stdout, sys.stderr):
         _stream.reconfigure(encoding="utf-8", errors="replace")
 
 CONFIG_NAME = ".casa-cut.json"
+
+#: 훅이 실제로 끊은 세션을 적어 두는 자리. 러너가 연속 횟수를 세는 근거다.
+MARK_NAME = ".casa-cut-mark.json"
 
 #: 대상이 들어 있을 만한 열쇠. 앞에서부터 처음 찾은 것을 쓴다.
 TARGET_KEYS = ("file_path", "path", "notebook_path", "pattern", "command")
@@ -94,20 +107,84 @@ def decide(calls: list[dict], at: int) -> bool:
     return not opened_code(calls[:at])
 
 
-def load_config(start: Path) -> dict:
-    """설정을 위로 거슬러 찾는다. 세션의 작업 트리 밖에 있다."""
+def cap_reached(config: dict) -> bool:
+    """연속으로 끊은 횟수가 상한에 닿았는가.
+
+    닿았으면 이번 세션은 신호가 켜져도 끊지 않는다. `max_streak` 이 0이면
+    상한이 없다.
+    """
+    limit = config.get("max_streak")
+    streak = config.get("streak")
+    if not isinstance(limit, int) or limit <= 0:
+        return False
+    return isinstance(streak, int) and streak >= limit
+
+
+def should_cut(config: dict, calls: list[dict]) -> bool:
+    """설정과 지금까지의 호출을 보고 끊을지 정한다."""
+    at = config.get("at")
+    if not isinstance(at, int) or at <= 0:
+        return False
+    if cap_reached(config):
+        return False
+    return decide(calls, at)
+
+
+def find_config(start: Path) -> tuple[Path | None, dict]:
+    """설정 파일과 그 내용. 못 찾으면 `(None, {})`."""
     here = Path(start)
     for folder in (here, *here.parents):
+        path = folder / CONFIG_NAME
         try:
-            raw = json.loads((folder / CONFIG_NAME).read_text(encoding="utf-8"))
+            raw = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
         if isinstance(raw, dict):
-            return raw
-    return {}
+            return path, raw
+    return None, {}
 
 
-def install(workdir: Path, at: int) -> None:
+def load_config(start: Path) -> dict:
+    """설정을 위로 거슬러 찾는다. 세션의 작업 트리 밖에 있다."""
+    return find_config(start)[1]
+
+
+def _mark(folder: Path, transcript: str) -> None:
+    """이 세션을 끊었다고 적어 둔다. 러너가 연속 횟수를 이걸로 센다."""
+    path = Path(folder) / MARK_NAME
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raw = {}
+    seen = raw.get("cut") if isinstance(raw, dict) else None
+    names = list(seen) if isinstance(seen, list) else []
+    name = Path(transcript).name
+    if name not in names:
+        names.append(name)
+    try:
+        path.write_text(json.dumps({"cut": names}, indent=2), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def cut_marks(folder: Path) -> int:
+    """지금까지 훅이 끊은 세션 수.
+
+    **이름이 아니라 개수로 센다.** 러너는 세션이 끝난 뒤 그 세션의 살아 있던
+    트랜스크립트 이름을 늘 알 수 있는 것이 아니다 — 세션 식별자가 없으면
+    수정 시각으로 골라 오기 때문이다. 세션 하나는 많아야 한 번 표시되므로,
+    세션 전후의 개수를 견주면 그 세션이 끊겼는지 알 수 있다.
+    """
+    try:
+        raw = json.loads((Path(folder) / MARK_NAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return 0
+    names = raw.get("cut") if isinstance(raw, dict) else None
+    return len(names) if isinstance(names, list) else 0
+
+
+def install(workdir: Path, at: int, *, streak: int = 0,
+            max_streak: int = 0) -> None:
     """끊는 시점을 적어 두고 훅을 배선한다.
 
     **설정은 작업 디렉토리 밖에 둔다** — 세션이 읽으면 그것을 보고 행동을
@@ -122,8 +199,9 @@ def install(workdir: Path, at: int) -> None:
     workdir = Path(workdir)
     folder = workdir.parent
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / CONFIG_NAME).write_text(json.dumps({"at": at}, indent=2),
-                                      encoding="utf-8")
+    (folder / CONFIG_NAME).write_text(
+        json.dumps({"at": at, "streak": streak, "max_streak": max_streak},
+                   indent=2), encoding="utf-8")
 
     settings_path = workdir / ".claude" / "settings.json"
     settings_path.parent.mkdir(parents=True, exist_ok=True)
@@ -152,15 +230,16 @@ def main() -> int:
         return 0
 
     workdir = Path(payload.get("cwd") or os.getcwd())
-    at = load_config(workdir).get("at")
-    if not isinstance(at, int) or at <= 0:
+    config_path, config = find_config(workdir)
+    if config_path is None:
         return 0
 
     transcript = payload.get("transcript_path")
     if not isinstance(transcript, str):
         return 0
 
-    if decide(tool_calls(Path(transcript)), at):
+    if should_cut(config, tool_calls(Path(transcript))):
+        _mark(config_path.parent, transcript)
         sys.stderr.write(CUT_MESSAGE + "\n")
         return 2
     return 0

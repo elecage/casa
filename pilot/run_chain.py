@@ -165,7 +165,7 @@ def load_prompts(task_dir: Path) -> tuple[str, str]:
 def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
               budget: int, model: str | None, timeout_s: int,
               resume: bool = False, cut_at: int = 0,
-              allowance: int = 0) -> list[dict]:
+              allowance: int = 0, max_cut_streak: int = 0) -> list[dict]:
     first_prompt, next_prompt = load_prompts(task_dir)
     relevant = [ln.strip() for ln in
                 (task_dir / "relevant_files.txt").read_text(
@@ -185,13 +185,14 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
     # **예산 훅 다음에 배선한다.** 예산 훅이 PreToolUse 목록을 통째로 쓰므로
     # 순서가 뒤집히면 끊는 장치가 조용히 사라지고, 두 조건이 같아진 채로
     # 배치가 돈다.
-    cut_hook.install(workdir, cut_at)
+    cut_hook.install(workdir, cut_at, max_streak=max_cut_streak)
     # 예산 훅 다음에 배선한다 — settings.json 을 덮지 않고 합친다.
     snapshot.install(workdir, out_dir / SNAPSHOT_DIR_NAME /
                      f"chain-{chain:02d}.git")
 
     seen: set[str] = set()
     rows: list[dict] = []
+    cut_streak = 0
     used = sum(calls_of(r) for r in earlier_rows(out_dir, chain)) if done else 0
     index = done
     while True:
@@ -206,6 +207,13 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
         elif index > sessions:
             break
         label = f"c{chain:02d}s{index:02d}"
+        # **연속으로 끊은 횟수를 세션마다 새로 써 준다.** 상한에 닿으면 훅이
+        # 이번 세션은 신호가 켜져도 안 끊는다 — 안 그러면 사슬이 토막만
+        # 만들면서 호출 총량을 태우고, 그 결과는 끊기의 손익이 아니라 우리가
+        # 사슬을 굶긴 것을 보여 준다(2026-08-22 유저 지적).
+        cut_hook.install(workdir, cut_at, streak=cut_streak,
+                         max_streak=max_cut_streak)
+        marks_before = cut_hook.cut_marks(workdir.parent)
         started = time.time()
         cli = run_headless(workdir, first_prompt if index == 1 else next_prompt,
                            model, timeout_s)
@@ -228,6 +236,13 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
 
         transcript = collect_transcript(workdir, cli, out_dir, label, seen)
         row["transcript"] = str(transcript) if transcript else None
+        # **끊긴 세션을 세션 기록에 남긴다.** 나중에 "끊긴 자리마다 다음
+        # 세션이 무엇을 했는가"를 세려면 어느 세션이 끊겼는지가 필요하다.
+        was_cut = cut_hook.cut_marks(workdir.parent) > marks_before
+        cut_streak = cut_streak + 1 if was_cut else 0
+        row["cut"] = was_cut
+        row["cut_streak"] = cut_streak
+        row["max_cut_streak"] = max_cut_streak
         if transcript:
             row["audit"] = audit_session(transcript, rules=rules,
                                          relevant_files=relevant)
@@ -307,6 +322,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--cut-at", type=int, default=0,
                     help="이 호출까지 .py 파일을 한 번도 안 연 세션을 그 자리에서 "
                          "끊는다. 0이면 안 끊는다.")
+    ap.add_argument("--max-cut-streak", type=int, default=2,
+                    help="연속으로 끊을 수 있는 세션 수의 상한. 이 수만큼 "
+                         "연달아 끊긴 뒤에는 다음 세션을 신호가 켜져도 안 "
+                         "끊는다. 0이면 상한이 없다.")
     ap.add_argument("--call-allowance", type=int, default=0,
                     help="사슬 하나가 쓸 도구 호출 총량. 주면 세션 수가 아니라 "
                          "이 총량이 다 될 때까지 돌린다 — 끊는 조건과 안 끊는 "
@@ -326,7 +345,8 @@ def main(argv: list[str] | None = None) -> int:
     meta = {"task": task_dir.name, "chains": args.chains,
             "sessions_per_chain": args.sessions, "budget": args.budget,
             "model": args.model, "account": email,
-            "cut_at": args.cut_at, "call_allowance": args.call_allowance}
+            "cut_at": args.cut_at, "call_allowance": args.call_allowance,
+            "max_cut_streak": args.max_cut_streak}
     (out_dir / "meta.json").write_text(
         json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -335,7 +355,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"chain {chain}/{args.chains}")
         rows = run_chain(task_dir, out_dir, chain, args.sessions, args.budget,
                          args.model, args.timeout_min * 60, resume=args.resume,
-                         cut_at=args.cut_at, allowance=args.call_allowance)
+                         cut_at=args.cut_at, allowance=args.call_allowance,
+                         max_cut_streak=args.max_cut_streak)
         summary = chain_summary(rows)
         summaries.append(summary)
         print(f"  → 마일스톤 {summary['per_session_scores']} "

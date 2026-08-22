@@ -1,6 +1,6 @@
 """초반에 코드를 안 연 세션을 끊는 훅 테스트 (`pilot/cut_hook.py`).
 
-이 파일이 못 박는 것 넷.
+이 파일이 못 박는 것 다섯.
 
 1. **판정은 정해진 호출까지만 본다.** 그 뒤로 다시 재면 끊는 자리가 신호가
    아니라 세션의 길이에 좌우된다.
@@ -9,6 +9,9 @@
 3. **예산 훅을 덮지 않는다.** 순서가 뒤집히면 끊는 장치가 조용히 사라지고
    두 조건이 같아진 채로 배치가 돈다.
 4. **끊지 않기로 한 실행에서는 아무것도 배선하지 않는다.**
+5. **연속으로 끊는 횟수에 상한이 있고, 러너가 세션마다 그 횟수를 새로 써
+   준다.** 한 번만 써 두면 훅은 첫 세션의 값을 계속 보고 상한이 있으나 마나
+   해진다.
 """
 
 from __future__ import annotations
@@ -93,7 +96,7 @@ def test_the_hook_finds_the_config_from_inside_the_workdir(tmp_path):
     work = tmp_path / "chain-01"
     (work / "opsbox").mkdir(parents=True)
     cut.install(work, at=10)
-    assert cut.load_config(work / "opsbox") == {"at": 10}
+    assert cut.load_config(work / "opsbox")["at"] == 10
 
 
 # ------------------------------------------- 예산 훅을 덮지 않는다
@@ -187,3 +190,79 @@ def test_the_hook_does_nothing_without_a_config(tmp_path):
     done = _run_hook(work, _transcript(tmp_path / "t.jsonl",
                                        ["docs/a.md"] * 30))
     assert done.returncode == 0
+
+
+# ------------------------------- 연속으로 끊는 횟수에 상한을 둔다
+
+def test_the_cap_stops_cutting_once_the_streak_is_reached():
+    """상한에 닿으면 신호가 켜져도 안 끊는다.
+
+    상한이 없으면 사슬이 열 호출짜리 토막을 계속 만들면서 호출 총량만
+    태우고, 그 사슬은 끊기의 손익이 아니라 우리가 사슬을 굶긴 것을
+    보여 준다.
+    """
+    calls = _calls(*["docs/ingest.md"] * 10)
+    assert cut.should_cut({"at": 10, "streak": 1, "max_streak": 2}, calls)
+    assert not cut.should_cut({"at": 10, "streak": 2, "max_streak": 2}, calls)
+    assert not cut.should_cut({"at": 10, "streak": 5, "max_streak": 2}, calls)
+
+
+def test_no_cap_means_always_cutting_on_the_signal():
+    calls = _calls(*["docs/ingest.md"] * 10)
+    assert cut.should_cut({"at": 10, "streak": 9, "max_streak": 0}, calls)
+
+
+def test_the_cap_does_not_cut_a_session_that_opened_code():
+    """상한이 남아 있어도 신호가 안 켜지면 안 끊는다."""
+    calls = _calls(*["docs/a.md"] * 9 + ["core/months.py"])
+    assert not cut.should_cut({"at": 10, "streak": 0, "max_streak": 2}, calls)
+
+
+def test_the_hook_honours_the_cap_end_to_end(tmp_path):
+    work = tmp_path / "chain-01"
+    work.mkdir()
+    cut.install(work, at=10, streak=2, max_streak=2)
+    done = _run_hook(work, _transcript(tmp_path / "t.jsonl",
+                                       ["docs/a.md"] * 10))
+    assert done.returncode == 0, done.stderr
+
+
+def test_a_cut_session_is_marked_so_the_runner_can_count_it(tmp_path):
+    """러너는 이름이 아니라 개수로 센다 — 세션 식별자가 없을 때가 있다."""
+    work = tmp_path / "chain-01"
+    work.mkdir()
+    cut.install(work, at=10, max_streak=2)
+    assert cut.cut_marks(work.parent) == 0
+
+    done = _run_hook(work, _transcript(tmp_path / "t.jsonl",
+                                       ["docs/a.md"] * 10))
+    assert done.returncode == 2
+    assert cut.cut_marks(work.parent) == 1
+
+    # 같은 세션이 호출을 더 해도 한 번만 세어진다.
+    _run_hook(work, _transcript(tmp_path / "t.jsonl", ["docs/a.md"] * 12))
+    assert cut.cut_marks(work.parent) == 1
+
+    # 다른 세션이 끊기면 하나 더 센다.
+    _run_hook(work, _transcript(tmp_path / "u.jsonl", ["docs/a.md"] * 10))
+    assert cut.cut_marks(work.parent) == 2
+
+
+def test_a_session_that_was_let_through_is_not_marked(tmp_path):
+    work = tmp_path / "chain-01"
+    work.mkdir()
+    cut.install(work, at=10, max_streak=2)
+    _run_hook(work, _transcript(
+        tmp_path / "t.jsonl", ["docs/a.md"] * 9 + ["core/months.py"]))
+    assert cut.cut_marks(work.parent) == 0
+
+
+def test_the_runner_rewrites_the_streak_before_every_session():
+    """상한이 들으려면 러너가 세션마다 연속 횟수를 새로 써 줘야 한다.
+
+    한 번만 써 두면 훅은 첫 세션의 값을 계속 보고, 상한이 있으나 마나 해진다.
+    """
+    body = (PILOT / "run_chain.py").read_text(encoding="utf-8")
+    inside = body[body.index("    while True:"):]
+    assert "cut_hook.install(workdir, cut_at, streak=cut_streak" in inside
+    assert "cut_hook.cut_marks(workdir.parent) > marks_before" in inside
