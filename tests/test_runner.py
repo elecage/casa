@@ -77,6 +77,30 @@ def test_prepare_workdir_wipes_leftover_dest(tmp_path):
     assert (dest / "CLAUDE.md").exists()
 
 
+def test_prepare_workdir_ignores_the_callers_git_environment(tmp_path,
+                                                             monkeypatch):
+    """부모 git 프로세스의 색인을 물려받으면 안 된다.
+
+    `git commit -a` 는 훅에 `GIT_INDEX_FILE` 을 절대 경로(부모 저장소의
+    `.git/index.lock`)로 넘긴다. 우리 pre-commit 훅이 테스트를 실행하므로 이
+    함수의 git 이 그 값을 그대로 물려받았고, 임시 작업 디렉토리의 `git add` 가
+    부모 색인에 항목을 써서 이어지는 커밋이 객체를 찾지 못했다.
+    """
+    task_dir = REPO / "pilot" / "tasks" / "buggy-pipeline"
+    outside = tmp_path / "outside.index"
+    monkeypatch.setenv("GIT_INDEX_FILE", str(outside))
+    monkeypatch.setenv("GIT_AUTHOR_NAME", "somebody-else")
+    monkeypatch.setenv("GIT_AUTHOR_EMAIL", "else@example.invalid")
+
+    dest = run_sessions.prepare_workdir(task_dir, tmp_path / "w")
+
+    assert not outside.exists(), "부모 쪽 색인 파일을 건드렸다"
+    log = subprocess.run(["git", "log", "-1", "--format=%an %s"], cwd=dest,
+                         capture_output=True, text=True, check=True,
+                         env=run_sessions._git_env())
+    assert log.stdout.strip() == "pilot initial state"
+
+
 def test_prepare_workdir_wipes_readonly_leftovers(tmp_path):
     # Windows git object files are read-only; a crashed session's workdir
     # must still be removable (regression: WinError 5 on .git/objects).
@@ -118,11 +142,16 @@ def test_prepare_workdir_copies_template_only_and_commits(tmp_path):
     assert not (workdir / "solution").exists()
     assert list(workdir.rglob("solution")) == []
 
+    # 임시 저장소를 확인하는 git 도 호출한 쪽의 환경을 물려받으면 안 된다.
+    # 물려받으면 `git status` 가 이 작업 디렉토리를 부모 저장소의 색인과
+    # 견주게 되어 전부 변경으로 나온다.
     log = subprocess.run(["git", "log", "--oneline"], cwd=workdir,
-                         capture_output=True, text=True)
+                         capture_output=True, text=True,
+                         env=run_sessions._git_env())
     assert log.returncode == 0 and "initial state" in log.stdout
     status = subprocess.run(["git", "status", "--porcelain"], cwd=workdir,
-                            capture_output=True, text=True)
+                            capture_output=True, text=True,
+                            env=run_sessions._git_env())
     assert status.stdout.strip() == ""
 
 

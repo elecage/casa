@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -34,7 +35,16 @@ snapshot = _load("casa_pilot_snapshot", PILOT / "snapshot.py")
 
 
 def _git(*args, cwd=None):
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True,
+    """임시 저장소에 쓰는 git. **호출한 쪽의 git 환경을 물려받지 않는다.**
+
+    `snapshot._git` 이 같은 이유로 이미 이렇게 한다(그 파일의 주석 참조).
+    테스트 쪽 도우미에는 그 처리가 없어서, pre-commit 훅이 이 테스트를
+    실행하면 여기의 `git add` 가 **부모 저장소의 색인**에 담겼다. 그 결과
+    바깥 커밋이 `error: invalid object ... for 'a.py'` 로 중단됐다.
+    """
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    return subprocess.run(["git", *args], cwd=cwd, env=env,
+                          capture_output=True,
                           text=True, encoding="utf-8", errors="replace")
 
 

@@ -70,6 +70,39 @@ def _rmtree_force(path: Path) -> None:
         shutil.rmtree(path, onerror=clear_readonly)
 
 
+#: git 이 자기 하위 프로세스에 넘기는 실행별 변수. 다른 저장소에서 git 을
+#: 실행할 때 이 값들이 남아 있으면 그 저장소가 아니라 **부모 쪽의 색인과
+#: 신원**을 쓴다.
+#:
+#: 이 저장소에서 실제로 문제가 됐다. `git commit -a` 는 훅에
+#: `GIT_INDEX_FILE` 을 **절대 경로**(부모 저장소의 `.git/index.lock`)로 넘기고,
+#: 우리 pre-commit 훅이 테스트를 실행하므로 `prepare_workdir` 의 git 이 그
+#: 색인을 그대로 물려받았다. 임시 작업 디렉토리에서 `git add` 가 부모 색인에
+#: 항목을 쓰고, 이어지는 `git commit` 이 그 색인이 가리키는 객체를 임시
+#: 저장소에서 찾지 못해 `error: invalid object ... for 'data/sample.csv'` 로
+#: 중단됐다. `git add` 로 따로 올린 뒤 커밋하면 `GIT_INDEX_FILE` 이 상대
+#: 경로여서 드러나지 않는다 — 그래서 `-a` 를 쓸 때만 실패했다.
+_GIT_ENV_KEYS = (
+    "GIT_INDEX_FILE", "GIT_DIR", "GIT_WORK_TREE", "GIT_PREFIX",
+    "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_AUTHOR_DATE",
+    "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "GIT_COMMITTER_DATE",
+)
+
+
+def _git_env() -> dict[str, str]:
+    """부모 git 프로세스의 실행별 변수를 제거한 환경.
+
+    신원 변수(`GIT_AUTHOR_*`·`GIT_COMMITTER_*`)도 제거한다. 그 값이 남아 있으면
+    아래 `-c user.name=pilot` 보다 우선하므로, 시작 상태 커밋의 작성자가 그때
+    누가 실행했느냐에 따라 달라진다.
+    """
+    env = dict(os.environ)
+    for key in _GIT_ENV_KEYS:
+        env.pop(key, None)
+    return env
+
+
 def prepare_workdir(task_dir: Path, dest: Path) -> Path:
     """Copy the task template (never solution/ etc.) and make it a git repo
     with an initial commit, so the session can follow 'commit your changes'.
@@ -77,7 +110,8 @@ def prepare_workdir(task_dir: Path, dest: Path) -> Path:
     if dest.exists():
         _rmtree_force(dest)
     shutil.copytree(task_dir / "template", dest)
-    run = lambda *cmd: subprocess.run(cmd, cwd=dest, check=True, capture_output=True)
+    run = lambda *cmd: subprocess.run(cmd, cwd=dest, check=True,
+                                      capture_output=True, env=_git_env())
     run("git", "init", "-q", "-b", "main")
     run("git", "-c", "user.name=pilot", "-c", "user.email=pilot@casa.local",
         "add", "-A")
