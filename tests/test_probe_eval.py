@@ -115,3 +115,45 @@ def test_snapshots_are_paired_by_order_not_by_the_commit_label():
     ]
     assert probe.changed_call_indices(session) == [1, 3]
     assert probe.changed_call_count(session) == 2
+
+
+def test_restoring_the_same_commit_twice_reuses_the_tree(tmp_path):
+    """같은 커밋을 여러 판정이 함께 본다. 매번 다시 꺼내면 그만큼 느려진다.
+
+    **`GIT_*` 환경 변수를 걷어내고 git 을 부른다.** 이 테스트가 pre-commit 훅
+    안에서 돌면 부모 git 이 `GIT_DIR`·`GIT_INDEX_FILE` 을 물려주고, 그러면 이
+    테스트가 만든 저장소가 아니라 이 프로젝트 저장소에 붙는다. 2026-08-22에
+    실제로 그것 때문에 훅에서만 실패했다. 같은 함정을 `pilot/snapshot.py` 가
+    이미 겪었다.
+    """
+    import os
+    import subprocess
+
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+
+    def git(*args, **kwargs):
+        return subprocess.run(["git", *args], env=env, check=True,
+                              capture_output=True, text=True, **kwargs)
+
+    work = tmp_path / "w"
+    work.mkdir()
+    (work / "a.txt").write_text("1", encoding="utf-8")
+    git_dir = tmp_path / "s.git"
+    git("init", "-q", "--bare", str(git_dir))
+    git(f"--git-dir={git_dir}", "config", "core.bare", "false")
+    git(f"--git-dir={git_dir}", f"--work-tree={work}", "add", "-A", cwd=work)
+    git(f"--git-dir={git_dir}", f"--work-tree={work}",
+        "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "one",
+        cwd=work)
+    head = subprocess.run(["git", f"--git-dir={git_dir}", "rev-parse", "HEAD"],
+                          env=env, capture_output=True, text=True).stdout.strip()
+    assert head, "커밋이 안 만들어졌다"
+
+    out = tmp_path / "tmp"
+    out.mkdir()
+    first = probe.restore_tree(git_dir, head, out)
+    assert (first / "a.txt").is_file(), "트리를 못 꺼냈다"
+    (first / "marker.txt").write_text("여기 있었다", encoding="utf-8")
+    second = probe.restore_tree(git_dir, head, out)
+    assert second == first
+    assert (second / "marker.txt").is_file(), "다시 꺼내느라 지웠다"

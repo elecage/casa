@@ -121,6 +121,24 @@ def segments(sessions, marks) -> list[list[tuple[int, str]]]:
     return out
 
 
+def call_detector(func, **candidates):
+    """탐지기 함수가 **받는 인자만** 골라 넘긴다.
+
+    과제마다 탐지기의 서명이 다르다. `updated_handoff` 는 `release-traps` 가
+    `(work_dir, session)` 이고 `subsystems-deep` 이 `(session)` 이다.
+    `outcomes` 는 `subsystems-deep` 쪽이 인계 문서와 작업 트리를 더 받는다.
+    이름으로 골라 넘기면 서명이 갈려도 판정이 죽지 않고, **넘길 수 있는 것을
+    빠뜨리지도 않는다** — 2026-08-22에 `chain_eval` 이 `work_dir` 을 안 넘겨서
+    `overrides_handoff` 가 늘 판정 불가로 나오고 있었다.
+    """
+    import inspect
+    try:
+        params = inspect.signature(func).parameters
+    except (TypeError, ValueError):
+        return func(**candidates)
+    return func(**{k: v for k, v in candidates.items() if k in params})
+
+
 def trap_vectors(out_dir: Path, task_dir: Path) -> dict[str, dict]:
     """세션 이름표 → 함정 상태 벡터.
 
@@ -141,6 +159,7 @@ def trap_vectors(out_dir: Path, task_dir: Path) -> dict[str, dict]:
             git_dir = (out_dir / "snapshots" / f"chain-{chain:02d}.git").resolve()
             marks = probe.snapshot_calls(git_dir)
             inherited = start
+            previous_end = None
             for row, seg in zip(mine, segments([r["session"] for r in mine], marks)):
                 session = row["session"]
                 pairs = dict(seg)
@@ -153,10 +172,19 @@ def trap_vectors(out_dir: Path, task_dir: Path) -> dict[str, dict]:
                         current = cache[commit]
                     series.append(current)
                 checks = (row["meta"].get("grade") or {}).get("checkpoints") or {}
-                vectors[row["label"]] = probe.detect.outcomes(
-                    session, series, start_conditions=inherited,
-                    checkpoints=checks)
+                # 이 세션이 **물려받은** 인계 문서와, 이 세션이 **남긴** 작업
+                # 트리. 탐지기가 받는 경우에만 넘어간다.
+                note = handoff_text_at(git_dir, previous_end) if previous_end else ""
+                ends = [c for _, c in seg]
+                work_dir = (probe.restore_tree(git_dir, ends[-1], tmp)
+                            if ends else None)
+                vectors[row["label"]] = call_detector(
+                    probe.detect.outcomes,
+                    session=session, tree_series=series,
+                    start_conditions=inherited, checkpoints=checks,
+                    note_text=note, work_dir=work_dir)
                 inherited = current          # 다음 세션이 물려받는 상태
+                previous_end = ends[-1] if ends else previous_end
     return vectors
 
 
@@ -459,7 +487,9 @@ def main() -> int:
         session = row["session"]
         kind = verification_kind_of(session)
         read = probe.detect.read_handoff(session) if session else False
-        wrote = probe.detect.updated_handoff(None, session) if session else False
+        wrote = (call_detector(probe.detect.updated_handoff,
+                               work_dir=None, session=session)
+                 if session else False)
         print(f"  {label}: 만든 함정 {len(made)}개 {made or ''}"
               f" | 물려받아 못 고침 {inherited or '없음'}"
               f" | 물려받아 고침 {fixed or '없음'}"

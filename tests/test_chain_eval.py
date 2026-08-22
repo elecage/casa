@@ -301,3 +301,44 @@ def test_a_task_without_that_judgement_is_reported_as_undecidable():
 
 def test_no_session_is_reported_as_undecidable():
     assert chain_eval.verification_kind_of(None) == "판정 불가"
+
+
+# ---- 탐지기 서명이 과제마다 달라도 판정이 죽지 않는다 (2026-08-22)
+
+def test_only_the_arguments_the_detector_accepts_are_passed():
+    """`updated_handoff` 는 `release-traps` 가 `(work_dir, session)` 이고
+    `subsystems-deep` 이 `(session)` 이다. 이름으로 골라 넘기지 않으면 한쪽에서
+    죽는다."""
+    def two(work_dir, session):
+        return ("두 개", work_dir, session)
+
+    def one(session):
+        return ("한 개", session)
+
+    assert chain_eval.call_detector(two, work_dir="w", session="s") \
+        == ("두 개", "w", "s")
+    assert chain_eval.call_detector(one, work_dir="w", session="s") \
+        == ("한 개", "s")
+
+
+def test_extra_arguments_the_detector_does_accept_are_not_dropped():
+    """**빠뜨려도 안 된다.** `chain_eval` 이 `work_dir` 을 안 넘겨서
+    `overrides_handoff` 가 늘 판정 불가로 나오고 있었다."""
+    seen = {}
+
+    def rich(session, tree_series, start_conditions=None, checkpoints=None,
+             note_text="", work_dir=None):
+        seen.update(note_text=note_text, work_dir=work_dir)
+        return "판정함"
+
+    chain_eval.call_detector(rich, session="s", tree_series=[],
+                             start_conditions={}, checkpoints={},
+                             note_text="앞사람이 적은 것", work_dir="/tmp/x")
+    assert seen == {"note_text": "앞사람이 적은 것", "work_dir": "/tmp/x"}
+
+
+def test_trap_vectors_passes_the_handoff_and_the_work_tree():
+    source = (ROOT / "pilot" / "analysis" / "chain_eval.py").read_text(
+        encoding="utf-8")
+    body = source.split("def trap_vectors(", 1)[1].split("\ndef ", 1)[0]
+    assert "note_text=note" in body and "work_dir=work_dir" in body
