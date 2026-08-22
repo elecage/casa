@@ -1,0 +1,5 @@
+account=Acme-01 at=2026-07-07T09:00:00 units=85 status=ok
+account=brix-02 at=2026-07-14T17:20:00 units=125 status=ok
+account=CORVO-03 at=2026-07-22T06:50:00 units=95 status=ok
+account=brix-02 at=2026-07-16T10:00:00 units=60
+account=delta-04 at=2026-07-23T08:30:00 units=40

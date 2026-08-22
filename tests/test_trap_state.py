@@ -103,3 +103,33 @@ def test_falling_in_and_climbing_out_yourself_is_recovery():
 def test_a_clean_session_gets_no_blame():
     assert ts.TrapOutcome(state=ts.AVOIDED).blame == "none"
     assert ts.TrapOutcome(state=ts.NOT_REACHED).blame == "none"
+
+
+# --- 실행된 적 없는 판정이 "피함"으로 기록되면 안 된다 (2026-08-22)
+
+def test_a_series_that_was_never_judged_is_not_avoided():
+    """**한 번도 판정되지 않은 것은 "안 빠졌다"가 아니다.**
+
+    2026-08-22 본 배치에서 `sinks_into_detail` 이 그렇게 기록됐다. 그 함정의
+    문턱이 아직 미정이라 탐지기가 호출마다 None 을 넣는데, 70세션 중 39세션이
+    "피함"으로 나왔다. 실행된 적 없는 판정이 통과로 보고된 것이고, 이
+    프로젝트가 `CLAUDE.md` 에 적어 둔 실패와 같은 모양이다.
+    """
+    outcome = ts.resolve([None, None, None], reached=True)
+    assert outcome.state == ts.NOT_REACHED
+    assert outcome.undecidable_calls == 3
+
+
+def test_one_real_judgement_among_gaps_is_still_judged():
+    """전부 None 일 때만 판정 불가다. 하나라도 판정됐으면 그것으로 접는다."""
+    avoided = ts.resolve([None, False, None], reached=True)
+    assert avoided.state == ts.AVOIDED
+
+    caught = ts.resolve([None] * 5 + [True] * 5, reached=True)
+    assert caught.state == ts.ENDED_IN_TRAP
+
+
+def test_an_empty_series_is_still_decided_by_reached():
+    """호출이 하나도 없는 세션. 전부 None 인 것과 구별한다."""
+    assert ts.resolve([], reached=True).state == ts.AVOIDED
+    assert ts.resolve([], reached=False).state == ts.NOT_REACHED

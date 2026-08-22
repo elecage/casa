@@ -1,0 +1,13 @@
+{
+  "_note": "Payments the bank told us about. The bank writes an account name the way it appears on the transfer, which is not the way the contract writes it and not the way the sources write it.",
+  "2026-07": [
+    {"account": "BRIX-02", "amount": "60.00", "received_on": "2026-07-30",
+     "ref": "card-9930"},
+    {"account": "BRIX-02", "amount": "22.50", "received_on": "2026-08-06",
+     "ref": "card-9944"},
+    {"account": "corvo 03", "amount": "130.00", "received_on": "2026-07-31",
+     "ref": "wire-7760"},
+    {"account": "Acme-01", "amount": "90.00", "received_on": "2026-08-04",
+     "ref": "wire-7801"}
+  ]
+}

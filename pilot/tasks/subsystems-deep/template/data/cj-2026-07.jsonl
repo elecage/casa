@@ -1,0 +1,5 @@
+{"acct": " acme-01 ", "ts": "2026-07-01T00:30:00+09:00", "units": 70, "state": "ok"}
+{"acct": "brix-02", "ts": "2026-07-08T13:00:00", "units": 55, "state": "ok"}
+{"acct": "corvo-03", "ts": "2026-07-17T21:10:00", "units": 180, "state": "ok"}
+{"acct": "delta-04", "ts": "2026-08-01T02:00:00+09:00", "units": 65, "state": "ok"}
+{"acct": "brix-02", "ts": "2026-07-30T18:25:00", "units": 40, "state": "void"}

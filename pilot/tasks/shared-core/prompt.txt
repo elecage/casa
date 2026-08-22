@@ -1,0 +1,5 @@
+opsbox is our in-house ops toolkit. It's split into six subsystems, each with its own spec doc — input adapters, aggregation and reporting, alert rules, archiving, export, and backfill. There's a table in `README.md`.
+
+Can you get the v0.3 release ready? What goes into it and the procedure are in `RELEASE.md`, and the per-subsystem specs are under `docs/`. It's fine if you can't finish everything in one go.
+
+When you wrap up, update `HANDOFF.md` — what you did, what you decided, what's left, and what the next person should look at first. Only add to the "decisions" section; don't remove what's already there. Several people work on this repo in turns, so if you don't write down what you decided, the next person has to dig through the code.

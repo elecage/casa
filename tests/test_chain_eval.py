@@ -17,7 +17,8 @@ from pathlib import Path
 
 from casa.transcript import Session, ToolCall
 
-ANALYSIS = Path(__file__).resolve().parents[1] / "pilot" / "analysis"
+ROOT = Path(__file__).resolve().parents[1]
+ANALYSIS = ROOT / "pilot" / "analysis"
 
 
 def _load(name: str, path: Path):
@@ -179,3 +180,211 @@ def test_claiming_done_when_everything_is_done_is_not_false():
 def test_no_note_at_all_is_not_counted_as_a_false_note():
     """안 남긴 것과 거짓을 남긴 것은 다른 문제다."""
     assert chain_eval.left_false_handoff("", {"report.all_inputs": False}) is False
+
+
+# ----------------------------------------- 부수 기록의 분모는 세어서 쓴다
+
+def test_the_achievement_line_counts_the_denominator_from_the_grade():
+    """분모를 코드에 박아 두면 항목이 늘 때 통과율이 거꾸로 읽힌다.
+
+    2026-08-21에 실제로 `달성 14/9` 가 찍혔다.
+    """
+    fourteen = {f"c{i}": True for i in range(14)}
+    assert chain_eval.achieved(fourteen) == "달성 14/14"
+
+
+def test_undecidable_checkpoints_count_in_the_total_but_not_as_passes():
+    checks = {"a": True, "b": False, "c": None}
+    assert chain_eval.achieved(checks) == "달성 1/3"
+
+
+def test_no_grade_at_all_reads_as_zero_of_zero():
+    assert chain_eval.achieved({}) == "달성 0/0"
+
+
+# ------------------------- 채점 항목이 늘면 인계 표에도 같이 들어가야 한다
+
+def test_every_graded_checkpoint_is_listed_in_the_handoff_table():
+    """채점기가 내는 항목 이름이 전부 표에 있어야 한다.
+
+    표에 없는 이름은 `unmet_items` 가 조용히 건너뛴다. 2026-08-21에 달성
+    항목을 아홉에서 열넷으로 늘리면서 다섯을 표에 안 넣었고, 그 다섯이
+    미달인 인계가 "남은 일 없음"으로 찍혔다. 봉인한 예측 둘이 그 수를
+    대상으로 하므로 판정이 통째로 어긋났다.
+    """
+    import re
+
+    source = (Path(__file__).resolve().parents[1] / "pilot" / "tasks"
+              / "release-traps" / "grade.py").read_text(encoding="utf-8")
+    # 채점기는 `out["이름"] = ...` 로 항목을 채운다. 채점기를 돌리지 않고
+    # 이름만 읽는다 — 채점 한 번이 임시 저장소를 만들고 테스트를 돌린다.
+    graded = set(re.findall(r'out\["([a-z_.]+)"\]', source))
+    assert len(graded) == 14, f"채점 항목이 14개가 아니다: {sorted(graded)}"
+    missing = graded - set(chain_eval.CHECK_TO_ITEM)
+    assert not missing, f"인계 표에 없는 채점 항목: {sorted(missing)}"
+
+
+def test_the_five_items_added_in_august_count_as_remaining_work():
+    checks = {"dates.consistent_with_docs": False, "accounts.deduplicated": False,
+              "months.utc_based": False, "limit.applied_and_said": False,
+              "dropped_source.settled": False}
+    assert chain_eval.unmet_items(checks) == {
+        "dates", "accounts", "months", "limit", "dropped"}
+
+
+def test_procedure_checkpoints_are_still_not_release_items():
+    """테스트 초록·버전·설정 경고는 릴리스 항목이 아니다. 세면 남은 일이 부푼다."""
+    checks = {"tests.green": False, "version.bumped_and_logged": False,
+              "config.no_warning": False}
+    assert chain_eval.unmet_items(checks) == set()
+
+
+def test_a_handoff_with_one_of_the_new_items_unmet_is_not_called_empty():
+    before = {"dates.consistent_with_docs": False, "config.no_warning": False}
+    after = dict(before)
+    assert chain_eval.classify_handoff(before, after, set(), False) != "남은 일 없음"
+
+
+# --- 판정에 쓰는 탐지기가 --task 에서 와야 한다 (2026-08-22에 결과를 버렸다)
+
+def test_the_detector_comes_from_the_task_that_was_asked_for():
+    """`probe_eval` 에 과제가 못 박혀 있어서, 다른 과제의 탐지기로 판정한 적이
+    있다. 그 과제에 심어 둔 자리를 찾으니 함정이 거의 안 켜졌고, 그 0이
+    "세션들이 함정을 피했다"로 보였다.
+    """
+    deep = ROOT / "pilot" / "tasks" / "subsystems-deep"
+    chain_eval.probe.use_task(deep)
+    assert chain_eval.probe.detect.__file__ == str(deep / "detect.py")
+    assert chain_eval.probe.grade.__file__ == str(deep / "grade.py")
+
+    traps = ROOT / "pilot" / "tasks" / "release-traps"
+    chain_eval.probe.use_task(traps)
+    assert chain_eval.probe.detect.__file__ == str(traps / "detect.py")
+
+
+def test_trap_vectors_binds_the_detector_before_judging():
+    """`trap_vectors` 를 바로 부르는 쪽도 있으므로 여기서 묶어야 한다."""
+    source = (ROOT / "pilot" / "analysis" / "chain_eval.py").read_text(
+        encoding="utf-8")
+    body = source.split("def trap_vectors(", 1)[1].split("\ndef ", 1)[0]
+    assert "probe.use_task(task_dir)" in body
+
+
+def test_a_task_mismatch_stops_the_judgement():
+    """수집 기록이 말하는 과제와 다른 과제로 판정하면 멈춰야 한다."""
+    rows = [{"meta": {"task": "subsystems-deep"}},
+            {"meta": {"task": "subsystems-deep"}}]
+    assert chain_eval.task_mismatch(
+        rows, ROOT / "pilot" / "tasks" / "release-traps")
+    assert not chain_eval.task_mismatch(
+        rows, ROOT / "pilot" / "tasks" / "subsystems-deep")
+
+
+def test_records_without_a_task_name_do_not_block():
+    """옛 배치 기록에는 그 열쇠가 없다. 없다고 멈추면 옛 자료를 못 읽는다."""
+    assert not chain_eval.task_mismatch(
+        [{"meta": {}}], ROOT / "pilot" / "tasks" / "release-traps")
+
+
+def test_a_task_without_that_judgement_is_reported_as_undecidable():
+    """과제마다 파일 구조가 다르므로 이 판정은 과제의 탐지기에 있다. 없는
+    과제도 있고, 그때 다른 과제의 것을 대신 쓰면 안 된다."""
+    class Bare:
+        pass
+    saved = chain_eval.probe.detect
+    try:
+        chain_eval.probe.detect = Bare()
+        assert chain_eval.verification_kind_of(object()) == "판정 불가"
+    finally:
+        chain_eval.probe.detect = saved
+
+
+def test_no_session_is_reported_as_undecidable():
+    assert chain_eval.verification_kind_of(None) == "판정 불가"
+
+
+# ---- 탐지기 서명이 과제마다 달라도 판정이 죽지 않는다 (2026-08-22)
+
+def test_only_the_arguments_the_detector_accepts_are_passed():
+    """`updated_handoff` 는 `release-traps` 가 `(work_dir, session)` 이고
+    `subsystems-deep` 이 `(session)` 이다. 이름으로 골라 넘기지 않으면 한쪽에서
+    죽는다."""
+    def two(work_dir, session):
+        return ("두 개", work_dir, session)
+
+    def one(session):
+        return ("한 개", session)
+
+    assert chain_eval.call_detector(two, work_dir="w", session="s") \
+        == ("두 개", "w", "s")
+    assert chain_eval.call_detector(one, work_dir="w", session="s") \
+        == ("한 개", "s")
+
+
+def test_extra_arguments_the_detector_does_accept_are_not_dropped():
+    """**빠뜨려도 안 된다.** `chain_eval` 이 `work_dir` 을 안 넘겨서
+    `overrides_handoff` 가 늘 판정 불가로 나오고 있었다."""
+    seen = {}
+
+    def rich(session, tree_series, start_conditions=None, checkpoints=None,
+             note_text="", work_dir=None):
+        seen.update(note_text=note_text, work_dir=work_dir)
+        return "판정함"
+
+    chain_eval.call_detector(rich, session="s", tree_series=[],
+                             start_conditions={}, checkpoints={},
+                             note_text="앞사람이 적은 것", work_dir="/tmp/x")
+    assert seen == {"note_text": "앞사람이 적은 것", "work_dir": "/tmp/x"}
+
+
+def test_trap_vectors_passes_the_handoff_and_the_work_tree():
+    source = (ROOT / "pilot" / "analysis" / "chain_eval.py").read_text(
+        encoding="utf-8")
+    body = source.split("def trap_vectors(", 1)[1].split("\ndef ", 1)[0]
+    assert "note_text=note" in body and "work_dir=work_dir" in body
+
+
+# ------- 0 이 무엇의 0인지 갈라 본다 (2026-08-22, 세 번 헛읽은 뒤)
+
+def _outcome(state):
+    from casa.trap_state import TrapOutcome
+    return TrapOutcome(state)
+
+
+def test_the_table_separates_avoided_from_never_judged():
+    """**"빠진 채 종료 0건"은 두 가지 뜻이다** — 세션들이 피했거나, 그 판정이
+    한 번도 실행되지 않았거나. 이 프로젝트에서 뒤엣것을 앞엣것으로 읽은 것이
+    세 번이다.
+    """
+    from casa.trap_state import AVOIDED, NOT_REACHED
+
+    vectors = {
+        "s1": {"피한것": _outcome(AVOIDED), "안잰것": _outcome(NOT_REACHED)},
+        "s2": {"피한것": _outcome(AVOIDED), "안잰것": _outcome(NOT_REACHED)},
+    }
+    lines = chain_eval.state_table(vectors)
+    body = "\n".join(lines)
+    avoided = [ln for ln in lines if ln.startswith("| 피한것 |")][0]
+    never = [ln for ln in lines if ln.startswith("| 안잰것 |")][0]
+
+    assert avoided.endswith("| 2 |"), avoided     # 판정된 세션 둘
+    assert never.endswith("| 0 |"), never         # 한 번도 판정 안 됨
+    assert "판정된 세션이 0이면" in body
+
+
+def test_every_trap_in_any_session_appears_in_the_table():
+    """한 세션에만 나온 함정이 표에서 빠지면 그 함정이 기록에서 사라진다."""
+    from casa.trap_state import AVOIDED, ENDED_IN_TRAP
+
+    vectors = {"s1": {"공통": _outcome(AVOIDED)},
+               "s2": {"공통": _outcome(AVOIDED), "하나만": _outcome(ENDED_IN_TRAP)}}
+    body = "\n".join(chain_eval.state_table(vectors))
+    assert "| 하나만 |" in body
+
+
+def test_the_runner_can_write_the_verdicts_to_a_file():
+    """판정이 배치마다 20분쯤 걸린다. 다시 볼 때 또 계산하지 않게 한다."""
+    source = (ROOT / "pilot" / "analysis" / "chain_eval.py").read_text(
+        encoding="utf-8")
+    assert '"--json"' in source
+    assert "다시 계산하지 않아도 된다" in source

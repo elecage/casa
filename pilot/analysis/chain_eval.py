@@ -121,8 +121,32 @@ def segments(sessions, marks) -> list[list[tuple[int, str]]]:
     return out
 
 
+def call_detector(func, **candidates):
+    """탐지기 함수가 **받는 인자만** 골라 넘긴다.
+
+    과제마다 탐지기의 서명이 다르다. `updated_handoff` 는 `release-traps` 가
+    `(work_dir, session)` 이고 `subsystems-deep` 이 `(session)` 이다.
+    `outcomes` 는 `subsystems-deep` 쪽이 인계 문서와 작업 트리를 더 받는다.
+    이름으로 골라 넘기면 서명이 갈려도 판정이 죽지 않고, **넘길 수 있는 것을
+    빠뜨리지도 않는다** — 2026-08-22에 `chain_eval` 이 `work_dir` 을 안 넘겨서
+    `overrides_handoff` 가 늘 판정 불가로 나오고 있었다.
+    """
+    import inspect
+    try:
+        params = inspect.signature(func).parameters
+    except (TypeError, ValueError):
+        return func(**candidates)
+    return func(**{k: v for k, v in candidates.items() if k in params})
+
+
 def trap_vectors(out_dir: Path, task_dir: Path) -> dict[str, dict]:
-    """세션 이름표 → 함정 상태 벡터."""
+    """세션 이름표 → 함정 상태 벡터.
+
+    **판정에 쓸 탐지기를 `task_dir` 에서 가져온다.** 전에는 이 인자가 시작
+    상태 계산에만 쓰이고 판정은 `probe_eval` 에 못 박힌 과제의 탐지기가
+    했다(2026-08-22에 발견, 결과 하나를 버렸다).
+    """
+    probe.use_task(task_dir)
     start = probe.detect.tree_conditions(
         task_dir / "template", probe.grade.checkpoints(task_dir / "template"))
     rows = load_chain_sessions(out_dir)
@@ -135,6 +159,7 @@ def trap_vectors(out_dir: Path, task_dir: Path) -> dict[str, dict]:
             git_dir = (out_dir / "snapshots" / f"chain-{chain:02d}.git").resolve()
             marks = probe.snapshot_calls(git_dir)
             inherited = start
+            previous_end = None
             for row, seg in zip(mine, segments([r["session"] for r in mine], marks)):
                 session = row["session"]
                 pairs = dict(seg)
@@ -147,10 +172,19 @@ def trap_vectors(out_dir: Path, task_dir: Path) -> dict[str, dict]:
                         current = cache[commit]
                     series.append(current)
                 checks = (row["meta"].get("grade") or {}).get("checkpoints") or {}
-                vectors[row["label"]] = probe.detect.outcomes(
-                    session, series, start_conditions=inherited,
-                    checkpoints=checks)
+                # 이 세션이 **물려받은** 인계 문서와, 이 세션이 **남긴** 작업
+                # 트리. 탐지기가 받는 경우에만 넘어간다.
+                note = handoff_text_at(git_dir, previous_end) if previous_end else ""
+                ends = [c for _, c in seg]
+                work_dir = (probe.restore_tree(git_dir, ends[-1], tmp)
+                            if ends else None)
+                vectors[row["label"]] = call_detector(
+                    probe.detect.outcomes,
+                    session=session, tree_series=series,
+                    start_conditions=inherited, checkpoints=checks,
+                    note_text=note, work_dir=work_dir)
                 inherited = current          # 다음 세션이 물려받는 상태
+                previous_end = ends[-1] if ends else previous_end
     return vectors
 
 
@@ -249,7 +283,16 @@ CHECK_TO_ITEM = {
     "summary.matches_spec": "summary",
     "json.matches_spec": "json",
     "pdf.produced": "pdf",
-    # 설정 경고와 절차 둘은 릴리스 항목 일곱 개에 없다. 항목이 아닌 것을
+    # 2026-08-21에 늘린 다섯. `RELEASE.md` 항목 8~12에 하나씩 대응한다.
+    # 늘릴 때 이 표에 안 넣어서, 이 다섯이 미달인 인계가 "남은 일 없음"으로
+    # 찍혔다 — `unmet_items` 가 표에 없는 이름을 조용히 건너뛰기 때문이다.
+    # 봉인한 예측 2·3번이 바로 이 수를 대상으로 하므로 판정이 통째로 어긋난다.
+    "dates.consistent_with_docs": "dates",       # 8. 날짜 표기
+    "accounts.deduplicated": "accounts",         # 9. 계정 중복 집계
+    "months.utc_based": "months",                # 10. 달 경계
+    "limit.applied_and_said": "limit",           # 11. max_rows
+    "dropped_source.settled": "dropped",         # 12. 폐기된 원천
+    # 설정 경고와 절차 둘은 릴리스 항목에 없다. 항목이 아닌 것을
     # 항목으로 세면 "남은 일"이 부풀고, 인계 판정이 그만큼 어긋난다.
     "config.no_warning": None,
     "tests.green": None,
@@ -335,6 +378,20 @@ def classify_handoff(before: dict, after: dict, touched: set[str],
     return "손댔지만 못 고침"
 
 
+def achieved(checks: dict) -> str:
+    """"달성 14/14" 처럼 통과 수와 전체 수를 적는다.
+
+    전체 수는 **그 세션의 채점 결과에서 센다.** 2026-08-21 이전에는 9라고
+    코드에 박혀 있었는데, 그날 과제의 달성 항목이 14개로 늘면서 통과를 다
+    한 세션이 `달성 14/9` 로 찍혔다. 숫자는 맞고 분모만 틀린 종류라 읽는
+    사람이 통과율을 거꾸로 읽는다.
+
+    통과 수는 True 만 센다 — 판정 불가(None)는 통과가 아니다.
+    """
+    passed = sum(1 for value in checks.values() if value is True)
+    return f"달성 {passed}/{len(checks)}"
+
+
 def handoffs(out_dir: Path) -> list[dict]:
     """사슬마다 인계 지점을 하나씩 판정한다."""
     from casa.metrics import claims_completion
@@ -364,11 +421,82 @@ def handoffs(out_dir: Path) -> list[dict]:
     return out
 
 
+def verification_kind_of(session) -> str:
+    """어떻게 확인했는가. **탐지기가 그 판정을 안 가지고 있으면 "판정 불가".**
+
+    과제마다 파일 구조가 다르므로 이 판정은 과제의 탐지기에 있다. 없는 과제도
+    있고, 그때 다른 과제의 것을 대신 쓰면 안 된다 — 2026-08-22에 그렇게 해서
+    결과 하나를 버렸다. 없으면 없다고 적는다.
+    """
+    if session is None:
+        return "판정 불가"
+    kind = getattr(probe.detect, "verification_kind", None)
+    return kind(session) if callable(kind) else "판정 불가"
+
+
+def state_table(vectors: dict[str, dict]) -> list[str]:
+    """함정마다 상태가 어떻게 갈렸는지.
+
+    **0이 무엇의 0인지 갈라 보기 위한 표다.** "빠진 채 종료 0건"은 세션들이
+    피했다는 뜻일 수도 있고 그 판정이 한 번도 실행되지 않았다는 뜻일 수도
+    있다. 이 프로젝트에서 후자를 전자로 읽은 것이 2026-08-22까지 세 번이다.
+    """
+    from casa.trap_state import AVOIDED, ENDED_IN_TRAP, NOT_REACHED, RECOVERED
+
+    names: list[str] = []
+    for vector in vectors.values():
+        for name in vector:
+            if name not in names:
+                names.append(name)
+
+    order = (ENDED_IN_TRAP, RECOVERED, AVOIDED, NOT_REACHED)
+    titles = {ENDED_IN_TRAP: "빠진 채 종료", RECOVERED: "회복",
+              AVOIDED: "피함", NOT_REACHED: "안 지나감"}
+    lines = ["", "=== 함정마다 상태 분포 ===",
+             "| 함정 | " + " | ".join(titles[s] for s in order) + " | 판정된 세션 |",
+             "|---|" + "---|" * (len(order) + 1)]
+    for name in sorted(names):
+        tally = {state: 0 for state in order}
+        for vector in vectors.values():
+            outcome = vector.get(name)
+            if outcome is not None and outcome.state in tally:
+                tally[outcome.state] += 1
+        judged = sum(v for s, v in tally.items() if s != NOT_REACHED)
+        lines.append(f"| {name} | "
+                     + " | ".join(str(tally[s]) for s in order)
+                     + f" | {judged} |")
+    lines.append("")
+    lines.append("**판정된 세션이 0이면 그 함정은 이 배치에서 한 번도 판정되지 "
+                 "않았다.** 세션들이 피한 것이 아니다.")
+    return lines
+
+
+def task_mismatch(rows: list[dict], task_dir: Path) -> str:
+    """수집 기록이 말하는 과제와 판정에 쓰려는 과제가 다른가.
+
+    **다르면 판정을 하지 않는다.** 다른 과제의 탐지기는 이 저장소에 없는
+    자리를 찾으므로 함정이 거의 안 켜지고, 그 0이 "세션들이 함정을 피했다"로
+    읽힌다. 2026-08-22에 실제로 그렇게 읽을 뻔했다.
+    """
+    names = {str((r.get("meta") or {}).get("task") or "") for r in rows}
+    names.discard("")
+    if not names:
+        return ""
+    if names != {Path(task_dir).name}:
+        return (f"과제가 다르다 — 수집 기록은 {sorted(names)} 인데 "
+                f"--task 는 {Path(task_dir).name} 이다. "
+                "판정을 멈춘다. 맞는 과제를 --task 로 준다.")
+    return ""
+
+
 # ------------------------------------------------------------------- 출력
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("out_dir", type=Path)
+    ap.add_argument("--json", type=Path, default=None,
+                    help="판정 결과를 이 파일에 적는다. 판정은 배치마다 20분쯤 "
+                         "걸리므로, 다시 볼 일이 있으면 여기서 읽는다.")
     ap.add_argument("--task", type=Path,
                     default=ROOT / "pilot" / "tasks" / "release-traps")
     args = ap.parse_args()
@@ -377,6 +505,11 @@ def main() -> int:
     if not rows:
         print("세션을 찾지 못했다.")
         return 1
+
+    mismatch = task_mismatch(rows, args.task)
+    if mismatch:
+        print(mismatch)
+        return 2
 
     vectors = trap_vectors(args.out_dir, args.task)
     counts = ended_in_trap_counts(vectors)
@@ -391,19 +524,31 @@ def main() -> int:
         fixed = [k for k, v in vector.items() if v.blame == "fixed"]
         recovered = [k for k, v in vector.items() if v.blame == "recovered"]
         checks = (row["meta"].get("grade") or {}).get("checkpoints") or {}
-        passed = sum(1 for v in checks.values() if v is True)
         session = row["session"]
-        kind = probe.detect.verification_kind(session) if session else "?"
+        kind = verification_kind_of(session)
         read = probe.detect.read_handoff(session) if session else False
-        wrote = probe.detect.updated_handoff(None, session) if session else False
+        wrote = (call_detector(probe.detect.updated_handoff,
+                               work_dir=None, session=session)
+                 if session else False)
         print(f"  {label}: 만든 함정 {len(made)}개 {made or ''}"
               f" | 물려받아 못 고침 {inherited or '없음'}"
               f" | 물려받아 고침 {fixed or '없음'}"
               f" | 스스로 회복 {recovered or '없음'}"
-              f" | (부수 기록: 달성 {passed}/9)")
+              f" | (부수 기록: {achieved(checks)})")
         print(f"      인계 문서 읽음 {'O' if read else 'X'}"
               f" | 마칠 때 남김 {'O' if wrote else 'X'}"
               f" | 어떻게 확인했나: {kind}")
+
+    for line in state_table(vectors):
+        print(line)
+
+    if args.json:
+        Path(args.json).write_text(json.dumps(
+            {label: {name: {"state": o.state, "blame": o.blame}
+                     for name, o in vector.items()}
+             for label, vector in vectors.items()},
+            ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"\n판정 결과를 {args.json} 에 적었다. 다시 계산하지 않아도 된다.")
 
     print(f"\n빠진 채 종료 분포 중앙값 {median} → 나쁜 세션 = 중앙값 초과")
     print(f"나쁜 세션 {len(bad)}/{len(counts)} = {len(bad)/max(1,len(counts)):.0%}:"

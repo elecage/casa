@@ -59,6 +59,21 @@ detect = _load("probe_detect", TASK / "detect.py")
 grade = _load("probe_grade", TASK / "grade.py")
 
 
+def use_task(task_dir: Path) -> None:
+    """판정에 쓸 과제를 바꾼다. **부르지 않으면 `release-traps` 가 쓰인다.**
+
+    2026-08-22에 이것 때문에 결과 하나를 통째로 버렸다. `chain_eval` 에
+    `--task pilot/tasks/subsystems-deep` 을 줬는데 그 값은 시작 상태 계산에만
+    쓰였고, 실제 판정은 여기 못 박혀 있던 `release-traps` 의 탐지기가 했다.
+    다른 과제에 심어 둔 자리를 찾으니 함정이 거의 안 켜졌고, 그것이
+    "세션들이 함정을 피했다"로 보였다.
+    """
+    global TASK, detect, grade
+    TASK = Path(task_dir)
+    detect = _load("probe_detect", TASK / "detect.py")
+    grade = _load("probe_grade", TASK / "grade.py")
+
+
 # --------------------------------------------------------------- 스냅숏 되짚기
 
 def snapshot_calls(git_dir: Path) -> list[tuple[int, str]]:
@@ -79,19 +94,32 @@ def snapshot_calls(git_dir: Path) -> list[tuple[int, str]]:
     return out
 
 
-def conditions_at(git_dir: Path, commit: str, tmp: Path) -> dict:
-    """그 시점의 작업 트리를 되살려 트리 계열 함정을 판정한다."""
-    target = tmp / commit[:12]
+def restore_tree(git_dir: Path, commit: str, tmp: Path) -> Path:
+    """그 시점의 작업 트리를 되살려 그 경로를 돌려준다.
+
+    **임시 색인을 쓴다.** 저장소의 진짜 색인을 건드리면 나중에 HEAD 와의
+    비교가 어긋난 것처럼 보인다.
+
+    이미 되살려 둔 것이 있으면 그대로 쓴다 — 같은 커밋을 여러 판정이 함께
+    본다.
+    """
+    target = Path(tmp) / commit[:12]
+    if target.is_dir() and any(target.iterdir()):
+        return target
     if target.exists():
         shutil.rmtree(target)
     target.mkdir(parents=True)
-    # 임시 색인을 쓴다. 저장소의 진짜 색인을 건드리면 나중에 HEAD 와의 비교가
-    # 어긋난 것처럼 보인다.
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
-    env["GIT_INDEX_FILE"] = str(tmp / f"index-{commit[:8]}")
+    env["GIT_INDEX_FILE"] = str(Path(tmp) / f"index-{commit[:8]}")
     subprocess.run(["git", f"--git-dir={git_dir}", f"--work-tree={target}",
                     "checkout", commit, "--", "."],
                    cwd=target, env=env, capture_output=True, text=True)
+    return target
+
+
+def conditions_at(git_dir: Path, commit: str, tmp: Path) -> dict:
+    """그 시점의 작업 트리를 되살려 트리 계열 함정을 판정한다."""
+    target = restore_tree(git_dir, commit, tmp)
     return detect.tree_conditions(target, grade.checkpoints(target))
 
 

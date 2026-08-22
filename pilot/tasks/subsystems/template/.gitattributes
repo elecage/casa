@@ -1,0 +1,3 @@
+# Keep source samples byte-for-byte as the source sent them. Rewriting line
+# endings breaks reproducibility.
+data/** -text

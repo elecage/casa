@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -34,7 +35,16 @@ snapshot = _load("casa_pilot_snapshot", PILOT / "snapshot.py")
 
 
 def _git(*args, cwd=None):
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True,
+    """임시 저장소에 쓰는 git. **호출한 쪽의 git 환경을 물려받지 않는다.**
+
+    `snapshot._git` 이 같은 이유로 이미 이렇게 한다(그 파일의 주석 참조).
+    테스트 쪽 도우미에는 그 처리가 없어서, pre-commit 훅이 이 테스트를
+    실행하면 여기의 `git add` 가 **부모 저장소의 색인**에 담겼다. 그 결과
+    바깥 커밋이 `error: invalid object ... for 'a.py'` 로 중단됐다.
+    """
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    return subprocess.run(["git", *args], cwd=cwd, env=env,
+                          capture_output=True,
                           text=True, encoding="utf-8", errors="replace")
 
 
@@ -158,7 +168,10 @@ def test_budget_and_snapshot_hooks_coexist(tmp_path):
         encoding="utf-8"))
     assert "PreToolUse" in settings["hooks"]
     assert "PostToolUse" in settings["hooks"]
-    assert (work / ".casa-chain.json").is_file()
+    # 설정 파일은 작업 트리 **밖**이다 — 안에 두면 세션이 예산과 상한을 읽을
+    # 수 있고, 그러면 훅 메시지에서 수를 뺀 뜻이 없어진다.
+    assert not (work / ".casa-chain.json").exists()
+    assert (tmp_path / ".casa-chain.json").is_file()
 
 
 def test_the_single_session_runner_takes_a_budget():
@@ -278,3 +291,48 @@ def test_relative_paths_do_not_silently_empty_the_snapshot(tmp_path, monkeypatch
                "log", "--format=%s")
     assert "call 1" in log.stdout
     assert "baseline" in log.stdout
+
+
+# ------------------- 호출 번호는 뒤로 가지 않는다 (2026-08-21 본 배치 결함)
+
+def test_two_hooks_at_once_never_get_the_same_number():
+    """**읽고-더하고-쓰기를 하면 병렬 호출에서 같은 번호가 나온다.**
+
+    2026-08-21 본 배치 사슬 4에서 실제로 일어났다 — 번호가 175에서 12로
+    되감기고 81·84가 중복됐다. 커밋은 멀쩡했지만 그 이름표로 세션 구간을
+    나누는 분석이 통째로 어긋났다.
+    """
+    import concurrent.futures
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as raw:
+        state = Path(raw) / "state"
+        state.mkdir()
+        git_dir = Path(raw) / "nope.git"          # 없는 저장소여도 동작해야 한다
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            got = list(pool.map(lambda _: snapshot._next_index(state, git_dir),
+                                range(40)))
+    assert sorted(got) == list(range(1, 41)), f"번호가 겹치거나 빠졌다: {sorted(got)}"
+
+
+def test_the_number_continues_above_what_the_repo_already_has(tmp_path):
+    """이어 돌리기(`--resume`)에서 번호가 1부터 다시 시작하면 앞 세션들의
+    번호와 겹친다."""
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "call-count.txt").write_text("175", encoding="utf-8")
+    assert snapshot._next_index(state, tmp_path / "nope.git") == 176
+
+
+def test_the_number_continues_above_the_labels_in_the_snapshot_repo(tmp_path):
+    """세는 파일이 없어도 저장소에 찍힌 이름표에서 이어 붙인다."""
+    work = tmp_path / "w"
+    work.mkdir()
+    (work / "a.txt").write_text("1", encoding="utf-8")
+    git_dir = tmp_path / "s.git"
+    snapshot.install(work, git_dir)
+    (work / "a.txt").write_text("2", encoding="utf-8")
+    snapshot.take(work)                       # call 1
+    for claim in git_dir.glob("call-*.claim"):
+        claim.unlink()                        # 이어 돌리기: 맡아 둔 자리가 없다
+    assert snapshot._next_index(git_dir, git_dir) == 2
