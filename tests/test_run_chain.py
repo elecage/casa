@@ -495,3 +495,48 @@ def test_the_hook_does_nothing_when_it_cannot_find_the_config(tmp_path):
     work.mkdir()
     done = _run_hook(work, _transcript(tmp_path / "t.jsonl", 999))
     assert done.returncode == 0 and done.stdout == ""
+
+
+# ------- 호출 총량으로 세션 수를 정한다 (2026-08-22, 끊는 배치를 위해)
+
+def test_the_runner_counts_calls_from_the_audit_not_the_turn_count():
+    """어시스턴트 차례 수는 도구 호출 수와 다르다. 총량을 맞추려면 실제 호출
+    수를 세야 한다."""
+    row = {"audit": {"metrics": {"n_tool_calls": 28}},
+           "cli": {"num_turns": 42}}
+    assert run_chain.calls_of(row) == 28
+    assert run_chain.calls_of({}) == 0
+
+
+def test_earlier_rows_are_read_back_for_resuming(tmp_path):
+    """이어서 진행할 때 앞서 쓴 호출 수를 이어 세지 않으면 총량이 두 배가
+    된다."""
+    for index, calls in ((1, 30), (2, 12)):
+        (tmp_path / f"session-c01s{index:02d}.json").write_text(
+            json.dumps({"audit": {"metrics": {"n_tool_calls": calls}}}),
+            encoding="utf-8")
+    (tmp_path / "session-c02s01.json").write_text(
+        json.dumps({"audit": {"metrics": {"n_tool_calls": 99}}}),
+        encoding="utf-8")
+
+    got = run_chain.earlier_rows(tmp_path, 1)
+    assert [run_chain.calls_of(r) for r in got] == [30, 12], "다른 사슬이 섞였다"
+
+
+def test_a_broken_session_record_does_not_stop_the_count(tmp_path):
+    (tmp_path / "session-c01s01.json").write_text("{깨진", encoding="utf-8")
+    assert run_chain.earlier_rows(tmp_path, 1) == []
+
+
+def test_the_session_cap_bounds_the_allowance_loop():
+    """끊는 조건에서는 세션이 열 호출 만에 끝나므로 총량이 다 되기까지 세션이
+    여럿 필요하다. 무한히 돌지는 않아야 한다."""
+    assert run_chain.MAX_SESSIONS_PER_CHAIN >= 20
+
+
+def test_the_allowance_and_the_cut_point_are_recorded_in_every_row():
+    """두 조건을 나중에 가르려면 기록에 조건이 남아 있어야 한다."""
+    source = (ROOT / "pilot" / "run_chain.py").read_text(encoding="utf-8")
+    assert '"cut_at": cut_at,' in source
+    assert '"call_allowance": allowance,' in source
+    assert '"calls_used_in_chain"' in source

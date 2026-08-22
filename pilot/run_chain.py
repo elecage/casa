@@ -45,6 +45,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from casa.audit import audit_session  # noqa: E402
 from casa.rules import load_rules  # noqa: E402
 import chain_budget  # noqa: E402
+import cut_hook  # noqa: E402
 import snapshot  # noqa: E402
 from run_sessions import (  # noqa: E402
     check_auth, prepare_workdir, rules_for, run_headless,
@@ -52,6 +53,10 @@ from run_sessions import (  # noqa: E402
 )
 
 HOOK = Path(__file__).resolve().parent / "chain_budget.py"
+
+#: 호출 총량으로 돌릴 때의 세션 수 안전판. 끊는 조건에서는 세션이 10호출 만에
+#: 끝나므로 총량이 다 되기까지 세션이 여럿 필요하다. 무한히 돌지는 않게 한다.
+MAX_SESSIONS_PER_CHAIN = 40
 SNAPSHOT_DIR_NAME = "snapshots"
 CONFIG_NAME = ".casa-chain.json"
 
@@ -60,6 +65,23 @@ def install_budget(workdir: Path, budget: int, warn_margin: int = 5) -> None:
     """예산 훅 배선. 구현은 `pilot/chain_budget.py` 에 있다 — 단발 러너도
     같은 것을 쓴다."""
     chain_budget.install(workdir, budget, warn_margin)
+
+
+def calls_of(row: dict) -> int:
+    """그 세션이 실제로 쓴 도구 호출 수."""
+    return ((row.get("audit") or {}).get("metrics") or {}).get(
+        "n_tool_calls", 0)
+
+
+def earlier_rows(out_dir: Path, chain: int) -> list[dict]:
+    """이어서 진행할 때 앞서 끝난 세션 기록들. 쓴 호출 수를 이어 세기 위해서."""
+    out = []
+    for path in sorted(Path(out_dir).glob(f"session-c{chain:02d}s*.json")):
+        try:
+            out.append(json.loads(path.read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            continue
+    return out
 
 
 def grade(task_dir: Path, workdir: Path) -> dict:
@@ -142,7 +164,8 @@ def load_prompts(task_dir: Path) -> tuple[str, str]:
 
 def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
               budget: int, model: str | None, timeout_s: int,
-              resume: bool = False) -> list[dict]:
+              resume: bool = False, cut_at: int = 0,
+              allowance: int = 0) -> list[dict]:
     first_prompt, next_prompt = load_prompts(task_dir)
     relevant = [ln.strip() for ln in
                 (task_dir / "relevant_files.txt").read_text(
@@ -159,13 +182,29 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
         done = 0
         workdir = prepare_workdir(task_dir, workdir)
     install_budget(workdir, budget)
+    # **예산 훅 다음에 배선한다.** 예산 훅이 PreToolUse 목록을 통째로 쓰므로
+    # 순서가 뒤집히면 끊는 장치가 조용히 사라지고, 두 조건이 같아진 채로
+    # 배치가 돈다.
+    cut_hook.install(workdir, cut_at)
     # 예산 훅 다음에 배선한다 — settings.json 을 덮지 않고 합친다.
     snapshot.install(workdir, out_dir / SNAPSHOT_DIR_NAME /
                      f"chain-{chain:02d}.git")
 
     seen: set[str] = set()
     rows: list[dict] = []
-    for index in range(done + 1, sessions + 1):
+    used = sum(calls_of(r) for r in earlier_rows(out_dir, chain)) if done else 0
+    index = done
+    while True:
+        index += 1
+        # **끝나는 조건이 둘이다.** 호출 총량을 주면 그것이 다 될 때까지
+        # 돌린다 — 끊는 조건과 안 끊는 조건에서 세션 수가 아니라 **쓴 호출
+        # 수**를 같게 맞추기 위해서다(2026-08-22 유저 지적). 총량을 안 주면
+        # 예전처럼 세션 수로 끝낸다.
+        if allowance:
+            if used >= allowance or index > MAX_SESSIONS_PER_CHAIN:
+                break
+        elif index > sessions:
+            break
         label = f"c{chain:02d}s{index:02d}"
         started = time.time()
         cli = run_headless(workdir, first_prompt if index == 1 else next_prompt,
@@ -183,6 +222,8 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
             # 그 갈래를 판단하는 값이다.
             "timed_out": bool(cli.get("timed_out")),
             "timeout_s": timeout_s,
+            "cut_at": cut_at,
+            "call_allowance": allowance,
         }
 
         transcript = collect_transcript(workdir, cli, out_dir, label, seen)
@@ -195,6 +236,8 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
         (out_dir / f"session-{label}.json").write_text(
             json.dumps(row, ensure_ascii=False, indent=2), encoding="utf-8")
         rows.append(row)
+        used += calls_of(row)
+        row["calls_used_in_chain"] = used
 
         score = row["grade"].get("milestone_score")
         print(f"  {label}  {row['wall_s']:>6.1f}s  마일스톤 {score}  "
@@ -261,6 +304,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--timeout-min", type=int, default=40)
     ap.add_argument("--resume", action="store_true",
                     help="continue chains that already have finished sessions")
+    ap.add_argument("--cut-at", type=int, default=0,
+                    help="이 호출까지 .py 파일을 한 번도 안 연 세션을 그 자리에서 "
+                         "끊는다. 0이면 안 끊는다.")
+    ap.add_argument("--call-allowance", type=int, default=0,
+                    help="사슬 하나가 쓸 도구 호출 총량. 주면 세션 수가 아니라 "
+                         "이 총량이 다 될 때까지 돌린다 — 끊는 조건과 안 끊는 "
+                         "조건에서 쓴 호출 수를 같게 맞추기 위해서다.")
     args = ap.parse_args(argv)
 
     task_dir = Path(args.task_dir).resolve()
@@ -275,7 +325,8 @@ def main(argv: list[str] | None = None) -> int:
 
     meta = {"task": task_dir.name, "chains": args.chains,
             "sessions_per_chain": args.sessions, "budget": args.budget,
-            "model": args.model, "account": email}
+            "model": args.model, "account": email,
+            "cut_at": args.cut_at, "call_allowance": args.call_allowance}
     (out_dir / "meta.json").write_text(
         json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -283,7 +334,8 @@ def main(argv: list[str] | None = None) -> int:
     for chain in range(1, args.chains + 1):
         print(f"chain {chain}/{args.chains}")
         rows = run_chain(task_dir, out_dir, chain, args.sessions, args.budget,
-                         args.model, args.timeout_min * 60, resume=args.resume)
+                         args.model, args.timeout_min * 60, resume=args.resume,
+                         cut_at=args.cut_at, allowance=args.call_allowance)
         summary = chain_summary(rows)
         summaries.append(summary)
         print(f"  → 마일스톤 {summary['per_session_scores']} "
