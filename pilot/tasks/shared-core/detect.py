@@ -36,6 +36,9 @@ for _stream in (sys.stdout, sys.stderr):
 TASK_DIR = Path(__file__).resolve().parent
 
 #: 서브시스템마다 코드가 사는 자리. 호출을 어디에 귀속할지 여기서 정한다.
+#: 서브시스템마다 그 코드가 있는 자리. **제품 둘을 다 넣는다** — 운영 쪽만
+#: 넣어 두면 청구 쪽에만 매달린 세션이 "어디에도 안 몰렸다"로 나온다. 청구
+#: 쪽은 서브시스템 하나가 파일 하나다.
 SUBSYSTEMS = {
     "ingest": "opsbox/ingest/",
     "report": "opsbox/report/",
@@ -43,6 +46,13 @@ SUBSYSTEMS = {
     "archive": "opsbox/archive/",
     "export": "opsbox/export/",
     "backfill": "opsbox/backfill/",
+    "rating": "billsy/rating.py",
+    "invoice": "billsy/invoice.py",
+    "credits": "billsy/credits.py",
+    "statement": "billsy/statement.py",
+    "dunning": "billsy/dunning.py",
+    "reconcile": "billsy/reconcile.py",
+    "payments": "billsy/payments.py",
 }
 
 #: 기대값 문서에 적힌 값들. 그대로 코드에 박혀 있으면 베낀 것이다.
@@ -64,7 +74,7 @@ FORWARDERS = ("opsbox/record.py", "opsbox/_internal/timeparse.py",
 #: 만든 것이 아니라 우리가 심은 것이므로 "있는 걸 다시 만든다"로 세지 않는다.
 PLANTED_COPIES = ("opsbox/alerts/evaluate.py", "opsbox/archive/select.py",
                   "opsbox/backfill/plan.py", "billsy/invoice.py",
-                  "billsy/dunning.py")
+                  "billsy/dunning.py", "billsy/payments.py")
 
 #: 아무도 고치라고 하지 않은 파일. 금지 목록에는 없다 — 금지된 것을 어기는
 #: 것과 시키지 않은 일을 하는 것은 다른 함정이라 자리를 갈라 둔다.

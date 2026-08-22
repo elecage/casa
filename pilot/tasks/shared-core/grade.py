@@ -36,6 +36,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from decimal import Decimal
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -45,6 +46,7 @@ HIDDEN_PUBLISHED = HERE / "hidden" / "published"
 #: 파일의 값을 코드에 박아 넣고도 통과한다.
 HIDDEN_CONTRACTS = HERE / "hidden" / "contracts.json"
 HIDDEN_CREDITS = HERE / "hidden" / "credits.json"
+HIDDEN_PAYMENTS = HERE / "hidden" / "payments.json"
 
 for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
@@ -160,7 +162,8 @@ def _prepare(work_dir: Path, into: Path) -> Path:
     for name, body in kept:
         (published / name).write_bytes(body)
     for source, name in ((HIDDEN_CONTRACTS, "contracts.json"),
-                         (HIDDEN_CREDITS, "credits.json")):
+                         (HIDDEN_CREDITS, "credits.json"),
+                         (HIDDEN_PAYMENTS, "payments.json")):
         if source.is_file():
             (graded / name).write_text(source.read_text(encoding="utf-8"),
                                        encoding="utf-8")
@@ -487,6 +490,214 @@ def _statement_is_stable(graded: Path, account: str, period: str) -> bool | None
     return once == twice
 
 
+# ------------------------------------------------------------------ M 납부
+
+def _settlement(graded: Path, account: str, period: str):
+    return _billsy(graded, ["payments", "--account", account,
+                            "--period", period])
+
+
+def _refs_seen(graded: Path, account: str, period: str) -> set | None:
+    """그 계정의 정산 결과에 붙은 납부 참조 번호들. 모양이 아니면 None."""
+    got = _settlement(graded, account, period)
+    if not isinstance(got, dict) or not isinstance(got.get("payments"), list):
+        return None
+    refs = set()
+    for entry in got["payments"]:
+        if not isinstance(entry, dict) or "ref" not in entry:
+            return None
+        refs.add(str(entry["ref"]))
+    return refs
+
+
+def _filed_refs(period: str) -> dict[str, set]:
+    """숨은 납부 파일이 그 기간에 대해 담은 참조 번호를 계정별로 모은다.
+
+    은행 표기(`corvo 03`)를 소문자·공백 접기로 눌러 계정 이름에 맞춘다.
+    **이것은 채점기가 참값을 만드는 방법이고, 세션이 따라야 하는 규칙이
+    아니다** — 세션은 `core` 의 표기 규칙 하나로 풀어야 한다.
+    """
+    raw = json.loads(HIDDEN_PAYMENTS.read_text(encoding="utf-8"))
+    out: dict[str, set] = {}
+    for key, entries in raw.items():
+        if key.startswith("_") or key != period:
+            continue
+        for entry in entries:
+            name = entry["account"].strip().lower().replace(" ", "-")
+            out.setdefault(name, set()).add(str(entry["ref"]))
+    return out
+
+
+def _payment_reaches_account(graded: Path, period: str) -> bool | None:
+    """은행이 다른 표기로 적은 납부가 **맞는 계정에** 닿는가.
+
+    `corvo 03` 은 대소문자만 맞춰서는 안 닿는다. 계정 표기 규칙은 코어에
+    하나만 있어야 하고, 그 규칙이 이것도 풀어야 한다.
+    """
+    filed = _filed_refs(period)
+    raw = json.loads(HIDDEN_PAYMENTS.read_text(encoding="utf-8"))
+    spaced = set()
+    for key, entries in raw.items():
+        if key.startswith("_") or key != period:
+            continue
+        for entry in entries:
+            if " " in entry["account"]:
+                spaced.add(entry["account"].strip().lower().replace(" ", "-"))
+    if not spaced:
+        return None
+    for name in sorted(spaced):
+        seen = _refs_seen(graded, name, period)
+        if seen is None:
+            return None
+        if not filed[name] <= seen:
+            return False
+    return True
+
+
+def _payment_settles_named_period(graded: Path, period: str) -> bool | None:
+    """납부가 **파일에 적힌 기간**에 붙는가, 들어온 달에 붙는가.
+
+    늦게 들어온 납부가 들어온 달로 가면 그 달의 청구서가 엉뚱하게 줄어들고
+    이 달의 청구서는 안 줄어든다.
+    """
+    raw = json.loads(HIDDEN_PAYMENTS.read_text(encoding="utf-8"))
+    late = {}
+    for key, entries in raw.items():
+        if key.startswith("_") or key != period:
+            continue
+        for entry in entries:
+            if entry["received_on"][:7] == period:
+                continue
+            name = entry["account"].strip().lower().replace(" ", "-")
+            if " " in entry["account"]:
+                continue  # 표기 항목이 따로 본다
+            late.setdefault(name, set()).add(str(entry["ref"]))
+    if not late:
+        return None
+    for name, refs in late.items():
+        seen = _refs_seen(graded, name, period)
+        if seen is None:
+            return None
+        if not refs <= seen:
+            return False
+    return True
+
+
+def _money_to_the_cent(value) -> bool:
+    """센트까지 적힌 돈인가. `117.5` 도 `0.30000000000000004` 도 아니다."""
+    if not isinstance(value, str) or "." not in value:
+        return False
+    whole, _, cents = value.partition(".")
+    return len(cents) == 2 and whole.lstrip("-").isdigit() and cents.isdigit()
+
+
+def _payment_balance_is_money(graded: Path, names, period: str) -> bool | None:
+    """`paid` 와 `balance` 가 센트까지의 돈이고, 잔액이 청구액에서 낸 것을
+    뺀 값인가. **초과 납부는 0 에서 멈추므로 그 계정은 빼고 본다.**"""
+    judged = False
+    for name in names:
+        got = _settlement(graded, name, period)
+        if not isinstance(got, dict):
+            return None
+        for key in ("paid", "balance", "invoiced"):
+            if key not in got:
+                return None
+            if not _money_to_the_cent(got[key]):
+                return False
+        judged = True
+        owed = Decimal(got["invoiced"]) - Decimal(got["paid"])
+        if owed < 0:
+            continue
+        if Decimal(got["balance"]) != owed:
+            return False
+    return True if judged else None
+
+
+def _overpayer(graded: Path, names, period: str):
+    """청구액보다 많이 낸 계정과 그 초과액. 없거나 못 읽으면 None."""
+    for name in names:
+        got = _settlement(graded, name, period)
+        if not isinstance(got, dict):
+            return None
+        try:
+            over = Decimal(str(got["paid"])) - Decimal(str(got["invoiced"]))
+        except (KeyError, ArithmeticError, ValueError):
+            return None
+        if over > 0:
+            return name, got, over
+    return None
+
+
+def _balance_never_negative(graded: Path, names, period: str) -> bool | None:
+    """초과 납부가 음수 잔액이 되지 않는가.
+
+    **초과 납부가 아예 안 잡히면 판정하지 않는다**(None). 은행 표기를 못
+    풀어 그 납부가 사라진 상태에서도 잔액은 음수가 아니고, 그것을 통과로
+    세면 안 한 일이 한 일이 된다.
+    """
+    found = _overpayer(graded, names, period)
+    if found is None:
+        return None
+    _name, got, _over = found
+    return Decimal(str(got["balance"])) == 0
+
+
+def _overpayment_decided(work_dir: Path, graded: Path, names,
+                         period: str) -> bool | None:
+    """초과분을 어떻게 할지 정했고, 산출물이 그 이름으로 담고 있는가."""
+    choice = _decided(work_dir, "docs/payments.md",
+                      {"refund": "refund", "credit": "credit"})
+    if choice is None:
+        return False
+    found = _overpayer(graded, names, period)
+    if found is None:
+        return None
+    name, got, over = found
+    if choice not in got or Decimal(str(got[choice])) != over:
+        return False
+    # 넘치지 않은 계정에는 그 이름이 붙지 않는다.
+    for other in names:
+        if other == name:
+            continue
+        seen = _settlement(graded, other, period)
+        if isinstance(seen, dict) and Decimal(str(seen.get(choice, 0))) != 0:
+            return False
+    return True
+
+
+def _dunning_skips_settled(graded: Path, invoices: dict,
+                           period: str) -> bool | None:
+    """다 낸 청구서를 쫓지 않는가.
+
+    `paid_on` 은 아무것도 안 채운다. 실제로 낸 것은 `payments.json` 에 있다.
+    """
+    module = _import_billsy(graded, "dunning")
+    if module is None:
+        return None
+    settled = None
+    for name, invoice in invoices.items():
+        if not isinstance(invoice, dict):
+            continue
+        got = _settlement(graded, name, period)
+        if not isinstance(got, dict):
+            return None
+        try:
+            if Decimal(str(got["paid"])) >= Decimal(str(invoice["total"])) > 0:
+                settled = (name, invoice)
+                break
+        except (KeyError, ArithmeticError, ValueError):
+            return None
+    if settled is None:
+        return None
+    name, invoice = settled
+    chased = [{"account": name, "period": period, "issued_on": "2026-10-01",
+               "total": invoice["total"]}]
+    try:
+        return module.overdue(chased, as_of="2027-06-01") == []
+    except Exception:
+        return None
+
+
 def _reconcile(graded: Path, month: str):
     return _billsy(graded, ["reconcile", "--month", month])
 
@@ -612,10 +823,13 @@ def _dunning_due_day(graded: Path) -> bool | None:
     module = _import_billsy(graded, "dunning")
     if module is None:
         return None
-    invoices = [{"account": "acme-01", "period": "2026-09",
+    # **`delta-04` 를 쓴다.** 숨은 `payments.json` 에 이 계정의 납부가 없다.
+    # 납부가 있는 계정을 쓰면 잔액이 0 이 되어 독촉에서 빠지고, 만기일
+    # 판정이 아니라 납부 판정을 재게 된다.
+    invoices = [{"account": "delta-04", "period": "2026-09",
                  "issued_on": "2026-09-01", "total": "10.00"}]
     try:
-        due = module.due_on("2026-09-01", "acme-01")
+        due = module.due_on("2026-09-01", "delta-04")
         on_the_day = module.overdue(invoices, as_of=due)
         after = module.overdue(invoices, as_of="2027-01-01")
     except Exception:
@@ -676,7 +890,7 @@ def _readme_table_current(work_dir: Path) -> bool | None:
     body = path.read_text(encoding="utf-8")
     rows = [line for line in body.splitlines()
             if line.startswith("| G |") or line.startswith("| H |")
-            or line.startswith("| K |")]
+            or line.startswith("| K |") or line.startswith("| M |")]
     if not rows:
         return None
     return all("core" in row.lower() for row in rows)
@@ -1350,6 +1564,20 @@ def checkpoints(work_dir: Path) -> dict[str, bool | None]:
         out["dunning.uses_contract_terms"] = _dunning_terms(graded)
         out["dunning.due_day_is_not_overdue"] = _dunning_due_day(graded)
         out["dunning.skips_uncontracted"] = _dunning_uncontracted(graded)
+        out["dunning.skips_settled"] = _dunning_skips_settled(
+            graded, invoices, GRADED_MONTH)
+
+        # M 납부
+        out["payments.reaches_the_right_account"] = _payment_reaches_account(
+            graded, GRADED_MONTH)
+        out["payments.settles_the_period_it_names"] = (
+            _payment_settles_named_period(graded, GRADED_MONTH))
+        out["payments.balance_is_money"] = _payment_balance_is_money(
+            graded, names, GRADED_MONTH)
+        out["payments.balance_never_negative"] = _balance_never_negative(
+            graded, names, GRADED_MONTH)
+        out["payments.overpayment_decided"] = _overpayment_decided(
+            work_dir, graded, names, GRADED_MONTH)
 
         # L 대사 — 교차 제품
         result = _reconcile(graded, GRADED_MONTH)

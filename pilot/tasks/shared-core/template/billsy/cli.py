@@ -10,7 +10,7 @@ from pathlib import Path
 
 from opsbox import config, ingest
 
-from . import dunning, invoice, reconcile, statement
+from . import dunning, invoice, payments, reconcile, statement
 
 
 def _records():
@@ -32,6 +32,10 @@ def main(argv=None) -> int:
     say.add_argument("--account", required=True)
     say.add_argument("--period", required=True)
 
+    pay = sub.add_parser("payments")
+    pay.add_argument("--account", required=True)
+    pay.add_argument("--period", required=True)
+
     due = sub.add_parser("dunning")
     due.add_argument("--as-of", required=True)
 
@@ -49,6 +53,10 @@ def main(argv=None) -> int:
         built = invoice.build(records, args.account, args.period)
         rows = statement.rows(records, args.account, args.period)
         print(statement.render(built, rows), end="")
+        return 0
+    if args.cmd == "payments":
+        built = invoice.build(records, args.account, args.period)
+        print(json.dumps(payments.settle(built), indent=2, sort_keys=True))
         return 0
     if args.cmd == "dunning":
         print(json.dumps(dunning.overdue([], args.as_of), indent=2))

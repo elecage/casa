@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from billsy import credits, dunning, rating, statement  # noqa: E402
+from billsy import credits, dunning, payments, rating, statement  # noqa: E402
 
 
 def test_a_charge_line_carries_the_five_fields():
@@ -21,7 +21,9 @@ def test_credits_are_amount_and_reason():
 
 
 def test_dunning_reports_four_fields():
-    invoices = [{"account": "acme-01", "period": "2026-07",
+    # delta-04 on purpose: it has nothing in `payments.json`, so this stays a
+    # test about the shape of the report and not about what has been paid.
+    invoices = [{"account": "delta-04", "period": "2026-07",
                  "issued_on": "2026-07-31", "total": "10.00"}]
     got = dunning.overdue(invoices, as_of="2026-12-01")
     assert got and set(got[0]) == {"account", "period", "due_on", "total"}
@@ -32,6 +34,18 @@ def test_a_paid_invoice_is_never_chased():
                  "issued_on": "2026-01-01", "total": "10.00",
                  "paid_on": "2026-02-01"}]
     assert dunning.overdue(invoices, as_of="2026-12-01") == []
+
+
+def test_a_settlement_carries_the_six_fields():
+    invoice = {"account": "acme-01", "period": "2026-07", "total": "10.00"}
+    got = payments.settle(invoice)
+    assert set(got) >= {"account", "period", "invoiced", "paid", "balance",
+                        "payments"}
+
+
+def test_a_payment_row_is_amount_and_date_and_ref():
+    for row in payments.for_account("acme-01", "2026-07"):
+        assert set(row) == {"amount", "received_on", "ref"}
 
 
 def test_a_statement_renders_the_invoice_numbers():

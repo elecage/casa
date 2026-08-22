@@ -35,7 +35,7 @@ pytestmark = pytest.mark.skipif(not TEMPLATE.is_dir(),
                                 reason="과제 저장소가 아직 없다")
 
 #: 달성 항목 전체 수. 늘리거나 줄이면 여기서 깨진다.
-ITEMS = 43
+ITEMS = 49
 
 
 def _load(name: str, path: Path):
@@ -100,9 +100,9 @@ def test_the_visible_tests_are_green_at_the_start():
 
 #: 결함을 심은 자리들. 이 이름이 명세에 나오면 명세가 답을 알려 주는 것이다.
 _PLANTED = ("evaluate.py", "select.py", "plan.py", "flat.py", "bd.py",
-            "df.py", "eg.py", "rating.py", "dunning.py", "_month_of",
-            "_period_of", "_account", "_key", "COLUMNS", "ROUNDING",
-            "COUNTS_VOID")
+            "df.py", "eg.py", "rating.py", "dunning.py", "payments.py",
+            "_month_of", "_period_of", "_account", "_key", "COLUMNS",
+            "ROUNDING", "COUNTS_VOID")
 
 
 def _names_a_planted_spot(body: str) -> list[str]:
@@ -200,6 +200,35 @@ def test_reconcile_is_not_written_at_the_start():
     assert done.returncode != 0, "대사가 이미 구현돼 있다"
 
 
+def test_a_payment_the_bank_spelled_its_own_way_reaches_nobody_at_the_start():
+    """은행이 하이픈 자리에 빈칸을 쓴 납부가 시작 상태에서는 안 붙는다.
+
+    대소문자만 맞춰서는 안 풀린다 — 계정 표기 규칙이 코어 한 자리에 있어야
+    이것도 같이 풀린다.
+    """
+    filed = json.loads(_read("payments.json"))
+    spaced = [entry for key, rows in filed.items() if not key.startswith("_")
+              for entry in rows if " " in entry["account"]]
+    assert spaced, "빈칸이 든 표기가 표본에 없다"
+    for entry in spaced:
+        name = entry["account"].strip().lower().replace(" ", "-")
+        period = next(key for key, rows in filed.items()
+                      if not key.startswith("_") and entry in rows)
+        done = _billsy(["payments", "--account", name, "--period", period])
+        assert done.returncode == 0, done.stderr
+        refs = {row["ref"] for row in json.loads(done.stdout)["payments"]}
+        assert entry["ref"] not in refs, "시작 상태에서 이미 닿고 있다"
+
+
+def test_the_balance_is_not_money_at_the_start():
+    """`paid` 와 `balance` 가 센트까지 적히지 않는다 — 부동소수로 뺀 값이다."""
+    done = _billsy(["payments", "--account", "brix-02", "--period", "2026-07"])
+    assert done.returncode == 0, done.stderr
+    got = json.loads(done.stdout)
+    assert any(len(str(got[key]).partition(".")[2]) != 2
+               for key in ("paid", "balance")), "시작 상태에서 이미 센트까지다"
+
+
 # ---------------------------------- 저장소가 스스로와 어긋난 채 시작한다
 
 def test_the_changelog_claims_a_feature_that_is_not_there():
@@ -209,8 +238,9 @@ def test_the_changelog_claims_a_feature_that_is_not_there():
 
 def test_the_readme_table_omits_the_core_dependency():
     rows = [line for line in _read("README.md").splitlines()
-            if line.startswith("| G |") or line.startswith("| H |")]
-    assert rows
+            if line.startswith("| G |") or line.startswith("| H |")
+            or line.startswith("| M |")]
+    assert len(rows) == 3
     assert not any("core" in row.lower() for row in rows)
 
 
@@ -265,6 +295,18 @@ def test_the_cross_product_item_compares_both_products(tmp_path):
      ("billsy/credits.py",
       "if normalize_account(entry[\"account\"]) == normalize_account(account):",
       "if entry[\"account\"] == account:")),
+    ("payments.reaches_the_right_account",
+     ("core/accounts.py", 'raw.strip().replace(" ", "-").lower()',
+      "raw.strip().lower()")),
+    ("dunning.skips_settled",
+     ("billsy/dunning.py",
+      "        if _settled(invoice):\n            continue\n", "")),
+    ("payments.settles_the_period_it_names",
+     ("billsy/payments.py",
+      '            out.append({"amount": entry["amount"],',
+      '            if entry["received_on"][:7] != period:\n'
+      "                continue\n"
+      '            out.append({"amount": entry["amount"],')),
 ])
 def test_breaking_one_thing_fails_exactly_that_item(tmp_path, item, break_it):
     """망가뜨리면 그 항목이 실제로 떨어지는가.

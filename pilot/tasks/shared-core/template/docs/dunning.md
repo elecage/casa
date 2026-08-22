@@ -15,6 +15,11 @@ An account with no contract is not chased.
 Past the due date and not paid. An invoice carries `paid_on` when it has been
 paid; those are never chased however old they are.
 
+**`paid_on` is not the only way an invoice gets paid, and nothing sets it.**
+What the customer has actually sent is in `payments.json` and is worked out by
+`docs/payments.md`. An invoice whose balance is zero there is settled and is not
+chased, whether or not it carries `paid_on`.
+
 **Due dates are dates, not moments.** An invoice due on the 30th is not overdue
 on the 30th.
 

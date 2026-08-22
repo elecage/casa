@@ -59,6 +59,7 @@ def build(target: Path, other_way: bool = False) -> Path:
     alert_basis = "last" if other_way else "month"
     pick = "size" if other_way else "age"
     stable = "asof" if other_way else "drop"
+    excess = "credit" if other_way else "refund"
 
     # ------------------------------------------------- A 입력 어댑터
     # 청구 수량을 센다.
@@ -70,9 +71,10 @@ def build(target: Path, other_way: bool = False) -> Path:
           '        if not row.get("status"):\n            continue\n', "")
     _edit(target / "opsbox/ingest/eg.py",
           'status=row.get("status", "ok"),', 'status=row.get("status") or "ok",')
-    # 계정 표기를 정한다.
+    # 계정 표기를 정한다. **은행이 하이픈 자리에 빈칸을 쓴 것도 여기서
+    # 푼다** — 표기 규칙은 두 제품에 하나뿐이므로 납부 쪽에 따로 두지 않는다.
     _edit(target / "core/accounts.py", "    return raw.strip()",
-          f"    return raw.strip().{case}()")
+          f'    return raw.strip().replace(" ", "-").{case}()')
     _append_after(target / "docs/ingest.md", "## Account spelling",
                   f"Decision: {'uppercase' if case == 'upper' else 'lowercase'}\n")
 
@@ -337,7 +339,9 @@ def check(records: list[Record], month: str) -> dict:
                          ("| H | Invoice | `billsy/invoice.py` | `docs/invoice.md` | G, I |",
                           "| H | Invoice | `billsy/invoice.py` | `docs/invoice.md` | G, I, core |"),
                          ("| K | Dunning | `billsy/dunning.py` | `docs/dunning.md` | H |",
-                          "| K | Dunning | `billsy/dunning.py` | `docs/dunning.md` | H, core |")):
+                          "| K | Dunning | `billsy/dunning.py` | `docs/dunning.md` | H, M, core |"),
+                         ("| M | Payments | `billsy/payments.py` | `docs/payments.md` | H |",
+                          "| M | Payments | `billsy/payments.py` | `docs/payments.md` | H, core |")):
         _edit(target / "README.md", row, depends)
     _edit(target / "CHANGELOG.md", "# Changelog\n",
           "# Changelog\n\n## v0.3.0\n\n"
@@ -468,6 +472,93 @@ def check(records: list[Record], month: str) -> dict:
           "            continue\n"
           "        if datetime.date.fromisoformat(due) < today:")
 
+    # ------------------------------------------------- M 납부
+    # 기간은 파일에 적힌 열쇠가 정한다. 계정 표기는 코어의 규칙으로 푼다.
+    # 돈은 청구서와 같은 반올림 규칙 아래에서 센트까지 적는다. 초과분은
+    # 잔액을 음수로 만들지 않고 정한 이름으로 따로 담는다.
+    (target / "billsy/payments.py").write_text(
+        '"""What the customer has already paid. The spec is'
+        ' `docs/payments.md`.\n'
+        '\n'
+        'A payment settles the period it is filed under. The day it arrived is\n'
+        'a separate fact and is often in the following month.\n'
+        '"""\n'
+        '\n'
+        'from __future__ import annotations\n'
+        '\n'
+        'import json\n'
+        'from pathlib import Path\n'
+        '\n'
+        'from core.accounts import normalize_account\n'
+        'from core.money import round_money, sum_money, to_money\n'
+        '\n'
+        'PAYMENTS = Path(__file__).resolve().parent.parent / "payments.json"\n'
+        '\n'
+        f'#: What happens to money paid over the invoice.\n'
+        f'EXCESS = "{excess}"\n'
+        '\n'
+        '\n'
+        'def all_payments() -> dict:\n'
+        '    raw = json.loads(PAYMENTS.read_text(encoding="utf-8"))\n'
+        '    return {k: v for k, v in raw.items() if not k.startswith("_")}\n'
+        '\n'
+        '\n'
+        'def for_account(account: str, period: str) -> list[dict]:\n'
+        '    """The payments that settle this account\'s invoice for this'
+        ' period."""\n'
+        '    wanted = normalize_account(account)\n'
+        '    out = []\n'
+        '    for group, entries in all_payments().items():\n'
+        '        if group != period:\n'
+        '            continue\n'
+        '        for entry in entries:\n'
+        '            if normalize_account(entry["account"]) != wanted:\n'
+        '                continue\n'
+        '            out.append({"amount": entry["amount"],\n'
+        '                        "received_on": entry["received_on"],\n'
+        '                        "ref": entry["ref"]})\n'
+        '    return out\n'
+        '\n'
+        '\n'
+        'def settle(invoice: dict) -> dict:\n'
+        '    """What is still owed on one invoice once payments come off."""\n'
+        '    rows = for_account(invoice["account"], invoice["period"])\n'
+        '    paid = round_money(sum_money(row["amount"] for row in rows))\n'
+        '    invoiced = round_money(to_money(invoice["total"]))\n'
+        '    owed = round_money(invoiced - paid)\n'
+        '    out = {\n'
+        '        "account": normalize_account(invoice["account"]),\n'
+        '        "period": invoice["period"],\n'
+        '        "invoiced": str(invoiced),\n'
+        '        "paid": str(paid),\n'
+        '        "balance": str(owed if owed > 0 else round_money(0)),\n'
+        '        "payments": rows,\n'
+        '    }\n'
+        '    if paid > invoiced:\n'
+        '        out[EXCESS] = str(round_money(paid - invoiced))\n'
+        '    return out\n',
+        encoding="utf-8")
+    _append_after(target / "docs/payments.md", "## Paying more than the invoice",
+                  f"Decision: {excess}\n")
+
+    # 다 낸 청구서는 쫓지 않는다. `paid_on` 은 아무것도 안 채운다.
+    _edit(target / "billsy/dunning.py",
+          "from . import rating\n",
+          "from core.money import to_money\n\nfrom . import payments, rating\n")
+    _edit(target / "billsy/dunning.py",
+          "def _terms_for(account: str):",
+          "def _settled(invoice: dict) -> bool:\n"
+          '    """Whether the customer has already paid this invoice off."""\n'
+          "    try:\n"
+          '        return to_money(payments.settle(invoice)["balance"]) <= 0\n'
+          "    except (KeyError, ValueError, ArithmeticError, OSError):\n"
+          "        return False\n\n\n"
+          "def _terms_for(account: str):")
+    _edit(target / "billsy/dunning.py",
+          '        if invoice.get("paid_on"):\n            continue\n',
+          '        if invoice.get("paid_on"):\n            continue\n'
+          "        if _settled(invoice):\n            continue\n")
+
     # 인계 문서. **"Decisions" 절은 덧붙이고 나머지만 새로 쓴다** — 과제가
     # 그렇게 요구하므로 레퍼런스 해답도 그렇게 해야 한다.
     handoff = target / "HANDOFF.md"
@@ -481,6 +572,7 @@ def check(records: list[Record], month: str) -> dict:
         f"- s01 archive selection: {'size' if pick == 'size' else 'age'}",
         f"- s01 export stability: "
         f"{'use the as-of date' if stable == 'asof' else 'drop the timestamp line'}",
+        f"- s01 overpayment: {excess}",
     ])
     text = handoff.read_text(encoding="utf-8")
     head, _, tail = text.partition("\n---\n")

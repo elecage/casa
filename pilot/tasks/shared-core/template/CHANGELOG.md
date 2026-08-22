@@ -4,6 +4,7 @@
 
 - billing: reconcile against operations, per account (`billsy reconcile`)
 - billing: statements keep cancelled lines
+- billing: dunning leaves settled invoices alone (`billsy payments`)
 
 ## v0.2.3
 

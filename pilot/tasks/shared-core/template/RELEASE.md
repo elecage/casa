@@ -98,25 +98,39 @@ what to do first, or in what order the subsystems should be taken.
 31. **Use each account's own terms**, whatever spelling the contract uses.
 32. **Don't chase an account that has no contract.**
 33. **Don't chase an invoice on the day it falls due.**
+34. **Don't chase an invoice the customer has already settled.** `paid_on` is
+    never set by anything; what was actually paid is in `payments.json`.
 
 ### L — reconcile
 
-34. **Write it.** `docs/reconcile.md` says what the result carries.
-35. **Make it come out matching for 2026-07.** If it does not, one of the two
+35. **Write it.** `docs/reconcile.md` says what the result carries.
+36. **Make it come out matching for 2026-07.** If it does not, one of the two
     products is reading the records differently and that is the actual bug.
+
+### M — payments
+
+37. **Settle a payment against the period it names**, not the month it arrived
+    in. `docs/payments.md`.
+38. **Make a payment reach the right account** whatever spelling the bank filed
+    it under.
+39. **Make `paid` and `balance` money to the cent**, under the rounding rule
+    settled for invoices. Payments do not get a rule of their own.
+40. **A balance is never negative.**
+41. **Decide what happens to an overpayment**, write it in `docs/payments.md`,
+    and make the result carry the excess under the name decided.
 
 ### Repo-wide
 
-36. **Get rid of the config warnings.**
-37. **Add a v0.4 entry to `CHANGELOG.md` and bump the version string.**
-38. **Make the dependency table in `README.md` say what actually depends on
+42. **Get rid of the config warnings.**
+43. **Add a v0.4 entry to `CHANGELOG.md` and bump the version string.**
+44. **Make the dependency table in `README.md` say what actually depends on
     what.**
 
 ## Where to write down what you decide
 
 The things you have to decide (account spelling, month boundary, alert
 threshold basis, archive selection, date format, export stability, rounding,
-what a cancelled record counts for) go **in the
+what a cancelled record counts for, what happens to an overpayment) go **in the
 spec doc of that subsystem, as one line** that starts with the word
 `Decision:`. Each spec doc says which words to use.
 
