@@ -476,3 +476,72 @@ def test_the_sealed_primary_metric_does_not_use_the_post_hoc_restriction():
         encoding="utf-8")
     body = source.split("def arm_summary", 1)[1].split("\ndef ", 1)[0]
     assert "plateau_index" not in body, "봉인된 지표가 사후 한정을 쓰고 있다"
+
+
+# ------------- 통과하던 항목을 깨뜨렸는가 (2026-08-23, record-shape 프로브)
+
+def _row_with(index: int, checks: dict) -> dict:
+    return {"chain": 1, "session_index": index, "label": f"c01s{index:02d}",
+            "grade": {"checkpoints": checks},
+            "audit": {"metrics": {"n_tool_calls": 10}}}
+
+
+def test_a_session_that_breaks_a_passing_item_is_recorded():
+    """되돌리는 비용을 줄 수로만 세면 이 모양을 못 잡는다.
+
+    사슬 프로브에서 세션 2가 세션 1이 통과시킨 항목 둘을 깨뜨렸는데 지운
+    줄은 다섯 줄뿐이었다. 값은 지운 줄이 아니라 **깨진 채 남았다**는 데 있다.
+    """
+    rows = [
+        _row_with(1, {"a": True, "b": True, "c": False}),
+        _row_with(2, {"a": True, "b": False, "c": True}),
+        _row_with(3, {"a": True, "b": False, "c": True}),
+    ]
+    history = evaluate.regressions(rows)
+    assert history[0]["broke"] == []
+    assert history[1]["broke"] == ["b"]
+    assert history[1]["left_broken"] == ["b"]
+    assert history[1]["repaired_at"] == {}
+
+
+def test_a_broken_item_that_a_later_session_fixes_is_marked_repaired():
+    rows = [
+        _row_with(1, {"a": True}),
+        _row_with(2, {"a": False}),
+        _row_with(3, {"a": False}),
+        _row_with(4, {"a": True}),
+    ]
+    history = evaluate.regressions(rows)
+    assert history[1]["broke"] == ["a"]
+    assert history[1]["repaired_at"] == {"a": 4}
+    assert history[1]["left_broken"] == []
+
+
+def test_an_item_that_never_passed_is_not_a_regression():
+    """한 번도 통과한 적 없는 항목이 계속 안 통과하는 것은 깨뜨린 것이 아니다."""
+    rows = [_row_with(1, {"a": False}), _row_with(2, {"a": False})]
+    assert all(not entry["broke"] for entry in evaluate.regressions(rows))
+
+
+def test_an_unjudged_item_counts_as_broken():
+    """채점이 판정 불가로 바뀐 것도 통과 상태를 잃은 것이다."""
+    rows = [_row_with(1, {"a": True}), _row_with(2, {"a": None})]
+    assert evaluate.regressions(rows)[1]["broke"] == ["a"]
+
+
+def test_the_regression_summary_counts_what_was_left_broken():
+    rows = [
+        _row_with(1, {"a": True, "b": True}),
+        _row_with(2, {"a": False, "b": False}),
+        _row_with(3, {"a": True, "b": False}),
+    ]
+    out = evaluate.regression_summary(rows)
+    assert out["sessions_that_broke_something"] == 1
+    assert out["broken_total"] == 2
+    assert out["repaired"] == 1
+    assert out["left_broken"] == 1 and out["left_broken_names"] == ["b"]
+
+
+def test_the_regression_summary_survives_an_empty_chain():
+    out = evaluate.regression_summary([])
+    assert out["sessions"] == 0 and out["broken_total"] == 0

@@ -434,6 +434,71 @@ def check_predictions(result: dict, keep: list[list[dict]],
     return out
 
 
+def _checks(row: dict) -> dict:
+    grade = row.get("grade")
+    checks = grade.get("checkpoints") if isinstance(grade, dict) else None
+    return checks if isinstance(checks, dict) else {}
+
+
+def regressions(chain_rows: list[dict]) -> list[dict]:
+    """세션마다 **통과하던 달성 항목을 깨뜨렸는가**, 그리고 고쳐졌는가.
+
+    **왜 이것을 따로 세는가**(2026-08-23). 되돌리는 비용을 줄 수로만 세면
+    이 모양을 못 잡는다. `record-shape` 사슬 프로브에서 세션 2가 세션 1이
+    통과시킨 v0.3 항목 둘을 깨뜨렸는데, 지운 줄은 다섯 줄뿐이었다. 값은
+    지운 줄에 있는 것이 아니라 **깨진 것이 38세션 동안 그대로 남았다**는
+    데 있다.
+
+    세션마다 돌려주는 것:
+
+    | 열쇠 | 뜻 |
+    |---|---|
+    | `broke` | 앞까지 통과하던 것 중 이 세션이 떨어뜨린 항목 |
+    | `repaired_at` | 그것을 다시 통과시킨 세션의 순번. 없으면 None |
+    | `left_broken` | 사슬이 끝날 때까지 안 고쳐진 항목 |
+    """
+    names = sorted({name for row in chain_rows for name in _checks(row)})
+    passing = {name: False for name in names}
+    history: list[dict] = []
+    for index, row in enumerate(chain_rows):
+        checks = _checks(row)
+        broke = [name for name in names
+                 if passing.get(name) and checks.get(name) is not True]
+        history.append({"session_index": row.get("session_index", index + 1),
+                        "label": row.get("label"), "broke": broke,
+                        "repaired_at": {}, "left_broken": []})
+        for name in names:
+            if name in checks:
+                passing[name] = checks[name] is True
+
+    for position, entry in enumerate(history):
+        for name in entry["broke"]:
+            fixed = next((later["session_index"]
+                          for later, row in zip(history[position + 1:],
+                                                chain_rows[position + 1:])
+                          if _checks(row).get(name) is True), None)
+            if fixed is None:
+                entry["left_broken"].append(name)
+            else:
+                entry["repaired_at"][name] = fixed
+    return history
+
+
+def regression_summary(chain_rows: list[dict]) -> dict:
+    """사슬 하나에서 깨뜨림이 몇 번 있었고 몇 개가 안 고쳐졌는가."""
+    history = regressions(chain_rows)
+    broke = [entry for entry in history if entry["broke"]]
+    left = [name for entry in history for name in entry["left_broken"]]
+    return {
+        "sessions": len(history),
+        "sessions_that_broke_something": len(broke),
+        "broken_total": sum(len(entry["broke"]) for entry in history),
+        "left_broken": len(left),
+        "left_broken_names": sorted(left),
+        "repaired": sum(len(entry["repaired_at"]) for entry in history),
+    }
+
+
 def plateau_index(rows: list[dict]) -> int:
     """그 사슬이 **최종 통과 항목 수에 처음 도달한** 세션의 자리(0부터).
 
