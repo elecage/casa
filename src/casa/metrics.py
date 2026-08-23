@@ -12,11 +12,115 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from .transcript import SHELL_TOOLS, Session, ToolCall
+from .transcript import READ_TOOLS, SHELL_TOOLS, WRITE_TOOLS, Session, ToolCall
 
 
 def _normalized_key(call: ToolCall) -> tuple[str, str]:
     return (call.name, " ".join(call.searchable_text().split()))
+
+
+# ------------------------------------------------ 무엇을 읽었는지 뽑아내기
+
+_DOC_SUFFIXES = (".md", ".rst", ".txt", ".adoc")
+_READ_COMMANDS = ("cat", "head", "tail", "less", "more", "bat")
+_READ_PATH_KEYS = ("file_path", "notebook_path", "path")
+
+
+def _norm_path(value: str) -> str:
+    return value.replace("\\", "/").strip().strip("'\"")
+
+
+def is_document(path: str) -> bool:
+    """문서 파일인가. 확장자와 경로에 `docs` 가 들어가는지로만 판정한다.
+
+    어느 문서가 이 과제에서 중요한지는 여기서 알 수 없다. 그것이 필요한
+    지표는 `document_pair_coverage` 처럼 대상을 인자로 받는다.
+    """
+    low = _norm_path(path).lower()
+    if low.endswith(_DOC_SUFFIXES):
+        return True
+    parts = low.split("/")
+    return "docs" in parts or "doc" in parts
+
+
+def _shell_read_paths(command: str) -> list[str]:
+    """셸에서 파일을 출력하는 명령의 대상. 없으면 빈 목록."""
+    out: list[str] = []
+    for segment in re.split(r"&&|\|\||[;|]", command or ""):
+        parts = segment.split()
+        if not parts:
+            continue
+        if parts[0].rsplit("/", 1)[-1] not in _READ_COMMANDS:
+            continue
+        for token in parts[1:]:
+            if token.startswith("-") or token.isdigit():
+                continue
+            path = _norm_path(token)
+            if path:
+                out.append(path)
+            break
+    return out
+
+
+def read_targets(session_or_calls) -> list[tuple[int, str]]:
+    """읽은 파일을 순서대로 — (호출 번호, 경로).
+
+    `Read` 같은 도구가 이름을 댄 파일과, 셸에서 파일을 출력한 대상을 함께
+    모은다. `Grep`/`Glob` 의 `path` 는 디렉터리를 훑은 것일 때가 많으므로
+    이름에 확장자가 붙은 것만 파일을 읽은 것으로 센다.
+
+    같은 파일을 두 번 읽으면 두 번 들어간다. 세션을 넣어도 되고 호출 목록을
+    넣어도 된다.
+    """
+    calls = getattr(session_or_calls, "tool_calls", session_or_calls)
+    out: list[tuple[int, str]] = []
+    for call in calls:
+        if call.name in WRITE_TOOLS:
+            continue
+        if call.name in READ_TOOLS:
+            for key in _READ_PATH_KEYS:
+                value = call.input.get(key)
+                if not isinstance(value, str) or not value.strip():
+                    continue
+                path = _norm_path(value)
+                if key == "path" and "." not in path.rsplit("/", 1)[-1]:
+                    break
+                out.append((call.index, path))
+                break
+            continue
+        for path in _shell_read_paths(call.shell_command):
+            out.append((call.index, path))
+    return out
+
+
+def document_pair_coverage(session: Session,
+                           group_a: list[str],
+                           group_b: list[str]) -> str:
+    """서로 맞지 않는 문서 두 무리를 세션이 다 읽었는지 판정한다.
+
+    두 무리가 무엇인지는 과제를 아는 쪽이 정한다 — `coverage` 의
+    `relevant_files` 와 같은 자리다. 항목은 경로의 끝부분으로 맞춰 본다.
+
+    돌려주는 값은 `"both"`, `"only-a"`, `"only-b"`, `"neither"` 중 하나다.
+    무리 하나가 비어 있으면 그쪽은 읽지 않은 것으로 센다.
+    """
+    seen = {path for _, path in read_targets(session)}
+
+    def hit(group: list[str]) -> bool:
+        for wanted in group:
+            target = _norm_path(wanted)
+            if any(s == target or s.endswith("/" + target) for s in seen):
+                return True
+        return False
+
+    a, b = hit(group_a), hit(group_b)
+    if a and b:
+        return "both"
+    if a:
+        return "only-a"
+    if b:
+        return "only-b"
+    return "neither"
 
 
 def exploration_before_first_edit(session: Session) -> int:

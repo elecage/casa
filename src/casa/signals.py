@@ -18,7 +18,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from .metrics import _is_aux_check, _is_test_run, _normalized_key
+from .metrics import (_is_aux_check, _is_test_run, _norm_path, _normalized_key,
+                      is_document, read_targets)
 from .progress import ProgressTracker, is_mutating_shell, normalize
 from .transcript import READ_TOOLS, WRITE_TOOLS, Session, ToolCall
 
@@ -321,6 +322,108 @@ def distinct_edited_paths(calls: list[ToolCall]) -> int:
     return len(paths)
 
 
+# ------------------------- 10. 무엇을 읽었는가와 어떤 차례로 갔는가
+
+# 여기까지의 지표는 도구 호출의 모양만 본다 — 몇 번 불렀는지, 같은 것을
+# 다시 불렀는지, 에러 뒤에 무엇을 했는지. 무엇을 읽었는지와 어떤 차례로
+# 갔는지는 안 본다. 이 절이 그것을 본다.
+#
+# 다만 어느 파일이 이 과제에서 중요한지는 여전히 안 본다. 그것을 알려면
+# 과제 설정이 필요하고, 그런 지표는 `metrics.document_pair_coverage` 처럼
+# 대상을 인자로 받는 쪽에 둔다.
+
+
+def _first_edit_index(calls: list[ToolCall]) -> int | None:
+    for call in calls:
+        if call.name in WRITE_TOOLS or is_mutating_shell(call):
+            return call.index
+    return None
+
+
+def distinct_read_paths(calls: list[ToolCall]) -> int:
+    """세션이 읽은 서로 다른 파일의 수. `distinct_edited_paths` 의 읽기 쪽."""
+    return len({path for _, path in read_targets(calls)})
+
+
+def doc_read_ratio(calls: list[ToolCall]) -> float:
+    """읽은 파일 중 문서가 차지하는 비율. 읽은 것이 없으면 0.
+
+    코드만 읽고 적힌 것을 안 읽은 세션과 그 반대가 여기서 갈린다.
+    """
+    targets = read_targets(calls)
+    if not targets:
+        return 0.0
+    return sum(1 for _, path in targets if is_document(path)) / len(targets)
+
+
+def doc_before_first_edit(calls: list[ToolCall]) -> bool | None:
+    """파일을 처음 바꾸기 전에 문서를 하나라도 읽었는가.
+
+    아무 파일도 바꾸지 않은 세션은 None — 이 질문이 성립하지 않는다.
+    """
+    first = _first_edit_index(calls)
+    if first is None:
+        return None
+    return any(is_document(path) for index, path in read_targets(calls)
+               if index < first)
+
+
+def docs_after_first_edit(calls: list[ToolCall]) -> int:
+    """파일을 처음 바꾼 뒤에 문서를 읽은 횟수.
+
+    일을 시작한 뒤 적힌 것으로 돌아가는 행위가 여기 잡힌다. 아무것도 안 바꾼
+    세션은 0이다 — 돌아갈 자리가 없으므로 0과 "안 돌아갔다" 를 구별하려면
+    `_first_edit_index` 를 같이 봐야 한다.
+    """
+    first = _first_edit_index(calls)
+    if first is None:
+        return 0
+    return sum(1 for index, path in read_targets(calls)
+               if index > first and is_document(path))
+
+
+def max_reread_gap(calls: list[ToolCall]) -> int:
+    """같은 파일을 다시 읽기까지 지나간 호출 수의 최대값.
+
+    두 번 읽은 파일이 없으면 0. `reread_ratio` 는 다시 읽었다는 사실만 세고
+    얼마나 뒤에 돌아왔는지는 안 센다. 바로 다음 호출에서 다시 읽는 것과
+    쉰 호출 뒤에 돌아와 확인하는 것은 다른 행위다.
+    """
+    last: dict[str, int] = {}
+    widest = 0
+    for index, path in read_targets(calls):
+        if path in last:
+            widest = max(widest, index - last[path])
+        last[path] = index
+    return widest
+
+
+def read_before_edit_ratio(calls: list[ToolCall]) -> float | None:
+    """바꾼 파일 중 바꾸기 전에 읽어 본 것의 비율.
+
+    아무 파일도 바꾸지 않았으면 None. 새로 만드는 파일은 읽을 것이 없으므로
+    이 값을 낮추는데, 그것도 관측 대상이다 — 있는 파일을 안 읽고 덮어쓰는
+    것과 구별되지 않는다는 점은 이 지표의 한계다.
+    """
+    first_read: dict[str, int] = {}
+    for index, path in read_targets(calls):
+        first_read.setdefault(path, index)
+    first_edit: dict[str, int] = {}
+    for call in calls:
+        if call.name not in WRITE_TOOLS:
+            continue
+        for key in ("file_path", "path", "notebook_path"):
+            value = call.input.get(key)
+            if isinstance(value, str):
+                first_edit.setdefault(_norm_path(value), call.index)
+                break
+    if not first_edit:
+        return None
+    looked = sum(1 for path, at in first_edit.items()
+                 if path in first_read and first_read[path] < at)
+    return looked / len(first_edit)
+
+
 # ------------------------------------------------------------- battery
 
 
@@ -362,4 +465,11 @@ def compute_signals(session: Session) -> dict[str, Any]:
         # 9. fixation
         "approach_switches": approach_switches(calls),
         "distinct_edited_paths": distinct_edited_paths(calls),
+        # 10. what was read, and in what order
+        "distinct_read_paths": distinct_read_paths(calls),
+        "doc_read_ratio": doc_read_ratio(calls),
+        "doc_before_first_edit": doc_before_first_edit(calls),
+        "docs_after_first_edit": docs_after_first_edit(calls),
+        "max_reread_gap": max_reread_gap(calls),
+        "read_before_edit_ratio": read_before_edit_ratio(calls),
     }

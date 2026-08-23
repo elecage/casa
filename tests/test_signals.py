@@ -212,7 +212,7 @@ def test_distinct_edited_paths():
 
 def test_battery_reports_every_signal():
     out = signals.compute_signals(session(healthy(), "All tests pass."))
-    assert len(out) == 20
+    assert len(out) == 26
     assert all(k in out for k in
                ("error_response_rate", "futile_check_count", "read_heavy_tail",
                 "assertion_density", "rework_ratio", "action_cycle_length"))
