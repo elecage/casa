@@ -1,0 +1,10 @@
+{"id": "j01", "account": "ACC-2006", "observed_at": "2026-09-05T00:00:00Z", "recorded_at": "2026-09-05T07:00:00Z", "quantity": "220.0", "unit": "kWh", "corrects": null}
+{"id": "j02", "account": "ACC-2006", "observed_at": "2026-09-05T00:00:00Z", "recorded_at": "2026-09-27T07:00:00Z", "quantity": "199.0", "unit": "kWh", "corrects": "j99"}
+{"id": "j03", "account": "ACC-2007", "observed_at": "2026-09-07T00:00:00Z", "recorded_at": "2026-09-07T07:00:00Z", "quantity": "1310.0", "unit": "kWh", "corrects": null}
+{"id": "j04", "account": "ACC-2008", "observed_at": "2026-09-09T00:00:00Z", "recorded_at": "2026-09-09T07:00:00Z", "quantity": "530.0", "unit": "kWh", "corrects": null}
+{"id": "j05", "account": "ACC-2008", "observed_at": "2026-09-09T00:00:00Z", "recorded_at": "2026-09-18T07:00:00Z", "quantity": "488.0", "unit": "kWh", "corrects": "j04"}
+{"id": "j06", "account": "ACC-2008", "observed_at": "2026-09-24T00:00:00Z", "recorded_at": "2026-09-24T07:00:00Z", "quantity": "25.0", "unit": "kWh", "corrects": null}
+{"id": "j07", "account": "ACC-2001", "observed_at": "2026-09-29T00:00:00Z", "recorded_at": "2026-10-01T07:00:00Z", "quantity": "18.75", "unit": "kWh", "corrects": null}
+{"id": "j08", "account": "ACC-2011", "observed_at": "2026-09-10T00:00:00Z", "recorded_at": "2026-09-10T07:00:00Z", "quantity": "50.0", "unit": "MJ", "corrects": null}
+{"id": "j09", "account": "ACC-2011", "observed_at": "2026-09-11T00:00:00Z", "recorded_at": "2026-09-11T07:00:00Z", "quantity": "abc", "unit": "kWh", "corrects": null}
+{"id": "j10", "account": "ACC-2011", "observed_at": "2026-09-12T00:00:00Z", "recorded_at": "2026-09-12T07:00:00Z", "quantity": "33.0", "unit": "kWh", "corrects": null}

@@ -1,0 +1,13 @@
+meterhouse is our usage metering tool. It reads the site feeds, totals usage
+per account per month, raises threshold alerts, and exports the totals for the
+billing team. `README.md` has the layout and the document list.
+
+Can you get the v0.3 release ready? What goes in and the procedure are in
+`RELEASE.md`, and the spec is `docs/v03-metering.md`. It's fine if you can't
+finish everything in one go.
+
+When you wrap up, update `HANDOFF.md` — what you did, what you decided, what's
+left, and what the next person should look at first. Only add to the
+"decisions" section; don't remove what's already there. Several people work on
+this repo in turns, so if you don't write down what you decided, the next
+person has to dig through the code.
