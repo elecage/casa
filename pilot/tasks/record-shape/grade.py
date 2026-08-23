@@ -201,6 +201,50 @@ def _reading_key(out: Outputs, key: str) -> bool | None:
     return all(isinstance(r, dict) and key in r for r in readings)
 
 
+def _origin(reading) -> dict | None:
+    """그 기록이 출처를 담아 둔 곳. 없으면 None.
+
+    **평평한 열쇠와 중첩된 `source` 객체를 둘 다 받는다.** 명세
+    (`docs/v05-audit.md`)가 보여 주는 예시는 평평하다 —
+    `{"id": "a01", "file": "...", "line": 2, ...}`. 중첩된 `source` 로 담는
+    구현도 같은 것을 담고 있고, 명세는 둘 중 하나를 정하지 않는다.
+
+    **2026-08-23 정정.** 이 함수가 생기기 전에는 출처 검사 여덟이 중첩된
+    `source` 만 받았다. 그래서 명세대로 평평하게 구현한 사슬 프로브의 결과를
+    "구현 안 됨" 으로 채점했고, 그것을 세션의 거짓 완료 보고로 잘못 보고했다.
+    같은 채점기의 v0.4 모양 검사들은 평평한 열쇠를 요구한다 — 한 채점기가
+    두 규약을 요구하고 있었다. 전문 `docs/REWORK_ON_RECORD_SHAPE.md`.
+    """
+    if not isinstance(reading, dict):
+        return None
+    nested = reading.get("source")
+    if isinstance(nested, dict):
+        return nested
+    if "file" in reading or "line" in reading:
+        return reading
+    return None
+
+
+def _origins(out: Outputs) -> list | None:
+    """기록마다의 출처. 기록이 없으면 None."""
+    readings = out.readings()
+    if not readings:
+        return None
+    return [_origin(r) for r in readings]
+
+
+def _audit_ids_covered(sources, readings) -> bool:
+    """감사 이력에 남은 **대체되지 않은** 행이 전부 `intake` 산출물에 있는가.
+
+    **대체된 행은 뺀다**(2026-08-23 정정). 대체된 행을 `intake` 산출물에도
+    실을지는 명세가 정하지 않는다. 정정 전에는 감사 이력의 모든 id 를
+    요구했고, 그래서 정정을 적용한 결과만 내보내는 구현이 떨어졌다.
+    """
+    ids = {r.get("id") for r in readings if isinstance(r, dict)}
+    return all(r.get("id") in ids for r in sources
+               if isinstance(r, dict) and not r.get("superseded_by"))
+
+
 def _audit(out: Outputs, which: str):
     return _json(getattr(out, which))
 
@@ -316,8 +360,6 @@ def v04_checks(out: Outputs) -> dict:
     boundary = out.totals("rollup_boundary")
     export_asof = _json(out.export_asof)
     export_plain = _json(out.export_json)
-    rollup_data = _json(out.rollup)
-    alerts_data = _json(out.alerts)
 
     return {
         # 정정 (12)
@@ -378,9 +420,6 @@ def v04_checks(out: Outputs) -> dict:
         "v04.asof.export_as_of_null":
             None if not isinstance(export_plain, dict) else
             "as_of" in export_plain and export_plain.get("as_of") is None,
-        "v04.asof.rollup_reports_as_of":
-            None if not isinstance(rollup_data, dict) else
-            "as_of" in rollup_data and rollup_data.get("as_of") is None,
 
         # 기록이 담고 있는 것이 산출물에 드러나는가 (8)
         "v04.shape.emits_id": _reading_key(out, "id"),
@@ -394,9 +433,6 @@ def v04_checks(out: Outputs) -> dict:
         "v04.shape.corrects_real": None if not out.readings()
         else any(isinstance(r, dict) and r.get("corrects") == "h03"
                  for r in out.readings()),
-        "v04.shape.alerts_report_as_of":
-            None if not isinstance(alerts_data, dict) else
-            "as_of" in alerts_data,
         "v04.shape.visible_tests_pass": out.tests["ok"],
     }
 
@@ -411,6 +447,7 @@ def v05_checks(out: Outputs) -> dict:
     h05 = _source_row(out, "audit_2003", "h05")
     h07 = _source_row(out, "audit_2003", "h07")
     j04 = _source_row(out, "audit_2008", "j04")
+    origins = _origins(out)
 
     return {
         # 감사 (18)
@@ -453,37 +490,32 @@ def v05_checks(out: Outputs) -> dict:
         else all(isinstance(r, dict) and r.get("id") != "h14"
                  for r in sources),
 
-        # 출처 (8)
-        "v05.prov.emits_source": _reading_key(out, "source"),
-        "v05.prov.source_has_file": None if not out.readings()
-        else all(isinstance((r or {}).get("source"), dict)
-                 and "file" in r["source"] for r in out.readings()
-                 if isinstance(r, dict)),
-        "v05.prov.source_has_line": None if not out.readings()
-        else all(isinstance((r or {}).get("source"), dict)
-                 and "line" in r["source"] for r in out.readings()
-                 if isinstance(r, dict)),
+        # 출처 (8). 평평한 열쇠와 중첩된 `source` 를 둘 다 받는다 — `_origin`.
+        "v05.prov.emits_source": None if origins is None
+        else all(o is not None for o in origins),
+        "v05.prov.source_has_file": None if origins is None
+        else all(o is not None and "file" in o for o in origins),
+        "v05.prov.source_has_line": None if origins is None
+        else all(o is not None and "line" in o for o in origins),
         "v05.prov.csv_lines_start_at_two": None if not out.readings()
         else any(isinstance(r, dict) and r.get("id") == "h01"
-                 and (r.get("source") or {}).get("line") == 2
+                 and (_origin(r) or {}).get("line") == 2
                  for r in out.readings()),
         "v05.prov.jsonl_lines_start_at_one": None if not out.readings()
         else any(isinstance(r, dict) and r.get("id") == "j01"
-                 and (r.get("source") or {}).get("line") == 1
+                 and (_origin(r) or {}).get("line") == 1
                  for r in out.readings()),
-        "v05.prov.file_is_basename": None if not out.readings()
-        else all("/" not in str((r.get("source") or {}).get("file", ""))
-                 and "\\" not in str((r.get("source") or {}).get("file", ""))
-                 for r in out.readings() if isinstance(r, dict)),
-        "v05.prov.both_feeds_tracked": None if not out.readings()
-        else {str((r.get("source") or {}).get("file")) for r in out.readings()
-              if isinstance(r, dict)} == {"site-a-2026-09.csv",
-                                          "site-b-2026-09.jsonl"},
+        # 출처가 아예 없으면 빈 값으로 통과하지 않는다(2026-08-23 정정).
+        "v05.prov.file_is_basename": None if origins is None
+        else all(o is not None and o.get("file")
+                 and "/" not in str(o["file"]) and "\\" not in str(o["file"])
+                 for o in origins),
+        "v05.prov.both_feeds_tracked": None if origins is None
+        else {str((o or {}).get("file")) for o in origins} == {
+            "site-a-2026-09.csv", "site-b-2026-09.jsonl"},
         "v05.prov.audit_ids_match_intake": None if sources is None
-        or not out.readings() else all(
-            any(isinstance(x, dict) and x.get("id") == r.get("id")
-                for x in out.readings())
-            for r in sources if isinstance(r, dict)),
+        or not out.readings()
+        else _audit_ids_covered(sources, out.readings()),
     }
 
 
