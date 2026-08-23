@@ -84,6 +84,25 @@ def earlier_rows(out_dir: Path, chain: int) -> list[dict]:
     return out
 
 
+def trailing_cut_streak(rows: list[dict]) -> int:
+    """재개할 때 이어받을 연속 끊기 횟수. 뒤에서부터 끊긴 세션을 센다.
+
+    **0에서 다시 시작하면 안 된다.** 직전 세션들이 연달아 끊긴 채로 배치가
+    중단됐다면, 0에서 다시 세는 순간 상한을 넘겨 끊을 수 있다.
+
+    2026-08-22 배치에서 실제로 그 자리에 있었다. 사슬 8이 끊긴 세션
+    (`c08s12`, 연속 1)으로 끝난 채 외부에서 종료됐고, 그대로 이어 실행했다면
+    세 세션이 연달아 끊길 수 있었다. 그 사슬은 끊기의 손익이 아니라 우리가
+    사슬에 일할 기회를 주지 않은 것을 보여 주게 된다.
+    """
+    streak = 0
+    for row in reversed(rows):
+        if not row.get("cut"):
+            break
+        streak += 1
+    return streak
+
+
 def grade(task_dir: Path, workdir: Path) -> dict:
     """Score the chain's current state. Never shown to the session."""
     try:
@@ -192,8 +211,11 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
 
     seen: set[str] = set()
     rows: list[dict] = []
-    cut_streak = 0
-    used = sum(calls_of(r) for r in earlier_rows(out_dir, chain)) if done else 0
+    # 재개할 때는 앞 세션들의 끝자락에서 연속 끊기 횟수를 이어받는다.
+    # 0으로 시작하면 상한을 넘겨 끊게 된다 — `trailing_cut_streak` 참조.
+    earlier = earlier_rows(out_dir, chain) if done else []
+    cut_streak = trailing_cut_streak(earlier)
+    used = sum(calls_of(r) for r in earlier)
     index = done
     while True:
         index += 1

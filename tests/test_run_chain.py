@@ -540,3 +540,30 @@ def test_the_allowance_and_the_cut_point_are_recorded_in_every_row():
     assert '"cut_at": cut_at,' in source
     assert '"call_allowance": allowance,' in source
     assert '"calls_used_in_chain"' in source
+
+
+# --------------------------------- 재개할 때 연속 끊기 횟수를 이어받는다
+
+def test_the_cut_streak_is_carried_over_when_a_chain_resumes():
+    """0에서 다시 세면 상한을 넘겨 끊는다.
+
+    2026-08-22 배치에서 실제로 그 자리에 있었다. 사슬 하나가 끊긴 세션으로
+    끝난 채 외부에서 종료됐고, 그대로 이어 실행했다면 상한이 2인데 세 세션이
+    연달아 끊길 수 있었다.
+    """
+    rows = [{"cut": False}, {"cut": True}, {"cut": True}]
+    assert run_chain.trailing_cut_streak(rows) == 2
+
+
+def test_a_chain_that_ended_on_a_finished_session_carries_no_streak():
+    rows = [{"cut": True}, {"cut": True}, {"cut": False}]
+    assert run_chain.trailing_cut_streak(rows) == 0
+
+
+def test_no_earlier_sessions_means_no_streak():
+    assert run_chain.trailing_cut_streak([]) == 0
+
+
+def test_a_row_without_the_cut_field_ends_the_streak():
+    """옛 배치의 기록에는 `cut` 이 없다. 없으면 안 끊긴 것으로 본다."""
+    assert run_chain.trailing_cut_streak([{"cut": True}, {}]) == 0
