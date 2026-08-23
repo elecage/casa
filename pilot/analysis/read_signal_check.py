@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""읽은 대상과 순서를 보는 지표 여섯이 세션을 가르는가.
+"""읽은 대상과 순서를 보는 지표들이 두 집단을 구분하는가.
 
 **사후 탐색이다. 예측을 봉인하지 않았다.** 새 수집 없이 이미 있는 자료로
 한다. 앞 세션의 탐색(`docs/EARLY_SIGNAL_SEARCH.md`)은 스크립트를 안 남겨
 재현이 안 됐다. 이 파일이 그 자리를 메운다.
 
-**무엇을 대는가.** 사슬의 **첫 세션**만 모은다. 첫 세션은 시작 상태가 같으므로
+**무엇에 적용하는가.** 사슬의 **첫 세션**만 모은다. 첫 세션은 시작 상태가 같으므로
 사슬 안의 위치가 섞이지 않는다. 과제 셋에서 48개가 모인다.
 
 **라벨.** 그 세션이 달성 항목을 늘렸는가. 세 과제 다 시작 상태에서 통과해
-있는 항목이 1개다(2026-08-23에 각 과제의 채점기를 시작 상태에 대어 확인:
-`release-traps` 1/14, `shared-core` 1/58, `subsystems-deep` 1/25).
+있는 항목이 1개다(2026-08-23에 각 과제의 채점기를 시작 상태에 실행해 확인:
+`release-traps` 14개 중 1개, `shared-core` 58개 중 1개,
+`subsystems-deep` 25개 중 1개).
 
 **라벨이 결과라는 것을 적어 둔다.** `harness/anchor.md` 는 세션 점수를 최종
 산출물로 정의하지 말라고 한다. 여기서 쓰는 라벨은 그 금지에 걸리는 결과
@@ -55,8 +56,8 @@ def head(session: Session, window: int) -> Session:
     """앞 `window` 호출만 남긴 세션. 마지막 메시지는 지운다.
 
     마지막 메시지를 남겨 두면 거기서 계산되는 지표에 정답이 새어 든다.
-    이 파일이 보는 여섯은 그것을 안 쓰지만, 배터리 전체를 찍어 볼 때를 위해
-    여기서 지운다.
+    이 파일이 보는 지표들은 그것을 안 쓰지만, `compute_signals` 가 산출하는
+    지표 전부를 함께 볼 때를 위해 여기서 지운다.
     """
     cut = Session(path=session.path)
     cut.tool_calls = session.tool_calls[:window]
@@ -126,7 +127,7 @@ def _numeric(value) -> float | None:
 
 
 def split(measured: list[dict], key: str) -> dict:
-    """라벨 두 쪽의 값 분포. 값이 없는 세션은 양쪽 다에서 뺀다."""
+    """두 라벨 집단의 값 분포. 값이 없는 세션은 양쪽 다에서 뺀다."""
     up = sorted(v for v in (_numeric(r[key]) for r in measured if r["advanced"])
                 if v is not None)
     flat = sorted(v for v in (_numeric(r[key]) for r in measured if not r["advanced"])
@@ -153,8 +154,8 @@ def report(dirs: list[Path], windows=WINDOWS) -> str:
         by_task.setdefault(str(row["task"]), []).append(row)
     for task, group in sorted(by_task.items()):
         up = sum(1 for r in group if r["advanced"])
-        lines.append(f"- {task}: {len(group)}개, 늘린 세션 {up}개, "
-                     f"못 늘린 세션 {len(group) - up}개")
+        lines.append(f"- {task}: {len(group)}개, 항목을 늘린 세션 {up}개, "
+                     f"늘리지 못한 세션 {len(group) - up}개")
     lines.append("")
 
     for window in windows:
@@ -164,12 +165,12 @@ def report(dirs: list[Path], windows=WINDOWS) -> str:
         for task, group in sorted(by_task.items()):
             subset = [m for m in measured if m["task"] == task]
             if len({r["advanced"] for r in subset}) < 2:
-                lines.append(f"### {task} — 한쪽뿐이라 가를 것이 없다")
+                lines.append(f"### {task} — 라벨이 한쪽뿐이라 구분할 것이 없다")
                 lines.append("")
                 continue
             lines.append(f"### {task}")
             lines.append("")
-            lines.append("| 지표 | 늘린 쪽 | 못 늘린 쪽 | 갈림 |")
+            lines.append("| 지표 | 항목을 늘린 세션 | 늘리지 못한 세션 | 구분되나 |")
             lines.append("|---|---|---|---|")
             for key in READ_SIGNALS:
                 got = split(subset, key)
@@ -185,13 +186,14 @@ def detail(dirs: list[Path]) -> str:
 
     `docs_after_first_edit` 이 0인 것에는 두 가지가 섞여 있다 — 고치기
     시작했는데 문서로 안 돌아간 세션과, **아예 아무것도 안 고친 세션**이다.
-    뒤쪽은 그 지표가 잴 것이 없는 자리이지 행동의 차이가 아니다. 이 표는
-    둘을 갈라 보기 위한 것이다.
+    뒤쪽은 그 지표가 산출될 수 없는 자리이지 행동의 차이가 아니다. 이 표는
+    둘을 구분해 보기 위한 것이다.
     """
     rows: list[dict] = []
     for d in dirs:
         rows.extend(first_sessions(d))
-    lines = ["| 과제 | 라벨 | 호출 | 처음 고친 자리 | 고친 뒤 문서 읽기 | 늘렸나 |",
+    lines = ["| 과제 | 라벨 | 호출 수 | 처음 고친 호출 번호 | 고친 뒤 문서 읽기 |"
+             " 항목을 늘렸나 |",
              "|---|---|---|---|---|---|"]
     for row in sorted(rows, key=lambda r: (str(r["task"]), r["label"])):
         session = parse(row["transcript"])
@@ -209,7 +211,7 @@ FRACTIONS = (0.3, 0.4, 0.5, 0.6, 0.67, 0.75, 0.83, 0.9)
 
 
 def guess_at(row: dict, fraction: float) -> bool | None:
-    """예산의 `fraction` 지점까지 보고 "이 세션은 항목을 늘린다" 라고 할 것인가.
+    """예산의 `fraction` 지점까지만 보고 "이 세션은 항목을 늘린다" 라고 예측할 것인가.
 
     판정 규칙은 하나다 — **그 지점까지 파일을 한 번이라도 고쳤는가.**
     예산을 모르면 None(판정하지 않는다).
@@ -226,9 +228,9 @@ def guess_at(row: dict, fraction: float) -> bool | None:
 
 
 def majority_rate(rows: list[dict]) -> float:
-    """아무것도 안 보고 많은 쪽으로 찍었을 때 맞는 비율.
+    """세션을 하나도 관측하지 않고 많은 쪽 라벨로 전부 예측했을 때의 정답률.
 
-    관측이 필요 없는 이 값을 못 이기면 그 신호는 쓸모가 없다.
+    관측이 필요 없는 이 값을 넘지 못하면 그 지표는 쓸모가 없다.
     """
     if not rows:
         return 0.0
@@ -239,21 +241,23 @@ def majority_rate(rows: list[dict]) -> float:
 def position_scan(rows: list[dict], fractions=FRACTIONS) -> str:
     """예산의 몇 할 지점에서 판정하면 몇 개를 맞히는가.
 
-    앞 세션의 탐색이 죽은 이유가 **절대 호출 수 문턱은 과제를 넘지 못한다**
-    였다(`docs/EARLY_SIGNAL_SEARCH.md`). 같은 20호출이 예산 30인 과제에서는
+    앞 세션의 후보들이 남겨 둔 자료에서 두 집단을 구분하지 못한 이유가
+    **절대 호출 수 문턱은 과제를 넘지 못한다** 였다(`docs/EARLY_SIGNAL_SEARCH.md`). 같은 20호출이 예산 30인 과제에서는
     중반이고 예산 100인 과제에서는 초반이다. 그래서 여기서는 호출 수가 아니라
     그 과제의 예산에 견준 자리로 판정한다.
     """
     tasks = sorted({str(r["task"]) for r in rows})
-    lines = ["| 판정 자리 | " + " | ".join(tasks) + " | 전체 |",
+    lines = ["표의 값은 맞힌 세션 수 / 판정한 세션 수다.", "",
+             "| 판정 자리 | " + " | ".join(tasks) + " | 전체 |",
              "|---" * (len(tasks) + 2) + "|"]
     for task in tasks:
         subset = [r for r in rows if str(r["task"]) == task]
-        lines.insert(0, f"- {task}: {len(subset)}개, 많은 쪽으로 찍으면 "
-                        f"{majority_rate(subset):.0%}")
+        lines.insert(0, f"- {task}: {len(subset)}개, 많은 쪽 라벨로 전부 "
+                        f"예측하면 {majority_rate(subset):.0%}")
     lines.insert(len(tasks), "")
     lines.insert(len(tasks) + 1,
-                 f"전체 {len(rows)}개, 많은 쪽으로 찍으면 {majority_rate(rows):.0%}")
+                 f"전체 {len(rows)}개, 많은 쪽 라벨로 전부 예측하면 "
+                 f"{majority_rate(rows):.0%}")
     lines.insert(len(tasks) + 2, "")
     for fraction in fractions:
         cells = []

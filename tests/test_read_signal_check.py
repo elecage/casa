@@ -1,4 +1,4 @@
-"""읽기 지표를 배치 자료에 대는 도구 테스트 (`pilot/analysis/read_signal_check.py`).
+"""읽기 지표를 배치 자료에 적용하는 도구 테스트 (`pilot/analysis/read_signal_check.py`).
 
 이 파일이 못 박는 것은 셋이다.
 
@@ -7,7 +7,7 @@
 2. **값이 없는 세션을 0으로 세지 않는다.** 아무것도 안 고친 세션의
    `read_before_edit_ratio` 는 0이 아니라 잴 것이 없는 것이다. 0으로 세면
    "안 고친 세션" 과 "고쳤는데 안 읽고 고친 세션" 이 한 칸에 들어간다.
-3. **갈렸다는 판정은 두 쪽의 값 범위가 겹치지 않을 때만 나온다.**
+3. **구분됐다는 판정은 두 라벨 집단의 값 범위가 겹치지 않을 때만 나온다.**
 """
 
 from __future__ import annotations
@@ -105,7 +105,7 @@ def test_head_drops_the_final_message(tmp_path):
     assert check.head(session, 5).final_assistant_text is None
 
 
-# ------------------------------------------------- 두 쪽으로 나눈 값
+# --------------------------------------------- 두 라벨 집단의 값
 
 
 def test_split_drops_sessions_whose_value_is_missing():
@@ -146,7 +146,7 @@ def test_report_says_when_a_task_has_only_one_side(tmp_path):
     _write(tmp_path, "c01s01", 1, 5, [("Read", "a.py")])
     _write(tmp_path, "c02s01", 1, 6, [("Read", "b.py")])
     out = check.report([tmp_path], windows=(5,))
-    assert "가를 것이 없다" in out
+    assert "구분할 것이 없다" in out
 
 
 def test_report_puts_the_two_sides_in_a_table(tmp_path):
@@ -155,7 +155,7 @@ def test_report_puts_the_two_sides_in_a_table(tmp_path):
     _write(tmp_path, "c02s01", 1, check.START_MARK, [("Read", "a.py")])
     out = check.report([tmp_path], windows=(5,))
     assert "`docs_after_first_edit`" in out
-    assert "| 지표 | 늘린 쪽 | 못 늘린 쪽 | 갈림 |" in out
+    assert "| 지표 | 항목을 늘린 세션 | 늘리지 못한 세션 | 구분되나 |" in out
 
 
 def _meta(out_dir: Path, budget: int, task: str = "t") -> None:
@@ -210,12 +210,12 @@ def test_majority_rate_is_the_bigger_side():
 
 
 def test_position_scan_reports_the_majority_baseline_next_to_the_hits(tmp_path):
-    """관측이 필요 없는 값을 못 이기면 그 신호는 쓸모가 없다."""
+    """관측이 필요 없는 값을 넘지 못하면 그 지표는 쓸모가 없다."""
     _meta(tmp_path, 10)
     _write(tmp_path, "c01s01", 1, 5, [("Edit", "a.py")] + [("Read", "b.py")] * 9)
     _write(tmp_path, "c02s01", 1, check.START_MARK, [("Read", "b.py")] * 10)
     out = check.position_scan(check.first_sessions(tmp_path), fractions=(0.5,))
-    assert "많은 쪽으로 찍으면 50%" in out
+    assert "많은 쪽 라벨로 전부 예측하면 50%" in out
     assert "| 예산의 50% | 2/2 |" in out
 
 

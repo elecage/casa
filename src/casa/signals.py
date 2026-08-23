@@ -355,7 +355,7 @@ def distinct_read_paths(calls: list[ToolCall]) -> int:
 def doc_read_ratio(calls: list[ToolCall]) -> float:
     """읽은 파일 중 문서가 차지하는 비율. 읽은 것이 없으면 0.
 
-    코드만 읽고 적힌 것을 안 읽은 세션과 그 반대가 여기서 갈린다.
+    코드만 읽고 적힌 것을 안 읽은 세션과 그 반대가 여기서 구분된다.
     """
     targets = read_targets(calls)
     if not targets:
