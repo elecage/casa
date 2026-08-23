@@ -4,9 +4,17 @@
 않는다. 바꿔야 할 이유가 생기면 그 사실을 결과와 함께 적고, 바꾼 설계는 **다음**
 배치에 적용한다.
 
-관련: `harness/anchor.md`(목표), `docs/PROCESS_TRAPS.md`(함정 열한 개),
+관련: `harness/anchor.md`(목표), `docs/PROCESS_TRAPS.md`(함정 목록),
 `docs/RECOVERY_RULE.md`(네 상태 판정), `docs/TWO_EXPERIMENTS.md`(실험 두 갈래),
 `pilot/analysis/power.py`(규모 산정).
+
+> **덧붙임 (2026-08-21).** 봉인한 내용은 아래 그대로 두고 이 줄만 더한다.
+> 이 문서를 봉인할 때 함정은 **열한 개**였다. 그 뒤 유저가 둘을 더했고
+> (`ignores_handoff`, `sinks_into_detail`), 2026-08-21에 `overrides_handoff`가
+> 더해져 지금은 **열세 개**다. `release-traps`는 열두 개를 심고,
+> `subsystems`는 열세 개를 심는다. **이 문서가 정한 신호 고르기 규칙은
+> 그대로다** — 자격은 세 판정 시점 중 두 곳 이상에서 같은 방향, 고르기는
+> 갈라진 폭이 큰 순서로 셋, 셋을 못 채우면 못 채운 채로 둔다.
 
 ---
 

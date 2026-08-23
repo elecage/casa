@@ -1,0 +1,4 @@
+customer,when,amount,flag
+acme-01,2026-07-10T08:40:00,160,ok
+Delta-04,2026-07-20T13:05:00,75,ok
+brix-02,2026-07-27T20:15:00,50,adjusted

@@ -194,3 +194,63 @@ def test_the_analysis_script_reads_real_snapshots(tmp_path):
                           errors="replace")
     assert done.returncode == 0, done.stderr
     assert "세션 점수가 아니다" in done.stdout      # 결과 채점으로 읽히면 안 된다
+
+
+# ------------- 2026-08-21에 늘린 다섯 항목 (배치가 끝난 뒤에 넣었다)
+
+def test_every_item_the_handoff_table_knows_has_a_place_in_the_path_table():
+    """인계 판정이 아는 항목 이름은 경로 표에도 있어야 한다.
+
+    없으면 그 항목의 일을 한 호출이 옛 항목 이름으로 찍히고, "손도 안 댐"과
+    "손댔지만 못 고침"이 뒤바뀐다.
+    """
+    import importlib.util
+    import sys
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "pilot" / "analysis" / "chain_eval.py"
+    spec = importlib.util.spec_from_file_location("attr_chain_eval", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["attr_chain_eval"] = module
+    spec.loader.exec_module(module)
+
+    named = {name for name in module.CHECK_TO_ITEM.values() if name}
+    assert named <= set(attribute.ITEMS), sorted(named - set(attribute.ITEMS))
+    assert named <= set(attribute.ITEM_PATHS.values()), \
+        sorted(named - set(attribute.ITEM_PATHS.values()))
+
+
+def test_the_five_new_items_attribute_to_their_own_files():
+    cases = {
+        "usagectl/reports/daily.py": "dates",
+        "docs/reports/daily.md": "dates",
+        "usagectl/reports/accounts.py": "accounts",
+        "usagectl/reports/months.py": "months",
+        "usagectl/config.py": "limit",
+        "config.sample.json": "limit",
+        "docs/readers/sjs.md": "dropped",
+    }
+    for path, item in cases.items():
+        assert attribute.attribute_call([path]) == item, path
+
+
+def test_the_longer_prefix_still_wins_over_the_older_entries():
+    """`usagectl/reports/` 는 summary 이고 그 안의 셋은 각자 자기 항목이다."""
+    assert attribute.attribute_call(["usagectl/reports/summary.py"]) == "summary"
+    assert attribute.attribute_call(["usagectl/reports/months.py"]) == "months"
+    assert attribute.attribute_call(["docs/reports/summary.md"]) == "summary"
+    assert attribute.attribute_call(["docs/reports/accounts.md"]) == "accounts"
+
+
+def test_the_settled_adapter_stays_out_of_the_dropped_item():
+    """12번은 어댑터를 고칠 일이 없다. 그 파일은 탐지기의 미끼로 남는다."""
+    assert attribute.attribute_call(["usagectl/readers/sjs.py"]) != "dropped"
+
+
+def test_two_items_that_share_a_file_cannot_be_separated_by_path():
+    """**넣어도 다 갈리지는 않는다.** 8번과 10번이 `docs/limits.md`를 같이 쓴다.
+
+    이 한계는 보고에 적는다. 파일이 아니라 항목마다 자기 자리를 갖게 하는
+    것이 근본 해결이고, 그것이 `pilot/tasks/subsystems/`의 설계다.
+    """
+    assert attribute.attribute_call(["docs/limits.md"]) == "docs"

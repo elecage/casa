@@ -1,0 +1,7 @@
+{
+  "_note": "Credits agreed with the customer, to come off the next invoice.",
+  "2026-07": [
+    {"account": "acme-01", "amount": "4.20", "reason": "outage on the 12th"},
+    {"account": "Corvo-03", "amount": "1.05", "reason": "duplicate charge"}
+  ]
+}

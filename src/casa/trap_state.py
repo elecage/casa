@@ -119,6 +119,17 @@ def resolve(series: list[bool | None], *, reached: bool = True,
         return TrapOutcome(NOT_REACHED, series=list(series),
                            undecidable_calls=undecidable)
 
+    # **한 번도 판정되지 않은 것은 "안 빠졌다"가 아니다.** 열이 전부 None 이면
+    # 그 함정은 이 세션에서 판정 자체가 안 된 것이고, 아래로 내려가면
+    # `_fill_gaps` 가 None 을 거짓으로 메워 "피함"이 된다.
+    #
+    # 2026-08-22에 실제로 그랬다. `sinks_into_detail` 은 문턱(`DETAIL_SHARE`)이
+    # 아직 미정이라 탐지기가 호출마다 None 을 넣는데, 70세션 중 39세션이
+    # "피함"으로 기록됐다. 실행된 적 없는 판정이 통과로 보고된 것이다.
+    if series and all(v is None for v in series):
+        return TrapOutcome(NOT_REACHED, series=list(series),
+                           undecidable_calls=undecidable)
+
     filled = _stable_runs(_fill_gaps(series), debounce)
 
     entered = next((i for i, v in enumerate(filled) if v), None)

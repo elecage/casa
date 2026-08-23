@@ -1,0 +1,24 @@
+{
+  "rules": [
+    {
+      "account": "acme-01",
+      "limit": 300,
+      "basis": "month"
+    },
+    {
+      "account": "brix-02",
+      "limit": 100,
+      "basis": "last"
+    },
+    {
+      "account": "corvo-03",
+      "limit": 250,
+      "basis": "month"
+    },
+    {
+      "account": "delta-04",
+      "limit": 50,
+      "basis": "last"
+    }
+  ]
+}

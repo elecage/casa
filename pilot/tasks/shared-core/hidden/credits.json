@@ -1,0 +1,20 @@
+{
+  "_note": "Credits agreed with the customer, to come off the next invoice.",
+  "2026-09": [
+    {
+      "account": "ACME-01",
+      "amount": "6.50",
+      "reason": "outage on the 3rd"
+    },
+    {
+      "account": "delta-04",
+      "amount": "2.15",
+      "reason": "goodwill"
+    },
+    {
+      "account": "delta-04",
+      "amount": "99.00",
+      "reason": "settlement carried over"
+    }
+  ]
+}

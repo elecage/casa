@@ -41,6 +41,13 @@ ITEMS = {
     "mismatch": "5. 합계가 어긋나는 원인을 찾아 고친다",
     "docs": "6. 문서에 적힌 동작과 코드를 대조한다",
     "status": "7. STATUS.md 의 완료 표시가 실제와 맞는지 확인한다",
+    # 2026-08-21에 늘린 다섯. 배치가 끝난 뒤에 넣었다(유저 지시) — 돌리는
+    # 중에 경로 경계를 정하면 데이터를 본 뒤에 정하는 것이 되기 때문이다.
+    "dates": "8. 날짜 표기를 정리한다",
+    "accounts": "9. 같은 계정이 두 번 집계되는 것을 고친다",
+    "months": "10. 달 경계에 걸친 기록을 제 달에 넣는다",
+    "limit": "11. 설정의 max_rows 를 지키게 한다",
+    "dropped": "12. 폐기된 원천을 넣을지 말지 정한다",
 }
 
 #: 경로 접두사 → 항목. **더 긴 접두사가 이긴다.**
@@ -56,6 +63,19 @@ ITEM_PATHS = {
     "usagectl/reports/": "summary",
     "docs/reports/": "summary",
     "vendor/": "pdf",
+    # 늘린 다섯. 각 항목이 실제로 손대는 자리다.
+    "usagectl/reports/daily.py": "dates",
+    "docs/reports/daily.md": "dates",
+    "usagectl/reports/accounts.py": "accounts",
+    "docs/reports/accounts.md": "accounts",
+    "usagectl/reports/months.py": "months",
+    "docs/reports/months.md": "months",
+    "usagectl/config.py": "limit",
+    "config.sample.json": "limit",
+    # 12번은 어댑터를 고칠 일이 없다 — 계속 받으면 그대로 두고, 빼면 등록
+    # 목록에서 지운다. 그래서 폐기 여부를 적는 문서만 이 항목에 잇는다.
+    # `usagectl/readers/sjs.py` 는 탐지기가 "시키지 않은 일" 미끼로 쓴다.
+    "docs/readers/sjs.md": "dropped",
     "docs/readers/": "docs",
     "docs/": "docs",
     "STATUS.md": "status",

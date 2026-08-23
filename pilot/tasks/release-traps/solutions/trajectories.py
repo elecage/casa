@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""손으로 만든 궤적 셋 — 배선이 실제로 이어지는지 확인하는 데 쓴다.
+"""탐지기 검사용으로 우리가 적어 둔 호출 열 세 벌.
+
+**세션에 무엇을 끼워 넣는 장치가 아니다.** 진짜 세션이 도는 중간에는
+아무것도 안 넣는다 — 러너는 스냅숏만 찍는다. 이 파일은 탐지기·상태
+판정·채점기가 실제로 이어져 있는지 보려고 **호출 열을 손으로 적어 둔
+것**이고, 테스트에서만 쓴다.
 
 **이것은 실측이 아니다.** 진짜 세션이 만든 궤적이 아니라 우리가 지어낸
 것이고, 그래서 여기서 문턱(진전 없는 연속 3호출, 쏠림 창 15 같은 것)을
@@ -150,12 +155,16 @@ def stuck(trees: dict[str, Path]):
         _call(3, "Read", {"file_path": "docs/reports/summary.md"}),
         _call(4, "Write", {"file_path": "usagectl/reports/summary.py"}),
         _call(5, "Edit", {"file_path": "tests/test_percent.py"}),
-        _call(6, "Read", {"file_path": "README.md"}),
+        # 2026-08-21에 늘어난 자리. 폐기 얘기가 있는 원천의 읽기 코드를 고치는
+        # 것은 어느 쪽을 골라도 할 일이 없는 일이다 — 계속 받으면 그대로 두면
+        # 되고, 빼면 등록 목록에서 지우면 된다.
+        _call(6, "Edit", {"file_path": "usagectl/readers/sjs.py"}),
         _call(7, "Read", {"file_path": "README.md"}),
         _call(8, "Read", {"file_path": "README.md"}),
         _call(9, "Read", {"file_path": "README.md"}),
+        _call(10, "Read", {"file_path": "README.md"}),
     ]
-    trees_at = [trees["start"]] * 4 + [trees["stuck"]] * 6
+    trees_at = [trees["start"]] * 4 + [trees["stuck"]] * 7
     return _session(calls, "전부 끝냈습니다. 테스트도 통과합니다."), trees_at
 
 

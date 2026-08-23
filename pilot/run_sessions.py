@@ -70,6 +70,39 @@ def _rmtree_force(path: Path) -> None:
         shutil.rmtree(path, onerror=clear_readonly)
 
 
+#: git 이 자기 하위 프로세스에 넘기는 실행별 변수. 다른 저장소에서 git 을
+#: 실행할 때 이 값들이 남아 있으면 그 저장소가 아니라 **부모 쪽의 색인과
+#: 신원**을 쓴다.
+#:
+#: 이 저장소에서 실제로 문제가 됐다. `git commit -a` 는 훅에
+#: `GIT_INDEX_FILE` 을 **절대 경로**(부모 저장소의 `.git/index.lock`)로 넘기고,
+#: 우리 pre-commit 훅이 테스트를 실행하므로 `prepare_workdir` 의 git 이 그
+#: 색인을 그대로 물려받았다. 임시 작업 디렉토리에서 `git add` 가 부모 색인에
+#: 항목을 쓰고, 이어지는 `git commit` 이 그 색인이 가리키는 객체를 임시
+#: 저장소에서 찾지 못해 `error: invalid object ... for 'data/sample.csv'` 로
+#: 중단됐다. `git add` 로 따로 올린 뒤 커밋하면 `GIT_INDEX_FILE` 이 상대
+#: 경로여서 드러나지 않는다 — 그래서 `-a` 를 쓸 때만 실패했다.
+_GIT_ENV_KEYS = (
+    "GIT_INDEX_FILE", "GIT_DIR", "GIT_WORK_TREE", "GIT_PREFIX",
+    "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_AUTHOR_DATE",
+    "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "GIT_COMMITTER_DATE",
+)
+
+
+def _git_env() -> dict[str, str]:
+    """부모 git 프로세스의 실행별 변수를 제거한 환경.
+
+    신원 변수(`GIT_AUTHOR_*`·`GIT_COMMITTER_*`)도 제거한다. 그 값이 남아 있으면
+    아래 `-c user.name=pilot` 보다 우선하므로, 시작 상태 커밋의 작성자가 그때
+    누가 실행했느냐에 따라 달라진다.
+    """
+    env = dict(os.environ)
+    for key in _GIT_ENV_KEYS:
+        env.pop(key, None)
+    return env
+
+
 def prepare_workdir(task_dir: Path, dest: Path) -> Path:
     """Copy the task template (never solution/ etc.) and make it a git repo
     with an initial commit, so the session can follow 'commit your changes'.
@@ -77,7 +110,8 @@ def prepare_workdir(task_dir: Path, dest: Path) -> Path:
     if dest.exists():
         _rmtree_force(dest)
     shutil.copytree(task_dir / "template", dest)
-    run = lambda *cmd: subprocess.run(cmd, cwd=dest, check=True, capture_output=True)
+    run = lambda *cmd: subprocess.run(cmd, cwd=dest, check=True,
+                                      capture_output=True, env=_git_env())
     run("git", "init", "-q", "-b", "main")
     run("git", "-c", "user.name=pilot", "-c", "user.email=pilot@casa.local",
         "add", "-A")
@@ -115,6 +149,29 @@ def is_infra_failure(cli_payload: dict) -> bool:
 
 def is_auth_failure(cli_payload: dict) -> bool:  # backward-compat alias
     return is_infra_failure(cli_payload)
+
+
+def session_never_started(cli_payload: dict) -> bool:
+    """CLI가 세션을 아예 시작하지 못했는가.
+
+    `is_infra_failure`와 다른 것을 본다. 그쪽은 CLI가 **응답을 낸 뒤** 그
+    응답이 401·429인 경우다. 이쪽은 CLI가 **결과 JSON을 한 줄도 내지 않고**
+    종료 코드를 남기고 끝난 경우다 — 실행 파일이 없거나, 플래그를 거부하거나,
+    시작 조건이 안 맞는 경우다.
+
+    **왜 따로 봐야 하나.** 2026-08-21에 컨테이너가 root로 돌고 있어 CLI가
+    `--dangerously-skip-permissions`를 거부했다. 세션마다 0.8초 만에 종료
+    코드 1로 끝났는데, 러너는 그것을 정상 종료로 기록하고 다음 세션으로
+    넘어갔다. 다섯 세션이 그렇게 기록됐고 채점 결과에는 시작 상태가 그대로
+    남았다. 배치를 끝까지 돌렸다면 **세션 열 개가 한 번도 실행되지 않은
+    배치가 정상 완주로 기록됐을 것이다.**
+
+    시간 제한에 도달한 세션은 여기 해당하지 않는다 — 그 세션은 실행됐다.
+    """
+    if cli_payload.get("timed_out"):
+        return False
+    return bool(cli_payload.get("parse_error")) and bool(
+        cli_payload.get("exit_code"))
 
 
 def pending_indices(out_dir: Path, n: int) -> list[int]:
@@ -161,7 +218,30 @@ def _child_env() -> dict[str, str]:
     for key in list(env):
         if key.startswith(("CLAUDECODE", "CLAUDE_CODE_")):
             env.pop(key)
+    _allow_root_skip_permissions(env)
     return env
+
+
+def _allow_root_skip_permissions(env: dict[str, str]) -> None:
+    """uid 0으로 실행 중이면 `IS_SANDBOX`를 `1`로 맞춘다.
+
+    CLI는 root로 `--dangerously-skip-permissions`를 쓰면 시작하지 않고
+    "cannot be used with root/sudo privileges for security reasons"를 stderr에
+    출력한 뒤 종료 코드 1로 끝난다. `IS_SANDBOX=1`이 그 예외다.
+
+    **컨테이너가 `IS_SANDBOX=yes`를 설정해 두는 경우가 있고, CLI는 그 값을
+    받지 않는다.** 2026-08-21에 서브시스템 보정 배치 4차가 그것 때문에
+    세션 둘을 각각 0.8초 만에 끝냈다 — 세션은 한 번도 시작하지 않았는데
+    러너는 정상 종료로 기록했고, 채점 결과에는 시작 상태 1/17이 그대로
+    남았다. 이 프로젝트에서 네 번째로 겪은 "테스트는 통과하는데 수집만
+    깨지는" 결함이다.
+
+    uid 0이 아니면 아무것도 하지 않는다 — 유저 장비에서는 이 예외가
+    필요하지 않다. `os.geteuid`가 없는 Windows에서도 아무것도 하지 않는다.
+    """
+    if getattr(os, "geteuid", None) is None or os.geteuid() != 0:
+        return
+    env["IS_SANDBOX"] = "1"
 
 
 def venv_bin_dir(venv: Path) -> Path:

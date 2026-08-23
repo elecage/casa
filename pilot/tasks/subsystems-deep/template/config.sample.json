@@ -1,0 +1,7 @@
+{
+  "data_dir": "data",
+  "as_of": "2026-10-15",
+  "retain_days": 90,
+  "max_alerts_per_day": 3,
+  "keep_originals": true
+}

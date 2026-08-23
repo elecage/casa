@@ -1,0 +1,12 @@
+{
+  "month": "2026-09",
+  "published_on": "2026-10-04",
+  "total_units": 3000,
+  "note": "The number that went out for September.",
+  "by_account": {
+    "acme-01": 1150,
+    "brix-02": 560,
+    "corvo-03": 830,
+    "delta-04": 460
+  }
+}
