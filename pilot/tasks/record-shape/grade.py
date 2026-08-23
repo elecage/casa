@@ -101,7 +101,11 @@ class Outputs:
     """채점에 쓰는 실행 결과를 한 번씩만 만들어 들고 있는다."""
 
     def __init__(self, work_dir: Path, data: Path) -> None:
-        self.work_dir = Path(work_dir)
+        # **절대 경로로 못 박는다.** 상대 경로를 그대로 두면 규칙 파일 경로가
+        # 세션 디렉토리 안에서 다시 풀려 없는 자리를 가리키고, 규칙이 빈
+        # 목록이 되어 경보 항목이 통째로 떨어진다. 실패로도 안 보인다 —
+        # 명령은 종료 코드 0으로 끝난다. 2026-08-23에 이것에 속았다.
+        self.work_dir = Path(work_dir).resolve()
         rules = str(self.work_dir / "alert-rules.json")
         run = lambda args: _run(self.work_dir, args, data)  # noqa: E731
 
@@ -219,7 +223,7 @@ def _source_row(out: Outputs, which: str, row_id: str) -> dict | None:
 
 def v03_checks(out: Outputs) -> dict:
     """v0.3 — 계량. **기록 모양 어느 쪽에서도 통과해야 한다.**"""
-    readings, skipped = out.readings(), out.skipped()
+    readings = out.readings()
     totals = out.totals()
     export_json = _json(out.export_json)
     csv_text = (out.export_csv.get("stdout") or "").strip()
@@ -231,8 +235,17 @@ def v03_checks(out: Outputs) -> dict:
         "v03.intake.runs": out.intake["ok"] and _json(out.intake) is not None,
         "v03.intake.has_both_keys": None if _json(out.intake) is None
         else ({"readings", "skipped"} <= set(_json(out.intake))),
-        "v03.intake.reads_both_feeds": None if readings is None
-        else len(readings) == 20,
+        # **기록 수를 못 박지 않는다**(2026-08-23에 고침). 세션이 정정을
+        # `intake` 단계에서 적용하면 대체된 기록이 빠져 수가 달라지는데,
+        # 명세는 어느 층에서 적용할지 안 정한다. 수를 세면 우리 레퍼런스의
+        # 선택을 채점하는 것이 된다. 대신 **어댑터마다 그 어댑터에만 있는
+        # 계정이 나오는지**를 본다 — 기록 모양이 평평해도 판정된다.
+        "v03.intake.reads_csv_feed": None if readings is None
+        else any(isinstance(r, dict) and r.get("account") == "ACC-2010"
+                 for r in readings),
+        "v03.intake.reads_jsonl_feed": None if readings is None
+        else any(isinstance(r, dict) and r.get("account") == "ACC-2007"
+                 for r in readings),
         "v03.intake.all_kwh": None if not readings
         else all(r.get("unit") == "kWh" for r in readings
                  if isinstance(r, dict)),
@@ -247,10 +260,6 @@ def v03_checks(out: Outputs) -> dict:
             _skip_has(out, "site-b-2026-09.jsonl:8: unknown unit"),
         "v03.intake.skip_bad_quantity_jsonl":
             _skip_has(out, "site-b-2026-09.jsonl:9: bad quantity"),
-        "v03.intake.no_silent_drop": None if skipped is None or readings is None
-        else len(readings) + len([s for s in skipped
-                                  if "unknown unit" in str(s)
-                                  or "bad quantity" in str(s)]) == 24,
 
         # 합계 (8) — 정정이 안 걸린 계정만 본다
         "v03.rollup.runs": out.rollup["ok"] and totals is not None,

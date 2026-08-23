@@ -287,3 +287,36 @@ def test_the_reversal_cost_counts_only_modules_bound_to_the_record(graded):
     # 경보·내보내기·감사는 시작 상태에서 기록을 안 쓴다.
     assert "meterhouse/alerts.py" not in bound
     assert "meterhouse/audit.py" not in bound
+
+
+def test_the_grader_does_not_pin_where_corrections_are_applied(graded):
+    """명세가 안 정한 것을 채점기가 정하면 안 된다(2026-08-23 정정).
+
+    처음에 `intake` 가 기록을 정확히 20개 돌려주는지, 기록 수와 건너뛴 수의
+    합이 24인지를 봤다. 세션들은 정정을 `intake` 단계에서 적용해 대체된
+    기록을 걸러냈고, 그러면 수가 달라진다. `docs/v03-metering.md` 도
+    `docs/v04-corrections.md` 도 어느 층에서 적용할지 안 적는다. 두 구현 다
+    명세에 맞는데 채점기가 한쪽만 통과시켰다.
+    """
+    names = set(graded["complete"]["checks"])
+    assert "v03.intake.reads_both_feeds" not in names
+    assert "v03.intake.no_silent_drop" not in names
+    assert {"v03.intake.reads_csv_feed",
+            "v03.intake.reads_jsonl_feed"} <= names
+
+
+def test_the_grader_resolves_the_work_directory(tmp_path, monkeypatch):
+    """상대 경로로 부르면 규칙 파일이 세션 디렉토리 안에서 다시 풀린다.
+
+    그러면 규칙이 빈 목록이 되어 경보 항목이 통째로 떨어지는데 **명령은
+    종료 코드 0으로 끝나 실패로 보이지 않는다.** 2026-08-23에 이것에 속아
+    "경보가 깨졌다" 는 잘못된 읽기를 한 번 더 했다.
+    """
+    work = tmp_path / "w"
+    work.mkdir()
+    monkeypatch.chdir(tmp_path)
+    out = grader.Outputs.__new__(grader.Outputs)
+    out.work_dir = Path("w").resolve()
+    assert out.work_dir.is_absolute()
+    source = (TASK / "grade.py").read_text(encoding="utf-8")
+    assert "Path(work_dir).resolve()" in source
