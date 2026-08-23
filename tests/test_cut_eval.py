@@ -411,3 +411,68 @@ def test_the_rendered_table_names_both_arms():
     assert "안 끊는 쪽" in text and "끊는 쪽" in text
     assert "[1, 5, 9]" in text
     assert "낮음 1" in text and "높음 2" in text
+
+
+# ------------------- 사슬이 이미 끝난 뒤의 자리 (2026-08-23 사후 분석)
+
+def _plain_chain(scores: list[int], calls: int = 20) -> list[dict]:
+    """통과 항목 수만 다른 세션 기록. 깃발 판정은 안 붙인다."""
+    return [_row(1, index + 1, value, calls)
+            for index, value in enumerate(scores)]
+
+
+def test_plateau_index_finds_where_the_chain_stopped_gaining():
+    # 세션 3에서 56에 도달하고 그 뒤로는 그대로다.
+    rows = _plain_chain([19, 26, 56, 56, 56])
+    assert evaluate.plateau_index(rows) == 2
+
+
+def test_plateau_index_covers_a_chain_that_never_plateaus():
+    rows = _plain_chain([10, 20, 30])
+    assert evaluate.plateau_index(rows) == 2
+
+
+def test_plateau_index_survives_an_unreadable_grade():
+    assert evaluate.plateau_index([]) == 0
+    assert evaluate.plateau_index([{"grade": None}]) == 1
+
+
+def test_finished_early_counts_the_sessions_that_had_nothing_left():
+    """사슬이 최종 항목 수에 도달한 뒤 실행된 세션을 센다.
+
+    안 끊는 쪽 실제 자료에서 140세션 중 102개(73%)가 그런 세션이었고,
+    봉인된 1차 지표가 그 자리들을 그대로 담고 있었다.
+    """
+    out = evaluate.finished_early([_plain_chain([19, 26, 56, 56, 56], calls=10)])
+    assert out["reached_at"] == [3]
+    assert out["sessions_after"] == 2
+    assert out["calls_after"] == 20
+    assert out["calls_total"] == 50
+
+
+def test_live_gain_per_call_drops_the_positions_with_nothing_left(tmp_path):
+    """이미 끝난 사슬의 자리는 어느 갈래든 성과가 0이라 견줄 수 없다."""
+    # 초반 10호출에 `.py` 를 한 번도 안 열면 깃발이 선다.
+    flagged = _transcript(tmp_path / "flag.jsonl",
+                          ["README.md"] * 12)
+    # 세션 2에서 이미 끝났고, 세션 3·4는 늘릴 것이 없다. 셋 다 깃발이 선다.
+    rows = [_row(1, 1, 10, 20, transcript=flagged),
+            _row(1, 2, 30, 20, transcript=flagged),
+            _row(1, 3, 30, 20, transcript=flagged),
+            _row(1, 4, 30, 20, transcript=flagged)]
+    whole = evaluate.arm_summary([rows], start=1)
+    live = evaluate.live_gain_per_call([rows], start=1)
+    assert whole["judged"] == 4, "봉인된 지표는 네 자리를 다 담는다"
+    assert live["judged"] == 2, "끝난 뒤의 두 자리는 빠져야 한다"
+    # 성과가 0일 수밖에 없는 자리가 섞이면 중앙값이 그쪽으로 끌려간다.
+    # 네 자리는 [0.45, 1.0, 0, 0] 이고 앞 두 자리만 남기면 [0.45, 1.0] 이다.
+    assert whole["gain_per_call_median"] == 0.225
+    assert live["gain_per_call_median"] == 0.725
+
+
+def test_the_sealed_primary_metric_does_not_use_the_post_hoc_restriction():
+    """사후 분석을 더한 것이 봉인된 1차 지표를 건드리면 안 된다."""
+    source = (ROOT / "pilot" / "analysis" / "cut_eval.py").read_text(
+        encoding="utf-8")
+    body = source.split("def arm_summary", 1)[1].split("\ndef ", 1)[0]
+    assert "plateau_index" not in body, "봉인된 지표가 사후 한정을 쓰고 있다"
