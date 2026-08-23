@@ -204,6 +204,25 @@ def test_first_edit_index_is_none_when_nothing_changed():
     assert signals.first_edit_index([read(0, "a.py"), shell(1, "pytest")]) is None
 
 
+def test_a_blocked_edit_is_not_a_first_edit():
+    """훅이 막은 고치기는 파일을 바꾸지 않았다.
+
+    `subsystems-deep` 의 `c04s01` 을 "50번째 호출에서 처음 고쳤다" 로 잘못
+    읽은 회귀다. 그 세션의 유일한 시도를 예산 훅이 막았다.
+    """
+    blocked = call(1, "Edit", {"file_path": "a.py", "old_string": "x",
+                               "new_string": "y"},
+                   result="PreToolUse:Edit hook error: blocked", is_error=True)
+    assert signals.first_edit_index([read(0, "a.py"), blocked]) is None
+
+
+def test_the_first_edit_that_went_through_is_the_one_counted():
+    blocked = call(1, "Edit", {"file_path": "a.py", "old_string": "x",
+                               "new_string": "y"},
+                   result="blocked", is_error=True)
+    assert signals.first_edit_index([read(0, "a.py"), blocked, edit(2, "a.py")]) == 2
+
+
 def test_first_edit_index_counts_a_mutating_shell_command():
     calls = [read(0, "a.py"), shell(1, "git checkout -- a.py")]
     assert signals.first_edit_index(calls) == 1

@@ -210,21 +210,37 @@ def detail(dirs: list[Path]) -> str:
 FRACTIONS = (0.3, 0.4, 0.5, 0.6, 0.67, 0.75, 0.83, 0.9)
 
 
-def guess_at(row: dict, fraction: float) -> bool | None:
-    """예산의 `fraction` 지점까지만 보고 "이 세션은 항목을 늘린다" 라고 예측할 것인가.
+def guess_before(row: dict, limit: int) -> bool:
+    """`limit` 번째 호출까지만 보고 "이 세션은 항목을 늘린다" 라고 예측할 것인가.
 
     판정 규칙은 하나다 — **그 지점까지 파일을 한 번이라도 고쳤는가.**
-    예산을 모르면 None(판정하지 않는다).
-
     이 값은 그 지점까지의 호출만으로 정해진다. 뒤를 보지 않는다.
+    """
+    session = parse(row["transcript"])
+    return sig.first_edit_index(session.tool_calls[:limit]) is not None
+
+
+def guess_at(row: dict, fraction: float) -> bool | None:
+    """예산의 `fraction` 지점에서 판정한다. 예산을 모르면 None."""
+    budget = row.get("budget")
+    if not budget:
+        return None
+    return guess_before(row, int(budget * fraction))
+
+
+def guess_with_left(row: dict, calls_left: int) -> bool | None:
+    """예산이 `calls_left` 개 남은 지점에서 판정한다. 예산을 모르면 None.
+
+    **`guess_at` 과 같은 규칙을 다르게 매개변수화한 것이다.** 판정 자리를
+    예산에 견준 비율로 정하느냐, 예산에서 뺀 절대 호출 수로 정하느냐만 다르다.
+
+    이 구별이 중요한 이유는 이렇다. 절대 호출 수로 판정되면, 그 규칙이 잡는
+    것은 **일을 끝낼 호출이 남아 있는가**이지 세션의 능력이 아니다.
     """
     budget = row.get("budget")
     if not budget:
         return None
-    limit = int(budget * fraction)
-    session = parse(row["transcript"])
-    first = sig.first_edit_index(session.tool_calls[:limit])
-    return first is not None
+    return guess_before(row, max(budget - calls_left, 0))
 
 
 def majority_rate(rows: list[dict]) -> float:
@@ -238,46 +254,69 @@ def majority_rate(rows: list[dict]) -> float:
     return max(up, len(rows) - up) / len(rows)
 
 
-def position_scan(rows: list[dict], fractions=FRACTIONS) -> str:
-    """예산의 몇 할 지점에서 판정하면 몇 개를 맞히는가.
+#: 예산이 몇 호출 남은 지점에서 판정할 것인가.
+CALLS_LEFT = (2, 4, 5, 6, 8, 10, 15, 20, 30, 40)
 
-    앞 세션의 후보들이 남겨 둔 자료에서 두 집단을 구분하지 못한 이유가
-    **절대 호출 수 문턱은 과제를 넘지 못한다** 였다(`docs/EARLY_SIGNAL_SEARCH.md`). 같은 20호출이 예산 30인 과제에서는
-    중반이고 예산 100인 과제에서는 초반이다. 그래서 여기서는 호출 수가 아니라
-    그 과제의 예산에 견준 자리로 판정한다.
+
+def _scan(rows: list[dict], settings: list, guess, label) -> str:
+    """판정 자리를 바꿔 가며 맞힌 세션 수를 센다.
+
+    `guess(row, setting)` 은 그 자리까지만 보고 낸 예측이거나, 판정할 수
+    없으면 None 이다. `label(setting)` 은 표의 첫 칸에 들어갈 글이다.
     """
     tasks = sorted({str(r["task"]) for r in rows})
-    lines = ["표의 값은 맞힌 세션 수 / 판정한 세션 수다.", "",
+    head = [f"- {task}: {len([r for r in rows if str(r['task']) == task])}개, "
+            f"많은 쪽 라벨로 전부 예측하면 "
+            f"{majority_rate([r for r in rows if str(r['task']) == task]):.0%}"
+            for task in tasks]
+    head += ["", f"전체 {len(rows)}개, 많은 쪽 라벨로 전부 예측하면 "
+                 f"{majority_rate(rows):.0%}", "",
+             "표의 값은 맞힌 세션 수 / 판정한 세션 수다.", "",
              "| 판정 자리 | " + " | ".join(tasks) + " | 전체 |",
              "|---" * (len(tasks) + 2) + "|"]
-    for task in tasks:
-        subset = [r for r in rows if str(r["task"]) == task]
-        lines.insert(0, f"- {task}: {len(subset)}개, 많은 쪽 라벨로 전부 "
-                        f"예측하면 {majority_rate(subset):.0%}")
-    lines.insert(len(tasks), "")
-    lines.insert(len(tasks) + 1,
-                 f"전체 {len(rows)}개, 많은 쪽 라벨로 전부 예측하면 "
-                 f"{majority_rate(rows):.0%}")
-    lines.insert(len(tasks) + 2, "")
-    for fraction in fractions:
+    for setting in settings:
         cells = []
         hit_all = judged_all = 0
         for task in tasks:
-            subset = [r for r in rows if str(r["task"]) == task]
             hit = judged = 0
-            for row in subset:
-                guess = guess_at(row, fraction)
-                if guess is None:
+            for row in (r for r in rows if str(r["task"]) == task):
+                got = guess(row, setting)
+                if got is None:
                     continue
                 judged += 1
-                hit += int(guess == row["advanced"])
+                hit += int(got == row["advanced"])
             hit_all += hit
             judged_all += judged
             cells.append(f"{hit}/{judged}" if judged else "판정 못 함")
         total = f"{hit_all}/{judged_all}" if judged_all else "판정 못 함"
-        lines.append(f"| 예산의 {fraction:.0%} | " + " | ".join(cells)
-                     + f" | {total} |")
-    return "\n".join(lines)
+        head.append(f"| {label(setting)} | " + " | ".join(cells) + f" | {total} |")
+    return "\n".join(head)
+
+
+def position_scan(rows: list[dict], fractions=FRACTIONS) -> str:
+    """예산의 몇 할 지점에서 판정하면 몇 개를 맞히는가.
+
+    앞 세션의 후보들이 남겨 둔 자료에서 두 집단을 구분하지 못한 이유가
+    **절대 호출 수 문턱은 과제를 넘지 못한다** 였다
+    (`docs/EARLY_SIGNAL_SEARCH.md`). 같은 20호출이 예산 30인 과제에서는
+    중반이고 예산 100인 과제에서는 초반이다. 그래서 여기서는 호출 수가 아니라
+    그 과제의 예산에 견준 자리로 판정한다.
+    """
+    return _scan(rows, list(fractions), guess_at, lambda f: f"예산의 {f:.0%}")
+
+
+def left_scan(rows: list[dict], calls_left=CALLS_LEFT) -> str:
+    """예산이 몇 호출 남은 지점에서 판정하면 몇 개를 맞히는가.
+
+    `position_scan` 과 **같은 규칙을 다르게 매개변수화한 것이다.** 둘을 나란히
+    놓는 이유는 어느 쪽 매개변수가 과제를 넘는지 보기 위해서다.
+
+    비율 쪽이 잘 맞으면 그 규칙이 잡는 것은 세션이 예산을 어떻게 배분했는가에
+    가깝다. **남은 호출 수 쪽이 잘 맞으면 그 규칙이 잡는 것은 일을 끝낼 호출이
+    남아 있는가이고, 그것은 세션의 능력이 아니다.**
+    """
+    return _scan(rows, list(calls_left), guess_with_left,
+                 lambda k: f"{k}호출 남은 자리")
 
 
 def main(argv=None) -> int:
@@ -290,16 +329,18 @@ def main(argv=None) -> int:
                         help="세션마다 처음 고친 자리와 고친 뒤 문서 읽기 횟수")
     parser.add_argument("--position", action="store_true",
                         help="예산의 몇 할 지점에서 판정하면 몇 개를 맞히는가")
+    parser.add_argument("--left", action="store_true",
+                        help="예산이 몇 호출 남은 자리에서 판정하면 몇 개를 맞히는가")
     args = parser.parse_args(argv)
     dirs = [Path(d) for d in args.dirs]
     if args.detail:
         print(detail(dirs))
         return 0
-    if args.position:
+    if args.position or args.left:
         rows: list[dict] = []
         for d in dirs:
             rows.extend(first_sessions(d))
-        print(position_scan(rows))
+        print(left_scan(rows) if args.left else position_scan(rows))
         return 0
     windows = tuple(int(w) for w in args.windows.split(",") if w.strip())
     print(report(dirs, windows))

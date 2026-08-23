@@ -203,6 +203,49 @@ def test_guess_is_none_without_a_budget(tmp_path):
     assert check.guess_at(check.first_sessions(tmp_path)[0], 0.5) is None
 
 
+def test_guess_with_left_judges_at_the_point_that_many_calls_remain(tmp_path):
+    """예산 10에 3호출 남은 자리는 7호출 지점이다."""
+    _meta(tmp_path, 10)
+    calls = [("Read", f"f{i}.py") for i in range(7)] + [("Edit", "a.py")]
+    _write(tmp_path, "c01s01", 1, 3, calls)
+    row = check.first_sessions(tmp_path)[0]
+    assert check.guess_with_left(row, 3) is False   # 7호출까지는 아직 안 고쳤다
+    assert check.guess_with_left(row, 1) is True    # 9호출까지는 고쳤다
+
+
+def test_guess_with_left_is_none_without_a_budget(tmp_path):
+    _write(tmp_path, "c01s01", 1, 3, [("Edit", "a.py")])
+    assert check.guess_with_left(check.first_sessions(tmp_path)[0], 5) is None
+
+
+def test_guess_with_left_does_not_go_below_the_first_call(tmp_path):
+    """남은 호출 수가 예산보다 크면 판정 자리가 0이 된다 — 아무것도 못 본다."""
+    _meta(tmp_path, 10)
+    _write(tmp_path, "c01s01", 1, 3, [("Edit", "a.py")])
+    assert check.guess_with_left(check.first_sessions(tmp_path)[0], 40) is False
+
+
+def test_the_two_rules_are_the_same_rule_at_the_same_point(tmp_path):
+    """비율과 남은 호출 수는 같은 규칙의 두 매개변수다.
+
+    예산 10에서 50% 지점과 5호출 남은 자리는 같은 자리다.
+    """
+    _meta(tmp_path, 10)
+    calls = [("Read", f"f{i}.py") for i in range(4)] + [("Edit", "a.py")]
+    _write(tmp_path, "c01s01", 1, 3, calls)
+    row = check.first_sessions(tmp_path)[0]
+    assert check.guess_at(row, 0.5) == check.guess_with_left(row, 5)
+
+
+def test_left_scan_labels_rows_by_calls_remaining(tmp_path):
+    _meta(tmp_path, 10)
+    _write(tmp_path, "c01s01", 1, 5, [("Edit", "a.py")] + [("Read", "b.py")] * 9)
+    _write(tmp_path, "c02s01", 1, check.START_MARK, [("Read", "b.py")] * 10)
+    out = check.left_scan(check.first_sessions(tmp_path), calls_left=(5,))
+    assert "| 5호출 남은 자리 | 2/2 |" in out
+    assert "표의 값은 맞힌 세션 수 / 판정한 세션 수다." in out
+
+
 def test_majority_rate_is_the_bigger_side():
     rows = [{"advanced": True}, {"advanced": False}, {"advanced": False}]
     assert check.majority_rate(rows) == 2 / 3

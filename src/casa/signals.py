@@ -340,8 +340,19 @@ def first_edit_index(calls: list[ToolCall]) -> int | None:
     (예산 30인 과제의 24와 예산 100인 과제의 24는 다른 자리다) 과제를 넘어
     비교하려면 그 과제의 예산으로 나눠야 하고, 예산은 과제 설정이므로
     나누는 일은 `pilot/analysis/` 에서 한다.
+
+    **막힌 호출은 세지 않는다.** 훅이 막았거나 도구가 오류를 낸 호출은 파일을
+    바꾸지 않았다. 2026-08-23에 이것을 안 걸러서 한 세션(`subsystems-deep`
+    의 `c04s01`)을 "50번째 호출에서 처음 고쳤다" 로 잘못 읽었다. 그 세션의
+    유일한 고치기 시도는 예산 훅이 막은 것이었고 실제로는 한 번도 안 고쳤다.
+
+    **같은 문제가 `distinct_edited_paths`·`rework_ratio`·`stub_edit_count`
+    에도 있다.** 그쪽은 이미 보고된 수치가 있으므로 여기서 같이 바꾸지 않고
+    `STATUS.md` 에 미해결로 적었다.
     """
     for call in calls:
+        if call.is_error:
+            continue
         if call.name in WRITE_TOOLS or is_mutating_shell(call):
             return call.index
     return None
