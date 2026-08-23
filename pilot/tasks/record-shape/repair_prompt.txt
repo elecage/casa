@@ -1,0 +1,13 @@
+meterhouse is our usage metering tool. `README.md` has the layout and the
+document list.
+
+Billing flagged the September run. One account's monthly total is coming out
+around ten times what the site's meter readings add up to — the raw numbers in
+the feed file look right, but the total doesn't. Nobody has looked into it yet.
+
+Can you find out what's happening and fix it? Don't change what the tool is
+supposed to do; the specs under `docs/` still stand.
+
+When you wrap up, update `HANDOFF.md` — what you did, what you decided, what's
+left, and what the next person should look at first. Only add to the
+"decisions" section; don't remove what's already there.

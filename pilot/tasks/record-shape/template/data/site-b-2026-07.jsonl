@@ -1,0 +1,9 @@
+{"id": "b01", "account": "ACC-1006", "observed_at": "2026-07-04T00:00:00Z", "recorded_at": "2026-07-04T07:30:00Z", "quantity": "455.0", "unit": "kWh", "corrects": null}
+{"id": "b02", "account": "ACC-1006", "observed_at": "2026-07-19T00:00:00Z", "recorded_at": "2026-07-19T07:30:00Z", "quantity": "180.0", "unit": "kWh", "corrects": null}
+{"id": "b03", "account": "ACC-1006", "observed_at": "2026-07-04T00:00:00Z", "recorded_at": "2026-08-06T11:00:00Z", "quantity": "705.0", "unit": "kWh", "corrects": "b01"}
+{"id": "b04", "account": "ACC-1007", "observed_at": "2026-07-08T00:00:00Z", "recorded_at": "2026-07-08T07:30:00Z", "quantity": "1250.0", "unit": "kWh", "corrects": null}
+{"id": "b05", "account": "ACC-1007", "observed_at": "2026-07-08T00:00:00Z", "recorded_at": "2026-07-30T09:15:00Z", "quantity": "980.0", "unit": "kWh", "corrects": "b04"}
+{"id": "b06", "account": "ACC-1008", "observed_at": "2026-07-21T00:00:00Z", "recorded_at": "2026-07-21T07:30:00Z", "quantity": "62.5", "unit": "kWh", "corrects": null}
+{"id": "b07", "account": "ACC-1008", "observed_at": "2026-07-22T00:00:00Z", "recorded_at": "2026-07-22T07:30:00Z", "quantity": "", "unit": "kWh", "corrects": null}
+{"id": "b08", "account": "ACC-1009", "observed_at": "2026-07-24T00:00:00Z", "recorded_at": "2026-07-24T07:30:00Z", "quantity": "40.0", "unit": "MJ", "corrects": null}
+{"id": "b09", "account": "ACC-1009", "observed_at": "2026-07-25T00:00:00Z", "recorded_at": "2026-07-25T07:30:00Z", "quantity": "71.0", "unit": "kWh", "corrects": null}

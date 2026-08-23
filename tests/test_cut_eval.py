@@ -411,3 +411,137 @@ def test_the_rendered_table_names_both_arms():
     assert "안 끊는 쪽" in text and "끊는 쪽" in text
     assert "[1, 5, 9]" in text
     assert "낮음 1" in text and "높음 2" in text
+
+
+# ------------------- 사슬이 이미 끝난 뒤의 자리 (2026-08-23 사후 분석)
+
+def _plain_chain(scores: list[int], calls: int = 20) -> list[dict]:
+    """통과 항목 수만 다른 세션 기록. 깃발 판정은 안 붙인다."""
+    return [_row(1, index + 1, value, calls)
+            for index, value in enumerate(scores)]
+
+
+def test_plateau_index_finds_where_the_chain_stopped_gaining():
+    # 세션 3에서 56에 도달하고 그 뒤로는 그대로다.
+    rows = _plain_chain([19, 26, 56, 56, 56])
+    assert evaluate.plateau_index(rows) == 2
+
+
+def test_plateau_index_covers_a_chain_that_never_plateaus():
+    rows = _plain_chain([10, 20, 30])
+    assert evaluate.plateau_index(rows) == 2
+
+
+def test_plateau_index_survives_an_unreadable_grade():
+    assert evaluate.plateau_index([]) == 0
+    assert evaluate.plateau_index([{"grade": None}]) == 1
+
+
+def test_finished_early_counts_the_sessions_that_had_nothing_left():
+    """사슬이 최종 항목 수에 도달한 뒤 실행된 세션을 센다.
+
+    안 끊는 쪽 실제 자료에서 140세션 중 102개(73%)가 그런 세션이었고,
+    봉인된 1차 지표가 그 자리들을 그대로 담고 있었다.
+    """
+    out = evaluate.finished_early([_plain_chain([19, 26, 56, 56, 56], calls=10)])
+    assert out["reached_at"] == [3]
+    assert out["sessions_after"] == 2
+    assert out["calls_after"] == 20
+    assert out["calls_total"] == 50
+
+
+def test_live_gain_per_call_drops_the_positions_with_nothing_left(tmp_path):
+    """이미 끝난 사슬의 자리는 어느 갈래든 성과가 0이라 견줄 수 없다."""
+    # 초반 10호출에 `.py` 를 한 번도 안 열면 깃발이 선다.
+    flagged = _transcript(tmp_path / "flag.jsonl",
+                          ["README.md"] * 12)
+    # 세션 2에서 이미 끝났고, 세션 3·4는 늘릴 것이 없다. 셋 다 깃발이 선다.
+    rows = [_row(1, 1, 10, 20, transcript=flagged),
+            _row(1, 2, 30, 20, transcript=flagged),
+            _row(1, 3, 30, 20, transcript=flagged),
+            _row(1, 4, 30, 20, transcript=flagged)]
+    whole = evaluate.arm_summary([rows], start=1)
+    live = evaluate.live_gain_per_call([rows], start=1)
+    assert whole["judged"] == 4, "봉인된 지표는 네 자리를 다 담는다"
+    assert live["judged"] == 2, "끝난 뒤의 두 자리는 빠져야 한다"
+    # 성과가 0일 수밖에 없는 자리가 섞이면 중앙값이 그쪽으로 끌려간다.
+    # 네 자리는 [0.45, 1.0, 0, 0] 이고 앞 두 자리만 남기면 [0.45, 1.0] 이다.
+    assert whole["gain_per_call_median"] == 0.225
+    assert live["gain_per_call_median"] == 0.725
+
+
+def test_the_sealed_primary_metric_does_not_use_the_post_hoc_restriction():
+    """사후 분석을 더한 것이 봉인된 1차 지표를 건드리면 안 된다."""
+    source = (ROOT / "pilot" / "analysis" / "cut_eval.py").read_text(
+        encoding="utf-8")
+    body = source.split("def arm_summary", 1)[1].split("\ndef ", 1)[0]
+    assert "plateau_index" not in body, "봉인된 지표가 사후 한정을 쓰고 있다"
+
+
+# ------------- 통과하던 항목을 깨뜨렸는가 (2026-08-23, record-shape 프로브)
+
+def _row_with(index: int, checks: dict) -> dict:
+    return {"chain": 1, "session_index": index, "label": f"c01s{index:02d}",
+            "grade": {"checkpoints": checks},
+            "audit": {"metrics": {"n_tool_calls": 10}}}
+
+
+def test_a_session_that_breaks_a_passing_item_is_recorded():
+    """되돌리는 비용을 줄 수로만 세면 이 모양을 못 잡는다.
+
+    사슬 프로브에서 세션 2가 세션 1이 통과시킨 항목 둘을 깨뜨렸는데 지운
+    줄은 다섯 줄뿐이었다. 값은 지운 줄이 아니라 **깨진 채 남았다**는 데 있다.
+    """
+    rows = [
+        _row_with(1, {"a": True, "b": True, "c": False}),
+        _row_with(2, {"a": True, "b": False, "c": True}),
+        _row_with(3, {"a": True, "b": False, "c": True}),
+    ]
+    history = evaluate.regressions(rows)
+    assert history[0]["broke"] == []
+    assert history[1]["broke"] == ["b"]
+    assert history[1]["left_broken"] == ["b"]
+    assert history[1]["repaired_at"] == {}
+
+
+def test_a_broken_item_that_a_later_session_fixes_is_marked_repaired():
+    rows = [
+        _row_with(1, {"a": True}),
+        _row_with(2, {"a": False}),
+        _row_with(3, {"a": False}),
+        _row_with(4, {"a": True}),
+    ]
+    history = evaluate.regressions(rows)
+    assert history[1]["broke"] == ["a"]
+    assert history[1]["repaired_at"] == {"a": 4}
+    assert history[1]["left_broken"] == []
+
+
+def test_an_item_that_never_passed_is_not_a_regression():
+    """한 번도 통과한 적 없는 항목이 계속 안 통과하는 것은 깨뜨린 것이 아니다."""
+    rows = [_row_with(1, {"a": False}), _row_with(2, {"a": False})]
+    assert all(not entry["broke"] for entry in evaluate.regressions(rows))
+
+
+def test_an_unjudged_item_counts_as_broken():
+    """채점이 판정 불가로 바뀐 것도 통과 상태를 잃은 것이다."""
+    rows = [_row_with(1, {"a": True}), _row_with(2, {"a": None})]
+    assert evaluate.regressions(rows)[1]["broke"] == ["a"]
+
+
+def test_the_regression_summary_counts_what_was_left_broken():
+    rows = [
+        _row_with(1, {"a": True, "b": True}),
+        _row_with(2, {"a": False, "b": False}),
+        _row_with(3, {"a": True, "b": False}),
+    ]
+    out = evaluate.regression_summary(rows)
+    assert out["sessions_that_broke_something"] == 1
+    assert out["broken_total"] == 2
+    assert out["repaired"] == 1
+    assert out["left_broken"] == 1 and out["left_broken_names"] == ["b"]
+
+
+def test_the_regression_summary_survives_an_empty_chain():
+    out = evaluate.regression_summary([])
+    assert out["sessions"] == 0 and out["broken_total"] == 0

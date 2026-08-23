@@ -434,6 +434,149 @@ def check_predictions(result: dict, keep: list[list[dict]],
     return out
 
 
+def _checks(row: dict) -> dict:
+    grade = row.get("grade")
+    checks = grade.get("checkpoints") if isinstance(grade, dict) else None
+    return checks if isinstance(checks, dict) else {}
+
+
+def regressions(chain_rows: list[dict]) -> list[dict]:
+    """세션마다 **통과하던 달성 항목을 깨뜨렸는가**, 그리고 고쳐졌는가.
+
+    **왜 이것을 따로 세는가**(2026-08-23). 되돌리는 비용을 줄 수로만 세면
+    이 모양을 못 잡는다. `record-shape` 사슬 프로브에서 세션 2가 세션 1이
+    통과시킨 v0.3 항목 둘을 깨뜨렸는데, 지운 줄은 다섯 줄뿐이었다. 값은
+    지운 줄에 있는 것이 아니라 **깨진 것이 38세션 동안 그대로 남았다**는
+    데 있다.
+
+    세션마다 돌려주는 것:
+
+    | 열쇠 | 뜻 |
+    |---|---|
+    | `broke` | 앞까지 통과하던 것 중 이 세션이 떨어뜨린 항목 |
+    | `repaired_at` | 그것을 다시 통과시킨 세션의 순번. 없으면 None |
+    | `left_broken` | 사슬이 끝날 때까지 안 고쳐진 항목 |
+    """
+    names = sorted({name for row in chain_rows for name in _checks(row)})
+    passing = {name: False for name in names}
+    history: list[dict] = []
+    for index, row in enumerate(chain_rows):
+        checks = _checks(row)
+        broke = [name for name in names
+                 if passing.get(name) and checks.get(name) is not True]
+        history.append({"session_index": row.get("session_index", index + 1),
+                        "label": row.get("label"), "broke": broke,
+                        "repaired_at": {}, "left_broken": []})
+        for name in names:
+            if name in checks:
+                passing[name] = checks[name] is True
+
+    for position, entry in enumerate(history):
+        for name in entry["broke"]:
+            fixed = next((later["session_index"]
+                          for later, row in zip(history[position + 1:],
+                                                chain_rows[position + 1:])
+                          if _checks(row).get(name) is True), None)
+            if fixed is None:
+                entry["left_broken"].append(name)
+            else:
+                entry["repaired_at"][name] = fixed
+    return history
+
+
+def regression_summary(chain_rows: list[dict]) -> dict:
+    """사슬 하나에서 깨뜨림이 몇 번 있었고 몇 개가 안 고쳐졌는가."""
+    history = regressions(chain_rows)
+    broke = [entry for entry in history if entry["broke"]]
+    left = [name for entry in history for name in entry["left_broken"]]
+    return {
+        "sessions": len(history),
+        "sessions_that_broke_something": len(broke),
+        "broken_total": sum(len(entry["broke"]) for entry in history),
+        "left_broken": len(left),
+        "left_broken_names": sorted(left),
+        "repaired": sum(len(entry["repaired_at"]) for entry in history),
+    }
+
+
+def plateau_index(rows: list[dict]) -> int:
+    """그 사슬이 **최종 통과 항목 수에 처음 도달한** 세션의 자리(0부터).
+
+    그 뒤에 실행된 세션들은 늘릴 항목이 남아 있지 않다. 어느 갈래든 그
+    자리에서는 성과가 0일 수밖에 없으므로, 두 갈래를 견주는 데 쓸 수 없다.
+    """
+    values = [passed(row) for row in rows]
+    final = values[-1] if values else None
+    if final is None:
+        return len(rows)
+    return next((index for index, value in enumerate(values)
+                 if value is not None and value >= final), len(rows))
+
+
+def live_gain_per_call(chains: list[list[dict]], at: int = DEFAULT_AT,
+                       start: int | None = None) -> dict:
+    """1차 지표를 **사슬이 아직 안 끝난 자리로만** 한정해 다시 산출한다.
+
+    **사후 분석이다. 봉인된 예측 1의 판정을 이것으로 바꾸지 않는다.** 이
+    한정은 결과를 본 뒤에 정한 것이므로 검정이 아니라, 다음 배치를 다르게
+    설계해야 하는 이유다.
+
+    **왜 필요한가**(2026-08-23에 관측). 안 끊는 쪽 사슬 열 개가 모두 세션
+    3~7번째에 최종 항목 수에 도달하고, 그 뒤로 8~24세션을 더 실행했다. 그
+    결과 깃발이 선 자리 39개 중 29개(74%)가 **이미 끝난 사슬**에 있었다.
+    봉인된 1차 지표는 그 자리들을 그대로 담았다.
+    """
+    rates: list[float] = []
+    for rows in chains:
+        cap = plateau_index(rows)
+        for mark in _with_replacements(rows, at, start):
+            if (mark["session_index"] - 1) > cap:
+                continue
+            got = mark.get("replacement")
+            if mark["cut"]:
+                if not got:
+                    continue
+                gain, spent = got["gain"], mark["calls"] + got["calls"]
+            else:
+                gain, spent = mark["gain"], mark["calls"]
+            rate = per_call(gain, spent)
+            if rate is not None:
+                rates.append(rate)
+    return {
+        "judged": len(rates),
+        "gain_per_call": sorted(rates),
+        "gain_per_call_median": statistics.median(rates) if rates else None,
+    }
+
+
+def finished_early(chains: list[list[dict]]) -> dict:
+    """사슬이 언제 끝났고, 그 뒤로 세션과 호출을 얼마나 더 썼는가."""
+    reached, after, calls_after, calls_all, flagged_after, flagged_all = (
+        [], 0, 0, 0, 0, 0)
+    for rows in chains:
+        cap = plateau_index(rows)
+        reached.append(cap + 1)
+        for index, row in enumerate(rows):
+            calls_all += calls_of(row)
+            is_after = index > cap
+            if is_after:
+                after += 1
+                calls_after += calls_of(row)
+            if flagged(row):
+                flagged_all += 1
+                if is_after:
+                    flagged_after += 1
+    return {
+        "reached_at": sorted(reached),
+        "reached_at_median": statistics.median(reached) if reached else None,
+        "sessions_after": after,
+        "calls_after": calls_after,
+        "calls_total": calls_all,
+        "flagged_after": flagged_after,
+        "flagged_total": flagged_all,
+    }
+
+
 def report(keep_dir: Path, cut_dir: Path, at: int = DEFAULT_AT,
            start: int | None = None) -> dict:
     keep = load_arm(keep_dir)
@@ -454,6 +597,11 @@ def report(keep_dir: Path, cut_dir: Path, at: int = DEFAULT_AT,
         # 우리가 도중에 끝내므로 그 세션의 성과가 관측되지 않는다.
         "signal_split": signal_split(keep, at, start),
         "gain_spread": gain_spread(keep, at, start),
+        # 아래 둘은 **봉인되지 않은 사후 분석**이다. 예측 판정에 쓰지 않는다.
+        "finished_early": {"keep": finished_early(keep),
+                           "cut": finished_early(cut)},
+        "live_gain_per_call": {"keep": live_gain_per_call(keep, at, start),
+                               "cut": live_gain_per_call(cut, at, start)},
     }
     result["predictions"] = check_predictions(result, keep, cut, start)
     return result

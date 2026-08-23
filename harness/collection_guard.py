@@ -41,7 +41,9 @@ SHELL_TOOLS = {"Bash", "PowerShell"}
 # 실제로 `run_chain.py`를 만들었을 때 이 목록이 `run_sessions.py`만 알고 있어
 # 새 러너가 잠금을 그냥 통과했다. tests/test_harness.py가 pilot/run_*.py를
 # 전수 대조해 그 재발을 막는다.
-RUNNERS = ("run_sessions.py", "run_chain.py")
+# `repair_run.py` 도 세션을 실행한다(2026-08-23). 목록에 없으면 잠금이
+# 그것을 안 막는다 — 잠금은 "세션을 실행하는 것" 을 막는 장치다.
+RUNNERS = ("run_sessions.py", "run_chain.py", "repair_run.py")
 
 _COLLECTION_RUN = re.compile(
     r"(?:^|[\s;|&(])"  # 명령 시작 위치

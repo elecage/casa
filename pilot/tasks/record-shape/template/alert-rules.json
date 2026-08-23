@@ -1,0 +1,6 @@
+{
+  "rules": [
+    {"name": "high-usage", "over": "500", "severity": "warn"},
+    {"name": "very-high-usage", "over": "1200", "severity": "page"}
+  ]
+}

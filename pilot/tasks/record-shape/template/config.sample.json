@@ -1,0 +1,7 @@
+{
+  "data_dir": "data",
+  "rules_file": "alert-rules.json",
+  "export_format": "json",
+  "retain_source_rows": true,
+  "correction_window_days": 45
+}
