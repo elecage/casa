@@ -190,6 +190,32 @@ def session_trees(rows: list[tuple[str, int]],
     return out
 
 
+def session_steps(rows: list[tuple[str, int]],
+                  bounds: list[float]) -> list[list[str]]:
+    """세션마다 그 구간에 찍힌 스냅숏 해시들. 시작 트리를 맨 앞에 붙인다.
+
+    **세션 안의 되돌림을 세려면 중간 시점이 필요하다.** 시작 트리와 끝
+    트리만 견주면 세션이 썼다가 스스로 지운 줄은 아예 안 나타난다 —
+    두 시점 사이에서 상쇄되기 때문이다.
+    """
+    if not rows:
+        return [[] for _ in bounds]
+    out: list[list[str]] = []
+    previous = rows[0][0]
+    position = 0
+    for bound in bounds:
+        steps = [previous]
+        while position < len(rows) and rows[position][1] <= bound:
+            # 첫 항목은 시작 상태 커밋이라 `previous` 와 같다. 그대로 붙이면
+            # 같은 트리를 자기 자신과 견주는 걸음이 하나 생긴다.
+            if rows[position][0] != steps[-1]:
+                steps.append(rows[position][0])
+            position += 1
+        out.append(steps if len(steps) > 1 else [])
+        previous = steps[-1]
+    return out
+
+
 # ------------------------------------------------------------ 줄 세기
 
 def significant(line: str) -> bool:
@@ -334,8 +360,9 @@ def chain_rework(out_dir: Path, chain: int, git_dir: Path,
     if not rows or any(window is None for window in windows):
         return []
     numbered = numbered_commits(git_dir)
-    trees = session_trees([(sha, when) for sha, when, _ in numbered],
-                          boundaries(windows))  # type: ignore[arg-type]
+    plain = [(sha, when) for sha, when, _ in numbered]
+    trees = session_trees(plain, boundaries(windows))  # type: ignore[arg-type]
+    steps = session_steps(plain, boundaries(windows))  # type: ignore[arg-type]
     head = _git(Path(git_dir), "rev-parse", "HEAD").strip()
     cache: dict[str, Counter[str]] = {}
 
@@ -350,6 +377,7 @@ def chain_rework(out_dir: Path, chain: int, git_dir: Path,
         after = cut_eval.passed(row)
         pair = trees[index] if index < len(trees) else None
         total = missing = handoff_added = handoff_gone = 0
+        within_added = within_gone = 0
         ratio_h = missing_h = None
         if pair:
             counted = added_lines(git_dir, pair[0], pair[1])
@@ -358,6 +386,10 @@ def chain_rework(out_dir: Path, chain: int, git_dir: Path,
             handoff = added_lines(git_dir, pair[0], pair[1],
                                   only=REWRITTEN_BY_DESIGN)
             handoff_added = sum(handoff.values())
+            step_total, step_gone = within_session(
+                git_dir, steps[index] if index < len(steps) else [],
+                lines_at(pair[1]))
+            within_added, within_gone = step_total, step_gone
             later = horizon_commit(numbered, pair[1], horizon)
             if later:
                 handoff_gone = gone(handoff, lines_at(later))
@@ -377,6 +409,11 @@ def chain_rework(out_dir: Path, chain: int, git_dir: Path,
             "rework_ratio": (missing / total) if total else None,
             "gone_lines_h": missing_h,
             "rework_ratio_h": ratio_h,
+            # 세션 **안**의 되돌림. 세션 사이의 것과 합치지 않는다.
+            "within_added_lines": within_added,
+            "within_gone_lines": within_gone,
+            "rework_within": (within_gone / within_added)
+            if within_added else None,
             # 과제가 다시 쓰라고 지시한 문서. 본 셈과 섞지 않는다.
             "handoff_added_lines": handoff_added,
             "handoff_gone_lines_h": handoff_gone,
@@ -455,6 +492,24 @@ def summarize(rows: list[dict], key: str = "rework_ratio_h") -> dict:
         "handoff_gone_total": sum(row.get("handoff_gone_lines_h", 0)
                                   for row in rows),
     }
+
+
+def within_session(git_dir: Path, steps: list[str],
+                   final_lines) -> tuple[int, int]:
+    """세션이 **자기 세션 안에서** 되돌린 줄. (더한 줄, 사라진 줄).
+
+    호출 사이마다 더한 줄을 세고, 그 줄이 **그 세션이 끝난 시점**에 남아
+    있는지 본다. 남아 있지 않으면 그 세션이 스스로 지웠거나 다시 쓴 것이다.
+
+    **세션 사이 되돌림과 따로 센다**(`DESIGN.md` 8.3절). 자기가 만든 것을
+    자기가 고친 세션과 뒤 세션에게 떠넘긴 세션을 갈라야 한다.
+    """
+    if len(steps) < 2:
+        return 0, 0
+    added: Counter[str] = Counter()
+    for before, after in zip(steps, steps[1:]):
+        added.update(added_lines(git_dir, before, after))
+    return sum(added.values()), gone(added, final_lines)
 
 
 #: 이만큼 넘게 쓰고도 코드를 하나도 안 남겼으면 헛쓴 세션으로 본다. 그

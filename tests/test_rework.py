@@ -452,3 +452,64 @@ def test_a_cut_session_is_not_counted_as_wasted():
     """우리가 끊은 세션이 아무것도 안 남긴 것은 그 세션 탓이 아니다."""
     rows = [_row(cut=True, flagged=True, calls=30, added_lines=0, label="cut")]
     assert rework.wasted_sessions(rows, min_calls=20)["n"] == 0
+
+
+# --------------------------- 세션 안의 되돌림 (DESIGN.md 8.3, record-shape)
+
+def test_session_steps_keeps_the_intermediate_snapshots():
+    """시작 트리와 끝 트리만 견주면 세션이 썼다가 지운 줄이 안 보인다."""
+    rows = [("base", 90), ("a", 120), ("b", 180), ("c", 350)]
+    steps = rework.session_steps(rows, [250.0, float("inf")])
+    assert steps == [["base", "a", "b"], ["b", "c"]]
+
+
+def test_session_steps_is_empty_when_the_session_changed_nothing():
+    rows = [("base", 90), ("a", 120)]
+    assert rework.session_steps(rows, [250.0, float("inf")]) == [
+        ["base", "a"], []]
+
+
+def test_a_session_that_undoes_its_own_work_is_counted(tmp_path):
+    """세션이 썼다가 같은 세션 안에서 지운 줄. 세션 사이 되돌림과 따로 센다."""
+    work = tmp_path / "work"
+    work.mkdir()
+    git_dir = tmp_path / "c.git"
+    _run("git", "init", "-q", "--bare", str(git_dir), cwd=tmp_path)
+    _run("git", f"--git-dir={git_dir}", "config", "core.bare", "false",
+         cwd=tmp_path)
+
+    def commit(message):
+        _run("git", f"--git-dir={git_dir}", f"--work-tree={work}", "add", "-A",
+             cwd=work)
+        _run("git", f"--git-dir={git_dir}", f"--work-tree={work}", "commit",
+             "-q", "--allow-empty", "-m", message, cwd=work)
+        return subprocess.run(
+            ["git", f"--git-dir={git_dir}", "rev-parse", "HEAD"], cwd=work,
+            capture_output=True, text=True, check=True,
+            env=_git_env()).stdout.strip()
+
+    (work / "core.py").write_text("START = 1\n", encoding="utf-8")
+    base = commit("baseline")
+    # 호출 1: 줄 둘을 쓴다.
+    (work / "core.py").write_text(
+        "START = 1\nFIRST_TRY = 2\nALSO_FIRST_TRY = 3\n", encoding="utf-8")
+    step = commit("call 1")
+    # 호출 2: 자기가 쓴 둘을 지우고 다른 줄 하나를 쓴다.
+    (work / "core.py").write_text("START = 1\nSECOND_TRY = 9\n",
+                                  encoding="utf-8")
+    end = commit("call 2")
+
+    final = rework.tree_lines(git_dir, end)
+    added, missing = rework.within_session(git_dir, [base, step, end], final)
+    # 더한 줄 셋(FIRST_TRY, ALSO_FIRST_TRY, SECOND_TRY) 중 둘이 사라졌다.
+    assert (added, missing) == (3, 2)
+
+    # 시작 트리와 끝 트리만 견주면 그 되돌림이 아예 안 보인다.
+    straight = rework.added_lines(git_dir, base, end)
+    assert sum(straight.values()) == 1
+    assert rework.gone(straight, final) == 0
+
+
+def test_within_session_needs_at_least_two_snapshots():
+    assert rework.within_session(Path("nowhere.git"), [], {}) == (0, 0)
+    assert rework.within_session(Path("nowhere.git"), ["only"], {}) == (0, 0)
