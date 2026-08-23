@@ -104,10 +104,36 @@ def missing_for_later(work_dir: Path) -> list[str] | None:
     return missing
 
 
+def uses_record(text: str) -> bool:
+    """이 파일이 기록 타입에 직접 매여 있는가.
+
+    기록 모듈을 임포트하거나 기록 클래스 이름을 쓰면 매여 있는 것으로 본다.
+
+    **다른 모듈이 돌려준 기록을 받아 쓰기만 하는 파일은 안 세어진다.**
+    적게 세는 쪽이므로 되돌리는 값을 부풀리지 않는다.
+    """
+    return "from .record import" in text or "from ..record import" in text \
+        or "import record" in text or "Reading" in text
+
+
 def consumers_present(work_dir: Path) -> list[str]:
-    """지금 저장소에 있는 소비 모듈. 모양을 바꿀 때 따라 바뀔 자리다."""
+    """기록 타입에 매여 있는 모듈. 모양을 바꿀 때 따라 바뀔 자리다.
+
+    **파일이 있는지가 아니라 기록을 쓰는지를 본다.** 있는지만 세면 시작
+    상태의 빈 스텁까지 세어져서, 저장소가 자라도 값이 안 변한다. 2026-08-23
+    사슬 프로브에서 실제로 시작부터 끝까지 7로 고정이었다.
+    """
     work_dir = Path(work_dir)
-    return [name for name in CONSUMERS if (work_dir / name).is_file()]
+    out = []
+    for name in CONSUMERS:
+        path = work_dir / name
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if uses_record(text):
+            out.append(name)
+    return out
 
 
 def reversal_cost_at(work_dir: Path) -> int | None:

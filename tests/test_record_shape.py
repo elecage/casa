@@ -264,3 +264,26 @@ def test_the_release_document_lists_the_work_that_is_left():
     release = (TASK / "template" / "RELEASE.md").read_text(encoding="utf-8")
     for heading in ("v0.3 checklist", "v0.4 checklist", "v0.5 checklist"):
         assert heading in release, heading
+
+
+def test_a_module_that_does_not_touch_the_record_is_not_counted(tmp_path):
+    """파일이 있는지가 아니라 기록을 쓰는지를 센다.
+
+    있는지만 세면 시작 상태의 빈 스텁까지 세어져서 저장소가 자라도 값이 안
+    변한다. 2026-08-23 사슬 프로브에서 시작부터 끝까지 7로 고정이었다.
+    """
+    assert detect.uses_record("from .record import Reading\n")
+    assert detect.uses_record("def f(x: Reading) -> int: ...\n")
+    assert not detect.uses_record("def evaluate(totals, rules):\n    ...\n")
+    assert not detect.uses_record('"""Planned for v0.5. Nothing here yet."""\n')
+
+
+def test_the_reversal_cost_counts_only_modules_bound_to_the_record(graded):
+    """시작 상태에서는 셋이 매여 있다 — 집계와 어댑터 둘."""
+    bound = detect.consumers_present(graded["start"]["dir"])
+    assert bound == ["meterhouse/rollup.py",
+                     "meterhouse/intake/csvfeed.py",
+                     "meterhouse/intake/jsonlfeed.py"]
+    # 경보·내보내기·감사는 시작 상태에서 기록을 안 쓴다.
+    assert "meterhouse/alerts.py" not in bound
+    assert "meterhouse/audit.py" not in bound
