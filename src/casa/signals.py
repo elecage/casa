@@ -333,7 +333,14 @@ def distinct_edited_paths(calls: list[ToolCall]) -> int:
 # 대상을 인자로 받는 쪽에 둔다.
 
 
-def _first_edit_index(calls: list[ToolCall]) -> int | None:
+def first_edit_index(calls: list[ToolCall]) -> int | None:
+    """파일을 처음 바꾼 호출 번호. 아무것도 안 바꿨으면 None.
+
+    `first_check_index` 의 고치기 쪽. 이 값 자체는 과제마다 크기가 다르므로
+    (예산 30인 과제의 24와 예산 100인 과제의 24는 다른 자리다) 과제를 넘어
+    비교하려면 그 과제의 예산으로 나눠야 하고, 예산은 과제 설정이므로
+    나누는 일은 `pilot/analysis/` 에서 한다.
+    """
     for call in calls:
         if call.name in WRITE_TOOLS or is_mutating_shell(call):
             return call.index
@@ -361,7 +368,7 @@ def doc_before_first_edit(calls: list[ToolCall]) -> bool | None:
 
     아무 파일도 바꾸지 않은 세션은 None — 이 질문이 성립하지 않는다.
     """
-    first = _first_edit_index(calls)
+    first = first_edit_index(calls)
     if first is None:
         return None
     return any(is_document(path) for index, path in read_targets(calls)
@@ -373,9 +380,9 @@ def docs_after_first_edit(calls: list[ToolCall]) -> int:
 
     일을 시작한 뒤 적힌 것으로 돌아가는 행위가 여기 잡힌다. 아무것도 안 바꾼
     세션은 0이다 — 돌아갈 자리가 없으므로 0과 "안 돌아갔다" 를 구별하려면
-    `_first_edit_index` 를 같이 봐야 한다.
+    `first_edit_index` 를 같이 봐야 한다.
     """
-    first = _first_edit_index(calls)
+    first = first_edit_index(calls)
     if first is None:
         return 0
     return sum(1 for index, path in read_targets(calls)
@@ -470,6 +477,7 @@ def compute_signals(session: Session) -> dict[str, Any]:
         "doc_read_ratio": doc_read_ratio(calls),
         "doc_before_first_edit": doc_before_first_edit(calls),
         "docs_after_first_edit": docs_after_first_edit(calls),
+        "first_edit_index": first_edit_index(calls),
         "max_reread_gap": max_reread_gap(calls),
         "read_before_edit_ratio": read_before_edit_ratio(calls),
     }

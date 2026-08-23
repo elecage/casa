@@ -196,6 +196,19 @@ def test_docs_after_first_edit_is_zero_when_nothing_changed():
     assert signals.docs_after_first_edit(calls) == 0
 
 
+def test_first_edit_index_names_the_call_that_first_changed_a_file():
+    assert signals.first_edit_index(ordinary()) == 3
+
+
+def test_first_edit_index_is_none_when_nothing_changed():
+    assert signals.first_edit_index([read(0, "a.py"), shell(1, "pytest")]) is None
+
+
+def test_first_edit_index_counts_a_mutating_shell_command():
+    calls = [read(0, "a.py"), shell(1, "git checkout -- a.py")]
+    assert signals.first_edit_index(calls) == 1
+
+
 def test_max_reread_gap_measures_how_much_later_the_session_came_back():
     calls = [read(0, "a.py")] + [shell(i, "pytest") for i in range(1, 9)] \
         + [read(9, "a.py")]
