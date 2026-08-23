@@ -1,10 +1,9 @@
 meterhouse is our usage metering tool. `README.md` has the layout and the
 document list.
 
-Something is wrong with the September run. The number of readings that come
-back from `intake` doesn't match the number of data rows in the feed files —
-some rows are neither counted nor reported as skipped, so they vanish without
-a trace. Billing noticed because a site's total came in low.
+Billing flagged the September run. One account's monthly total is coming out
+around ten times what the site's meter readings add up to — the raw numbers in
+the feed file look right, but the total doesn't. Nobody has looked into it yet.
 
 Can you find out what's happening and fix it? Don't change what the tool is
 supposed to do; the specs under `docs/` still stand.
