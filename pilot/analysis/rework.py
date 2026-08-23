@@ -457,6 +457,39 @@ def summarize(rows: list[dict], key: str = "rework_ratio_h") -> dict:
     }
 
 
+#: 이만큼 넘게 쓰고도 코드를 하나도 안 남겼으면 헛쓴 세션으로 본다. 그
+#: 아래는 끊어도 아낄 것이 없다 — 세션이 스스로 그 전에 끝난다.
+WASTE_FLOOR = 20
+
+
+def wasted_sessions(rows: list[dict], min_calls: int = WASTE_FLOOR) -> dict:
+    """호출을 쓰고도 코드를 하나도 안 남긴 세션.
+
+    **끊는 장치가 아낄 수 있는 것이 이것뿐이다.** 코드를 남긴 세션을 끊으면
+    남긴 것을 버리는 것이고, 몇 호출 만에 스스로 끝난 세션은 끊어도 아낄
+    것이 없다.
+
+    `by_signal` 은 초반 신호가 그 세션들을 잡는지 본다.
+    """
+    alive = [row for row in rows if not row["cut"]]
+    wasted = [row for row in alive
+              if row["calls"] >= min_calls and not row["added_lines"]]
+    by_signal = {}
+    for name, want in (("flagged", True), ("unflagged", False),
+                       ("unjudged", None)):
+        group = [row for row in alive if row["flagged"] is want]
+        caught = [row for row in group if row in wasted]
+        by_signal[name] = {"n": len(group), "wasted": len(caught)}
+    return {
+        "min_calls": min_calls,
+        "n": len(wasted),
+        "calls": sum(row["calls"] for row in wasted),
+        "calls_total": sum(row["calls"] for row in alive),
+        "labels": [row["label"] for row in wasted],
+        "by_signal": by_signal,
+    }
+
+
 def report(arms: dict[str, Path], at: int = cut_eval.DEFAULT_AT,
            start: int | None = None,
            horizon: int = DEFAULT_HORIZON) -> dict:
@@ -465,7 +498,8 @@ def report(arms: dict[str, Path], at: int = cut_eval.DEFAULT_AT,
         rows = arm_rework(path, at, start, horizon)
         out[name] = {"rows": rows,
                      "summary": summarize(rows, "rework_ratio_h"),
-                     "to_chain_end": summarize(rows, "rework_ratio")}
+                     "to_chain_end": summarize(rows, "rework_ratio"),
+                     "wasted": wasted_sessions(rows)}
     return out
 
 

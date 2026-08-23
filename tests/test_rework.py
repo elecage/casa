@@ -418,3 +418,37 @@ def test_session_times_reads_the_transcript(tmp_path):
 def test_session_times_is_none_without_a_transcript():
     assert rework.session_times({"transcript": None}) is None
     assert rework.session_times({"transcript": "/nope/missing.jsonl"}) is None
+
+
+# ------------------------------------- 끊는 장치가 아낄 수 있는 것 (①)
+
+def test_only_sessions_that_spend_and_leave_nothing_count_as_wasted():
+    """코드를 남긴 세션을 끊으면 남긴 것을 버리는 것이고, 몇 호출 만에
+    스스로 끝난 세션은 끊어도 아낄 것이 없다."""
+    rows = [
+        _row(flagged=True, calls=40, added_lines=0, label="spent-nothing"),
+        _row(flagged=True, calls=6, added_lines=0, label="stopped-early"),
+        _row(flagged=False, calls=40, added_lines=300, label="did-work"),
+    ]
+    out = rework.wasted_sessions(rows, min_calls=20)
+    assert out["labels"] == ["spent-nothing"]
+    assert out["calls"] == 40
+    assert out["calls_total"] == 86
+
+
+def test_wasted_sessions_reports_which_signal_group_they_sit_in():
+    rows = [
+        _row(flagged=True, calls=30, added_lines=0, label="a"),
+        _row(flagged=False, calls=30, added_lines=0, label="b"),
+        _row(flagged=None, calls=30, added_lines=50, label="c"),
+    ]
+    out = rework.wasted_sessions(rows, min_calls=20)
+    assert out["by_signal"]["flagged"] == {"n": 1, "wasted": 1}
+    assert out["by_signal"]["unflagged"] == {"n": 1, "wasted": 1}
+    assert out["by_signal"]["unjudged"] == {"n": 1, "wasted": 0}
+
+
+def test_a_cut_session_is_not_counted_as_wasted():
+    """우리가 끊은 세션이 아무것도 안 남긴 것은 그 세션 탓이 아니다."""
+    rows = [_row(cut=True, flagged=True, calls=30, added_lines=0, label="cut")]
+    assert rework.wasted_sessions(rows, min_calls=20)["n"] == 0

@@ -12,6 +12,26 @@
 - [ ] `python -m pytest tests/` passes.
 - [ ] `HANDOFF.md` updated.
 
+## v0.4 checklist
+
+- [ ] Corrections apply — see `docs/v04-corrections.md`.
+- [ ] `--as-of` on every command.
+- [ ] A correction pointing at an unknown id is reported, not dropped.
+- [ ] `docs/v04-corrections.md` matches what the code does.
+- [ ] `CHANGELOG.md` has a v0.4 entry.
+- [ ] `python -m pytest tests/` passes.
+- [ ] `HANDOFF.md` updated.
+
+## v0.5 checklist
+
+- [ ] Audit trail — see `docs/v05-audit.md`.
+- [ ] Every reading names the file and line it came from.
+- [ ] Superseded rows stay in the trail, marked.
+- [ ] `docs/v05-audit.md` matches what the code does.
+- [ ] `CHANGELOG.md` has a v0.5 entry.
+- [ ] `python -m pytest tests/` passes.
+- [ ] `HANDOFF.md` updated.
+
 ## Tests
 
 `tests/test_visible.py` is the release gate. Two of its cases pin behaviour

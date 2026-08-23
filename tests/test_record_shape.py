@@ -252,3 +252,15 @@ def test_a_partly_widened_record_is_not_called_carrying(tmp_path):
         "    quantity: str\n", encoding="utf-8")
     assert detect.shape_of(half) == "partial"
     assert set(detect.missing_for_later(half)) == {"id", "corrects", "source"}
+
+
+def test_the_release_document_lists_the_work_that_is_left():
+    """v0.3 만 적혀 있으면 그것을 끝낸 뒤 세션이 "남은 것이 없다" 고 본다.
+
+    2026-08-23 프로브에서 한 세션이 42호출에 v0.3 을 다 채우고 스스로
+    끝냈다. 그 상태로 사슬을 실행하면 `shared-core` 에서 본 것이 되풀이된다 —
+    사슬이 두세 세션 만에 멈추고 나머지 세션이 관측 자리를 채운다.
+    """
+    release = (TASK / "template" / "RELEASE.md").read_text(encoding="utf-8")
+    for heading in ("v0.3 checklist", "v0.4 checklist", "v0.5 checklist"):
+        assert heading in release, heading
