@@ -1,0 +1,2 @@
+site-a.example
+site-b.example

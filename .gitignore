@@ -9,3 +9,7 @@ build/
 .claude/settings.local.json*
 results/
 results-legacy/
+
+# 과제 시작 상태 저장소 안에서 시험을 실행하면 생긴다.
+pilot/tasks/*/template/**/__pycache__/
+pilot/tasks/*/template/.pytest_cache/
