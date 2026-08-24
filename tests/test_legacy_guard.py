@@ -88,6 +88,28 @@ def test_the_hook_blocks_while_sealed():
     assert "해제 조건" in res.stderr
 
 
+def test_the_block_message_survives_a_non_utf8_console():
+    """윈도우가 기본으로 cp949 로 내보낸다. 그러면 차단 메시지가 깨진다.
+
+    2026-08-23에 이것이 CI 의 윈도우 두 조합에서만 실패했다. 리눅스에서도
+    같은 조건을 만들어 잡는다 — `PYTHONIOENCODING` 을 cp949 로 두고 부른다.
+    """
+    import os
+    env = dict(os.environ, PYTHONIOENCODING="cp949")
+    res = subprocess.run(
+        [sys.executable, str(ROOT / "harness" / "legacy_guard.py")],
+        input=json.dumps({"tool_name": "Read",
+                          "tool_input": {"file_path": "results-legacy/x.json"}}),
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, check=False,
+    )
+    if gates.gate_state("legacy") != "sealed":
+        import pytest
+        pytest.skip("legacy 게이트가 열려 있어 차단 경로가 해당 없음")
+    assert res.returncode == 2
+    assert "봉인" in res.stderr
+
+
 def test_the_hook_passes_calls_that_do_not_touch_it():
     res = _run(json.dumps({"tool_name": "Bash",
                            "tool_input": {"command": "python -m pytest -q"}}))

@@ -30,6 +30,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from gates import load_gates  # noqa: E402
 
+# 차단 메시지는 UTF-8 이다. 이것이 없으면 윈도우가 cp949 로 내보내고
+# 메시지가 깨진다 — `collection_guard.py` 와 같은 처리다.
+for _s in (sys.stdout, sys.stderr):
+    if hasattr(_s, "reconfigure"):
+        _s.reconfigure(encoding="utf-8", errors="replace")
+
 #: 봉인한 디렉토리 이름. 늘어나면 여기에 더한다.
 SEALED_DIRS = ("results-legacy",)
 
