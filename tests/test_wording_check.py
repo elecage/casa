@@ -129,6 +129,13 @@ def test_undoing_is_not_mistaken_for_running():
         assert "돌리다" not in _names(sentence), sentence
 
 
+def test_returning_a_value_is_not_running_a_batch():
+    """`돌려주다`(값을 반환한다)는 정상 표현이다. 활용형을 다 빼야 한다."""
+    for sentence in ["그 함수는 목록을 돌려준다.", "무엇을 돌려줘야 하는지 정한다.",
+                     "값을 돌려줍니다.", "돌려받는다."]:
+        assert "돌리다" not in _names(sentence), sentence
+
+
 def test_blocking_a_call_is_not_the_banned_word():
     """훅이 호출을 막는 것은 규칙에 해당하지 않는다."""
     assert "막히다" not in _names("이 훅이 그 호출을 막는다.")

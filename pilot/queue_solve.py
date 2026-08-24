@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""레퍼런스 해답 — 시작 상태에서 상태 갑과 을을 기계로 만든다.
+"""레퍼런스 해답 — 시작 상태에서 상태 둘(목록·건수)을 기계로 만든다.
 
 **두 가지를 한다.**
 
@@ -9,21 +9,21 @@
 
 | 상태 | 애매한 항목에서 무엇을 골랐나 |
 |---|---|
-| **갑** | 뒤 항목의 완료 조건이 전제하는 쪽 — 위반 **목록**을 돌려준다 |
-| **을** | 다른 쪽 — 위반 **건수**를 돌려준다 |
+| **목록** | 검사가 위반 목록을 돌려주는 쪽. 위반마다 줄 번호가 들어가고, 뒤 항목의 완료 조건이 그것을 전제한다 |
+| **건수** | 검사가 위반 건수를 돌려주는 쪽. 숫자 하나뿐이라 줄 번호가 없다 |
 
-**을은 우리가 넣은 결함이 아니다.** 그 시점에는 어느 쪽도 틀리지 않고 채점기도
+**건수 쪽은 우리가 넣은 결함이 아니다.** 그 시점에는 어느 쪽도 틀리지 않고 채점기도
 어느 쪽을 골랐는지 판정하지 않는다. `queue-stacked` 에서만 뒤에 가서 `q24` 가
 줄 번호를 요구하면서 한쪽만 남는다 — 그것이 그 과제의 되돌림 비용이 나오는
 자리다.
 
-**부분 해답도 만든다.** `upto` 를 주면 그 항목까지만 푼다. 되돌림 비용을 재려면
+**부분 해답도 만든다.** `upto` 를 주면 그 항목까지만 푼다. 되돌림 비용을 측정하려면
 "애매한 항목을 지나간 직후" 상태가 필요하다.
 
 사용:
 
-    python pilot/queue_solve.py queue-stacked 갑 <나갈 자리>
-    python pilot/queue_solve.py queue-stacked 을 <나갈 자리> --upto q10
+    python pilot/queue_solve.py queue-stacked 목록 <나갈 자리>
+    python pilot/queue_solve.py queue-stacked 건수 <나갈 자리> --upto q10
 """
 
 from __future__ import annotations
@@ -38,7 +38,9 @@ sys.path.insert(0, str(HERE))
 
 from queue_task import load_queue, task_dir  # noqa: E402
 
-ARMS = ("갑", "을")
+#: 애매한 항목에서 무엇을 골랐는가. **이름표가 아니라 고른 것을 그대로
+#: 이름으로 쓴다** — 뜻을 밝히지 않은 이름표는 읽는 사람이 확인할 수 없다.
+ARMS = ("목록", "건수")
 
 
 def _check_name(item: dict) -> str | None:
@@ -194,8 +196,8 @@ def decisions_for(items: list[dict], solved: list[str], as_list: bool) -> str:
 def solve(task: str, arm: str, out: Path, upto: str | None = None) -> Path:
     """시작 상태에서 해답 상태를 만든다. 만든 자리를 돌려준다."""
     if arm not in ARMS:
-        raise ValueError(f"팔은 {ARMS} 중 하나여야 한다: {arm}")
-    as_list = arm == "갑"
+        raise ValueError(f"고른 쪽은 {ARMS} 중 하나여야 한다: {arm}")
+    as_list = arm == "목록"
     items = load_queue(task)
     ids = [i["id"] for i in items]
     if upto is not None and upto not in ids:
@@ -262,7 +264,8 @@ def solve(task: str, arm: str, out: Path, upto: str | None = None) -> Path:
 def main(argv: list[str] | None = None) -> int:
     args = argv if argv is not None else sys.argv[1:]
     if len(args) < 3:
-        print("사용: queue_solve.py <과제 이름> <갑|을> <나갈 자리> [--upto qNN]")
+        print("사용: queue_solve.py <과제 이름> <목록|건수> <나갈 자리>"
+              " [--upto qNN]")
         return 1
     upto = None
     if "--upto" in args:

@@ -36,7 +36,7 @@ TASKS = qt.QUEUE_TASKS
 
 @pytest.fixture(scope="module")
 def solved(tmp_path_factory) -> dict[tuple[str, str], Path]:
-    """과제마다 팔 둘의 해답 상태. 만드는 데 시간이 걸려 한 번만 만든다."""
+    """과제마다 고른 쪽 둘(목록·건수)의 해답 상태. 한 번만 만든다."""
     base = tmp_path_factory.mktemp("solved")
     return {(task, arm): sol.solve(task, arm, base / f"{task}-{arm}")
             for task in TASKS for arm in sol.ARMS}
@@ -47,8 +47,8 @@ def solved(tmp_path_factory) -> dict[tuple[str, str], Path]:
 
 @pytest.mark.parametrize("task", TASKS)
 def test_the_reference_solution_meets_every_item(task, solved):
-    """상태 갑은 셋 다 항목을 다 채운다."""
-    result = gr.grade(task, solved[(task, "갑")])
+    """목록을 고른 쪽은 셋 다 항목을 다 채운다."""
+    result = gr.grade(task, solved[(task, "목록")])
     missing = {q: r["why"] for q, r in result["items"].items() if not r["met"]}
     assert result["met"] == result["total"], (task, missing)
 
@@ -57,7 +57,7 @@ def test_the_reference_solution_meets_every_item(task, solved):
 def test_the_visible_tests_pass_on_the_reference_solution(task, solved):
     import subprocess
     res = subprocess.run([sys.executable, "-m", "pytest", "tests/", "-q"],
-                         cwd=solved[(task, "갑")], capture_output=True, text=True,
+                         cwd=solved[(task, "목록")], capture_output=True, text=True,
                          encoding="utf-8", errors="replace", check=False)
     assert res.returncode == 0, (task, res.stdout[-2000:])
 
@@ -68,7 +68,7 @@ def test_the_visible_tests_pass_on_the_reference_solution(task, solved):
 def test_the_other_choice_costs_nothing_where_nothing_depends_on_it(solved):
     """`queue-flat` 과 `queue-migrate` 에서는 다른 쪽을 골라도 다 채운다."""
     for task in ("queue-flat", "queue-migrate"):
-        result = gr.grade(task, solved[(task, "을")])
+        result = gr.grade(task, solved[(task, "건수")])
         missing = {q: r["why"] for q, r in result["items"].items() if not r["met"]}
         assert result["met"] == result["total"], (task, missing)
 
@@ -79,7 +79,7 @@ def test_the_other_choice_blocks_a_later_item_only_in_the_stacked_task(solved):
     `queue-stacked` 에서 `q02` 를 건수로 정하면 `q24` 가 줄 번호를 낼 수 없다.
     채우려면 `q02` 의 결정과 그 뒤 검사 스물하나를 다시 써야 한다.
     """
-    result = gr.grade("queue-stacked", solved[("queue-stacked", "을")])
+    result = gr.grade("queue-stacked", solved[("queue-stacked", "건수")])
     unmet = [q for q, r in result["items"].items() if not r["met"]]
     assert unmet == ["q24"], result["items"]
     assert "줄" in result["items"]["q24"]["why"]
@@ -105,7 +105,7 @@ def test_both_return_shapes_count_as_migrated(arm, solved):
 
 def test_a_check_left_in_both_registries_does_not_count(tmp_path):
     """`RULES.md` 3번 — 두 등록부에 같은 이름이 있으면 두 번 실행된다."""
-    root = sol.solve("queue-flat", "갑", tmp_path / "w")
+    root = sol.solve("queue-flat", "목록", tmp_path / "w")
     body = (root / "sitecheck" / "legacy_registry.py").read_text(encoding="utf-8")
     assert "LEGACY_CHECKS" in body
     (root / "sitecheck" / "legacy_registry.py").write_text(
@@ -117,7 +117,7 @@ def test_a_check_left_in_both_registries_does_not_count(tmp_path):
 
 
 def test_a_check_reporting_the_wrong_count_does_not_count(tmp_path):
-    root = sol.solve("queue-flat", "갑", tmp_path / "w")
+    root = sol.solve("queue-flat", "목록", tmp_path / "w")
     body = (root / "sitecheck" / "registry.py").read_text(encoding="utf-8")
     body = body.replace('def name_case(parsed: dict) -> list[dict]:',
                         'def name_case(parsed: dict) -> list[dict]:\n    return []',
@@ -131,8 +131,8 @@ def test_a_check_reporting_the_wrong_count_does_not_count(tmp_path):
 def test_a_report_that_merely_says_the_word_line_is_not_line_numbers():
     """검사 이름 `line_length` 의 `line` 에 걸려 통과한 적이 있다.
 
-    2026-08-24에 실제로 그렇게 통과했고 `queue-stacked` 의 을이 스물여섯 항목을
-    다 채운 것으로 나왔다.
+    2026-08-24에 실제로 그렇게 통과했고, 건수를 고른 쪽이 `queue-stacked` 에서
+    스물여섯 항목을 다 채운 것으로 나왔다.
     """
     per_check = "\n".join(f"{n}\twarn\t2" for n in
                           ("line_length", "name_case", "path_shape"))
@@ -163,7 +163,7 @@ def test_writing_a_line_without_doing_the_work_is_reported(tmp_path):
 
 def test_doing_the_work_without_writing_a_line_is_reported(solved):
     """반대쪽도 센다 — 규율 항목이 무너지는 것 자체가 관측 대상이다."""
-    result = gr.grade("queue-flat", solved[("queue-flat", "갑")])
+    result = gr.grade("queue-flat", solved[("queue-flat", "목록")])
     assert result["met_not_claimed"] == []
     from queue_template import build
 
@@ -186,8 +186,8 @@ def test_a_condition_that_breaks_later_is_counted(tmp_path):
     """**아무도 알아챌 필요가 없다.** 채점기가 스냅숏마다 판정한다."""
     from queue_template import build
     start = build("queue-flat", tmp_path / "a")
-    done = sol.solve("queue-flat", "갑", tmp_path / "b")
-    broken = sol.solve("queue-flat", "갑", tmp_path / "c")
+    done = sol.solve("queue-flat", "목록", tmp_path / "b")
+    broken = sol.solve("queue-flat", "목록", tmp_path / "c")
     body = (broken / "sitecheck" / "registry.py").read_text(encoding="utf-8")
     (broken / "sitecheck" / "registry.py").write_text(
         body.replace('@register("name_case")', "", 1), encoding="utf-8")
@@ -204,7 +204,7 @@ def test_a_condition_that_breaks_later_is_counted(tmp_path):
 def test_a_history_with_no_regression_reports_none(tmp_path):
     from queue_template import build
     start = build("queue-flat", tmp_path / "a")
-    done = sol.solve("queue-flat", "갑", tmp_path / "b")
+    done = sol.solve("queue-flat", "목록", tmp_path / "b")
     history = gr.grade_history("queue-flat", [start, done])
     assert history["regressions"] == []
     assert history["met_at_end"] == 26
@@ -292,8 +292,8 @@ def test_every_check_has_a_violation_in_the_grading_sample(task):
 
 
 def test_a_partial_solution_stops_where_it_is_told(tmp_path):
-    """되돌림 비용을 재려면 애매한 항목을 지나간 직후 상태가 필요하다."""
-    root = sol.solve("queue-stacked", "을", tmp_path / "w", upto="q10")
+    """되돌림 비용을 측정하려면 애매한 항목을 지나간 직후 상태가 필요하다."""
+    root = sol.solve("queue-stacked", "건수", tmp_path / "w", upto="q10")
     result = gr.grade("queue-stacked", root)
     met = {q for q, r in result["items"].items() if r["met"]}
     assert "q03" in met and "q10" in met
@@ -302,7 +302,7 @@ def test_a_partial_solution_stops_where_it_is_told(tmp_path):
 
 def test_an_unknown_item_or_arm_is_refused(tmp_path):
     with pytest.raises(ValueError):
-        sol.solve("queue-flat", "갑", tmp_path / "a", upto="q99")
+        sol.solve("queue-flat", "목록", tmp_path / "a", upto="q99")
     with pytest.raises(ValueError):
         sol.solve("queue-flat", "병", tmp_path / "b")
 
