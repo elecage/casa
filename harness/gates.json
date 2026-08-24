@@ -14,5 +14,14 @@
     "state": "on",
     "threshold": 2,
     "reason": "내부 약어만으로 보고하면 유저가 주장을 검증할 수 없다. 한 세션에 한 번만 차단한다."
+  },
+  "legacy": {
+    "state": "sealed",
+    "since": "2026-08-23",
+    "path": "results-legacy/",
+    "reason": "유저 지시(2026-08-23) — \"지금까지의 수집 결과들은 레거시로 별도 보관하고. 자꾸 네가 건드리면서 오래된 자료만 뒤지게 하면 안돼.\" 그날 세션이 옛 자료로 같은 분석을 여섯 번 되풀이했다.",
+    "unseal_requires": "유저에게 무엇을 왜 보려는지 확인받고, 그 결정을 STATUS.md 결정 로그에 적은 다음 state 를 open 으로 바꾼다.",
+    "blocks": "results-legacy/ 를 가리키는 모든 도구 호출 (harness/legacy_guard.py).",
+    "history": "2026-08-23 results/ 를 results-legacy/ 로 옮기고 봉인."
   }
 }

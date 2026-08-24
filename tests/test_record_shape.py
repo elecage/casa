@@ -305,6 +305,66 @@ def test_the_grader_does_not_pin_where_corrections_are_applied(graded):
             "v03.intake.reads_jsonl_feed"} <= names
 
 
+def test_the_grader_takes_either_provenance_shape():
+    """출처를 평평하게 담든 `source` 안에 담든 둘 다 받는다(2026-08-23 정정).
+
+    `docs/v05-audit.md` 가 보여 주는 예시는 평평하다. 정정 전에는 중첩된
+    `source` 만 받았고, 그래서 명세대로 평평하게 구현한 사슬 프로브의 결과를
+    "출처 없음" 으로 채점했다. 같은 채점기의 v0.4 모양 검사들은 평평한 열쇠를
+    요구한다 — 한 채점기가 두 규약을 요구하고 있었다.
+    """
+    flat = {"id": "a01", "file": "site-a.csv", "line": 2}
+    nested = {"id": "a01", "source": {"file": "site-a.csv", "line": 2}}
+    for reading in (flat, nested):
+        got = grader._origin(reading)
+        assert got is not None
+        assert got.get("file") == "site-a.csv" and got.get("line") == 2
+
+
+def test_a_reading_with_no_provenance_has_no_origin():
+    assert grader._origin({"id": "a01", "account": "ACC-1"}) is None
+    assert grader._origin("not a dict") is None
+
+
+def test_the_basename_check_does_not_pass_on_a_missing_origin(graded):
+    """빈 값으로 통과하면 형제 검사가 다 떨어지는 동안 혼자 통과한다.
+
+    정정 전에 실제로 그랬다 — `source` 가 없으면 빈 문자열이 되고 빈
+    문자열에는 슬래시가 없어서 `file_is_basename` 만 통과했다. 검사 무리가
+    잘못 짜였다는 표시였다.
+    """
+    flat_shape = graded["v03-flat"]["checks"]
+    prov = {k: v for k, v in flat_shape.items() if k.startswith("v05.prov.")}
+    assert prov, "출처 검사가 사라졌다"
+    assert not any(v is True for v in prov.values()), prov
+
+
+def test_the_grader_does_not_require_as_of_outside_export(graded):
+    """명세 규칙 4는 `export` 만 말한다(2026-08-23 정정).
+
+    정정 전에는 `rollup` 과 `alerts` 산출물에도 `as_of` 를 요구했다. 명세에
+    근거가 없으므로 그 둘을 뺐다.
+    """
+    names = set(graded["complete"]["checks"])
+    assert "v04.asof.rollup_reports_as_of" not in names
+    assert "v04.shape.alerts_report_as_of" not in names
+    assert {"v04.asof.export_carries_as_of",
+            "v04.asof.export_as_of_null"} <= names
+
+
+def test_a_superseded_row_need_not_appear_in_the_intake_output():
+    """대체된 행을 `intake` 산출물에 실을지는 명세가 정하지 않는다."""
+    sources = [{"id": "h05", "superseded_by": "h07"},
+               {"id": "h07", "superseded_by": None}]
+    readings = [{"id": "h07"}]           # 정정을 적용한 결과만 내보낸다
+    assert grader._audit_ids_covered(sources, readings) is True
+
+
+def test_a_live_row_missing_from_the_intake_output_still_fails():
+    sources = [{"id": "h07", "superseded_by": None}]
+    assert grader._audit_ids_covered(sources, [{"id": "h01"}]) is False
+
+
 def test_the_grader_resolves_the_work_directory(tmp_path, monkeypatch):
     """상대 경로로 부르면 규칙 파일이 세션 디렉토리 안에서 다시 풀린다.
 
