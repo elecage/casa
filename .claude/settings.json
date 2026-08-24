@@ -66,6 +66,14 @@
           {
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR/harness/run.sh\" report_check"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/harness/run.sh\" wording_check"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/harness/run.sh\" repeat_check"
           }
         ]
       },
