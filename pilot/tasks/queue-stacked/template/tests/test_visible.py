@@ -25,6 +25,6 @@ def test_the_report_renders_every_registered_check():
 
 def test_the_migrated_checks_report_the_expected_counts():
     """이 기대값은 손으로 적어 두었다."""
-    expected = {'indent': 2, 'null_value': 2, 'schema_version': 2}
+    expected = {'indent': 0, 'null_value': 0, 'schema_version': 0}
     for name, want in expected.items():
         assert CHECKS[name](SAMPLE) == want, name

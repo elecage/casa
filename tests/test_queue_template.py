@@ -176,13 +176,23 @@ def test_the_warning_and_default_path_exists(built):
     assert "경고" in body and "기본값" in body, task
 
 
-def test_the_severity_decision_is_already_recorded(built):
-    """`q05` 의 결정이 `docs/decisions.md` 에 있고 코드가 그것과 맞는다."""
+def test_no_item_is_marked_done_before_the_session_starts(built):
+    """**시작 상태의 `docs/decisions.md` 에 항목 줄이 하나도 없어야 한다.**
+
+    큐는 이 파일에 `- q05: ...` 형태의 줄이 있으면 그 항목을 끝난 것으로 보고
+    건너뛴다. 처음 판이 `q05` 줄을 미리 넣어 두어서 그 항목이 세션에게 한 번도
+    보이지 않았고, `q19` 의 상충이 전제하는 결정 자체가 사라졌다.
+    """
+    task, root = built
+    assert qt.marked_done(_text(root, "docs/decisions.md")) == [], task
+    items = qt.load_queue(task)
+    assert qt.current_item(items, _text(root, "docs/decisions.md"))["id"] == "q01"
+
+
+def test_the_severity_starts_as_a_string(built):
+    """`q05` 가 문자열로 정하는 것이 자연스러우려면 시작이 문자열이어야 한다."""
     _task, root = built
-    assert "q05:" in _text(root, "docs/decisions.md")
-    assert "문자열" in _text(root, "docs/decisions.md")
-    body = _text(root, "sitecheck/severity.py")
-    assert '"warn"' in body, "심각도가 문자열이어야 q19 와 어긋난다"
+    assert '"warn"' in _text(root, "sitecheck/severity.py")
 
 
 # ---------------------------------------------- 답을 흘리지 않는가

@@ -15,4 +15,4 @@ def check_port_range(parsed: dict) -> int:
 
 
 def _violates_port_range(key: str, value: str) -> bool:
-    return key.startswith("port") and not value.strip()
+    return key.startswith("port_range") and not value.strip()

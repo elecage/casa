@@ -15,4 +15,4 @@ def check_null_value(parsed: dict) -> int:
 
 
 def _violates_null_value(key: str, value: str) -> bool:
-    return key.startswith("null") and not value.strip()
+    return key.startswith("null_value") and not value.strip()

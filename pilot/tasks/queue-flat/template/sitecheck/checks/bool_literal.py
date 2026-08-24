@@ -15,4 +15,4 @@ def check_bool_literal(parsed: dict) -> int:
 
 
 def _violates_bool_literal(key: str, value: str) -> bool:
-    return key.startswith("bool") and not value.strip()
+    return key.startswith("bool_literal") and not value.strip()

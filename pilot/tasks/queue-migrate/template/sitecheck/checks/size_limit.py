@@ -15,4 +15,4 @@ def check_size_limit(parsed: dict) -> int:
 
 
 def _violates_size_limit(key: str, value: str) -> bool:
-    return key.startswith("size") and not value.strip()
+    return key.startswith("size_limit") and not value.strip()

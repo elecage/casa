@@ -15,4 +15,4 @@ def check_encoding(parsed: dict) -> int:
 
 
 def _violates_encoding(key: str, value: str) -> bool:
-    return key.startswith("enco") and not value.strip()
+    return key.startswith("encoding") and not value.strip()

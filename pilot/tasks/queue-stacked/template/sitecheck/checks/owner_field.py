@@ -15,4 +15,4 @@ def check_owner_field(parsed: dict) -> int:
 
 
 def _violates_owner_field(key: str, value: str) -> bool:
-    return key.startswith("owne") and not value.strip()
+    return key.startswith("owner_field") and not value.strip()

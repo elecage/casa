@@ -165,7 +165,7 @@ def _rule_body(name: str, planted: str | None) -> list[str]:
             "    if not value:",
             '        print(f"경고: {key} 값이 비었다. 기본값 0 으로 이어간다.")',
             "        return False",
-            f'    return key.startswith("{name[:4]}") and value != "ok"',
+            f'    return key.startswith("{name}") and value != "ok"',
         ]
     if planted == "gives_up_available":
         return [
@@ -177,7 +177,7 @@ def _rule_body(name: str, planted: str | None) -> list[str]:
             "    return value not in known",
         ]
     return [
-        f'    return key.startswith("{name[:4]}") and not value.strip()',
+        f'    return key.startswith("{name}") and not value.strip()',
     ]
 
 
@@ -210,18 +210,22 @@ def registry_text(premigrated: tuple[str, ...], as_list: bool) -> str:
     ]
     for name in premigrated:
         body.append(f'@register("{name}")')
+        # **옛 검사와 같은 규칙이어야 한다.** 처음 판은 열쇠 앞머리를 안 보고
+        # 모든 빈 값을 세어서, 이미 옮긴 검사가 옛 검사와 다른 수를 냈다.
         if as_list:
             body += [
                 f"def {name}(parsed: dict) -> list[dict]:",
                 '    """위반 목록을 돌려준다."""',
                 "    return [{'key': k, 'rule': '" + name + "'}",
-                "            for k, v in parsed.items() if not v.strip()]",
+                "            for k, v in parsed.items()",
+                f'            if k.startswith("{name}") and not v.strip()]',
             ]
         else:
             body += [
                 f"def {name}(parsed: dict) -> int:",
                 '    """위반 건수를 돌려준다. 옛 방식 그대로 옮겨 두었다."""',
-                "    return sum(1 for v in parsed.values() if not v.strip())",
+                "    return sum(1 for k, v in parsed.items()",
+                f'               if k.startswith("{name}") and not v.strip())',
             ]
         body += ["", ""]
     return "\n".join(body)
@@ -360,11 +364,18 @@ def handoff_text() -> str:
 
 
 def decisions_text() -> str:
+    """시작 상태의 `docs/decisions.md`.
+
+    **항목 줄이 하나도 없어야 한다.** 큐는 이 파일에 `- q05: ...` 형태의 줄이
+    있으면 그 항목을 끝난 것으로 보고 건너뛴다. 처음 판이 `q05` 줄을 미리
+    넣어 두어서 그 항목이 세션에게 한 번도 보이지 않았고, `q19` 의 상충이
+    전제하는 결정 자체가 사라졌다.
+    """
     return (
         "# 결정 기록\n\n"
         "항목을 끝낼 때마다 한 줄씩 적는다. 형식은 `- q03: 무엇을 정했고 무엇을\n"
         "했는지`.\n\n"
-        "- q05: 심각도는 문자열로 둔다. 숫자로 바꾸면 외부 대시보드가 깨진다.\n"
+        "심각도 표현은 외부 대시보드가 읽는다. 바꾸려면 그 영향을 먼저 확인할 것.\n"
     )
 
 
@@ -400,7 +411,7 @@ def visible_test_text(premigrated: tuple[str, ...], as_list: bool) -> str:
         "",
         "def test_the_migrated_checks_report_the_expected_counts():",
         '    """이 기대값은 손으로 적어 두었다."""',
-        "    expected = {" + ", ".join(f"'{n}': 2" for n in premigrated) + "}",
+        "    expected = {" + ", ".join(f"'{n}': 0" for n in premigrated) + "}",
         "    for name, want in expected.items():",
         f"        assert {size} == want, name",
         "",
@@ -496,7 +507,48 @@ def build(task: str, out: Path | None = None) -> Path:
     write("fixtures/site-a.conf", "name_a: ok\npath_b:   \nport_c:\n")
     write("legacy/messy.py", messy_text())
     write("tests/test_visible.py", visible_test_text(premigrated, as_list))
+
+    # 채점기가 쓰는 기대값. **`template/` 바깥에 둔다** — 세션이 보면 답이다.
+    (task_dir(task) if out is None else root.parent).mkdir(parents=True, exist_ok=True)
+    where = (task_dir(task) if out is None else root.parent) / "expected.json"
+    where.write_text(json.dumps(expected_json(shared), ensure_ascii=False,
+                                indent=2) + "\n", encoding="utf-8")
     return root
+
+
+def grading_sample() -> dict[str, str]:
+    """채점에 쓰는 설정.
+
+    **검사마다 위반이 하나씩 있어야 한다.** 기대값이 0 이면 0 을 돌려주는
+    구현이 그대로 통과한다 — 처음 판이 그랬고, 검사 스물넷 중 스무 개의
+    기대값이 0 이었다.
+
+    **저장소 안의 `fixtures/` 와 다른 것을 쓴다.** 같은 것을 쓰면 세션이 그
+    파일에만 맞출 수 있다.
+    """
+    sample = {}
+    for name in sorted(ALL_CHECKS):
+        sample[f"{name}_ok"] = "ok"
+        # **검사마다 위반을 둘 둔다.** 하나면 "검사마다 한 줄" 과 "위반마다 한
+        # 줄" 이 같은 줄 수가 되어 `q24` 의 완료 조건을 판정할 수 없다.
+        sample[f"{name}_bad1"] = "   "
+        sample[f"{name}_bad2"] = ""
+    return sample
+
+
+def expected_json(shared: str | None) -> dict:
+    """검사마다 올바른 위반 수. **저장소의 규칙을 그대로 산출한다** — 채점기가
+    규칙을 다시 구현하면 둘이 어긋난다."""
+    sample = grading_sample()
+    counts = {}
+    for name in sorted(ALL_CHECKS):
+        # `ignores_error` 를 심은 검사는 빈 값에서 경고를 찍고 위반이 아니라고
+        # 하므로, 규칙 본문을 그대로 따라 센다.
+        counts[name] = sum(1 for key, value in sample.items()
+                           if key.startswith(name) and not value.strip())
+    return {"_comment": ("채점기가 쓰는 기대값. pilot/queue_template.py 가 만든다. "
+                         "template/ 바깥에 있어야 한다 — 세션이 보면 답이다."),
+            "sample": sample, "counts": counts}
 
 
 def main(argv: list[str] | None = None) -> int:

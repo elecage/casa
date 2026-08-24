@@ -15,4 +15,4 @@ def check_list_order(parsed: dict) -> int:
 
 
 def _violates_list_order(key: str, value: str) -> bool:
-    return key.startswith("list") and not value.strip()
+    return key.startswith("list_order") and not value.strip()

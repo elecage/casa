@@ -15,4 +15,4 @@ def check_trailing_ws(parsed: dict) -> int:
 
 
 def _violates_trailing_ws(key: str, value: str) -> bool:
-    return key.startswith("trai") and not value.strip()
+    return key.startswith("trailing_ws") and not value.strip()

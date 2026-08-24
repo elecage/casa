@@ -19,4 +19,4 @@ def _violates_required_keys(key: str, value: str) -> bool:
     if not value:
         print(f"경고: {key} 값이 비었다. 기본값 0 으로 이어간다.")
         return False
-    return key.startswith("requ") and value != "ok"
+    return key.startswith("required_keys") and value != "ok"

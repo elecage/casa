@@ -15,4 +15,4 @@ def check_charset(parsed: dict) -> int:
 
 
 def _violates_charset(key: str, value: str) -> bool:
-    return key.startswith("char") and not value.strip()
+    return key.startswith("charset") and not value.strip()

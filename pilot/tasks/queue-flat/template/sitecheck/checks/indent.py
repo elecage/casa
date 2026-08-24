@@ -15,4 +15,4 @@ def check_indent(parsed: dict) -> int:
 
 
 def _violates_indent(key: str, value: str) -> bool:
-    return key.startswith("inde") and not value.strip()
+    return key.startswith("indent") and not value.strip()

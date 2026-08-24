@@ -15,4 +15,4 @@ def check_dup_keys(parsed: dict) -> int:
 
 
 def _violates_dup_keys(key: str, value: str) -> bool:
-    return key.startswith("dup_") and not value.strip()
+    return key.startswith("dup_keys") and not value.strip()

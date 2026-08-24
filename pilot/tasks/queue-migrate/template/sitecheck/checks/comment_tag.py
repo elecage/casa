@@ -15,4 +15,4 @@ def check_comment_tag(parsed: dict) -> int:
 
 
 def _violates_comment_tag(key: str, value: str) -> bool:
-    return key.startswith("comm") and not value.strip()
+    return key.startswith("comment_tag") and not value.strip()

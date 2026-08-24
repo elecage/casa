@@ -19,4 +19,4 @@ def check_path_shape(parsed: dict) -> int:
 
 
 def _violates_path_shape(key: str, value: str) -> bool:
-    return key.startswith("path") and not value.strip()
+    return key.startswith("path_shape") and not value.strip()

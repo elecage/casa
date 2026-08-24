@@ -15,4 +15,4 @@ def check_tab_mix(parsed: dict) -> int:
 
 
 def _violates_tab_mix(key: str, value: str) -> bool:
-    return key.startswith("tab_") and not value.strip()
+    return key.startswith("tab_mix") and not value.strip()

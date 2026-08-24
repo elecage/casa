@@ -16,4 +16,4 @@ def check_line_length(parsed: dict) -> int:
 
 
 def _violates_line_length(key: str, value: str) -> bool:
-    return key.startswith("line") and not value.strip()
+    return key.startswith("line_length") and not value.strip()

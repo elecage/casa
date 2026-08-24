@@ -15,4 +15,4 @@ def check_empty_section(parsed: dict) -> int:
 
 
 def _violates_empty_section(key: str, value: str) -> bool:
-    return key.startswith("empt") and not value.strip()
+    return key.startswith("empty_section") and not value.strip()

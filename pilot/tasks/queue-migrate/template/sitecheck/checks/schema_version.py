@@ -15,4 +15,4 @@ def check_schema_version(parsed: dict) -> int:
 
 
 def _violates_schema_version(key: str, value: str) -> bool:
-    return key.startswith("sche") and not value.strip()
+    return key.startswith("schema_version") and not value.strip()

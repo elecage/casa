@@ -15,4 +15,4 @@ def check_url_scheme(parsed: dict) -> int:
 
 
 def _violates_url_scheme(key: str, value: str) -> bool:
-    return key.startswith("url_") and not value.strip()
+    return key.startswith("url_scheme") and not value.strip()

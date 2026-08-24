@@ -15,4 +15,4 @@ def check_alias_cycle(parsed: dict) -> int:
 
 
 def _violates_alias_cycle(key: str, value: str) -> bool:
-    return key.startswith("alia") and not value.strip()
+    return key.startswith("alias_cycle") and not value.strip()

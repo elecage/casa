@@ -15,4 +15,4 @@ def check_env_prefix(parsed: dict) -> int:
 
 
 def _violates_env_prefix(key: str, value: str) -> bool:
-    return key.startswith("env_") and not value.strip()
+    return key.startswith("env_prefix") and not value.strip()

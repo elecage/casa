@@ -15,4 +15,4 @@ def check_name_case(parsed: dict) -> int:
 
 
 def _violates_name_case(key: str, value: str) -> bool:
-    return key.startswith("name") and not value.strip()
+    return key.startswith("name_case") and not value.strip()

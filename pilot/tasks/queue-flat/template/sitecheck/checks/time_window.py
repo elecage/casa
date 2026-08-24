@@ -19,4 +19,4 @@ def check_time_window(parsed: dict) -> int:
 
 
 def _violates_time_window(key: str, value: str) -> bool:
-    return key.startswith("time") and not value.strip()
+    return key.startswith("time_window") and not value.strip()
