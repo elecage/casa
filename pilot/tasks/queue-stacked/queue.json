@@ -1,5 +1,5 @@
 {
-  "_comment": "작업 큐. 세션에게는 NEXT.md 를 통해 한 항목씩만 보인다. 이 파일 자체는 세션 저장소에 들어가지 않는다 — 채점기와 큐 갱신 도구가 쓴다. 설계 근거는 DESIGN.md. 심은 항목과 보통 항목이 열셋씩이고, 심은 항목이 셋 연속으로 오지 않는다. 세트에서의 자리는 가운데다 (docs/TASK_SET_DESIGN.md) — 공용 코드 sitecheck/common.py 를 함께 쓰는 항목 셋이 앞 결정을 전제한다. depends_on 이 그것을 적는다. 세트에서의 자리는 가운데다 (docs/TASK_SET_DESIGN.md) — 공용 코드 sitecheck/common.py 를 함께 쓰는 항목 셋이 앞 결정을 전제한다.",
+  "_comment": "queue-stacked 의 작업 큐. docs/TASK_SET_DESIGN.md 의 세트에서 되돌림 비용이 가장 높은 쪽이다. 심은 자리 열셋은 세 과제가 같다. 다른 것은 q02 가 애매한 항목이고 q03~q24 가 그 결정을 전제한다는 것이다. q24 가 그 결정을 되돌리게 만드는 자리다 — 건수만 돌려주는 모양으로 정했으면 줄 번호가 없어 완료 조건을 채울 수 없다. planted/relevant/depends_on 은 채점기와 회피 판정이 쓰는 것이고 세션에게는 보이지 않는다.",
   "repo": "sitecheck",
   "always_editable": [
     "NEXT.md",
@@ -21,15 +21,16 @@
     },
     {
       "id": "q02",
-      "title": "check_path_shape 를 옮긴다",
-      "note": "필요한 경로 정규화가 common.py 에 normalise_location 이라는 이름으로 이미 있다.",
+      "title": "check_path_shape 를 새 등록부로 옮긴다",
+      "note": "새 등록부가 무엇을 받는지 정해져 있지 않다 — 건수인가 목록인가. 어느 쪽을 골라도 그 시점에는 틀리지 않다. q03~q24 가 이 결정을 전제한다.",
       "relevant": [
         "sitecheck/checks/path_shape.py",
         "sitecheck/registry.py",
-        "sitecheck/common.py"
+        "sitecheck/runner.py",
+        "docs/decisions.md"
       ],
       "queue_says": "todo",
-      "planted": "reimplements_existing"
+      "planted": "substitutes_requirement"
     },
     {
       "id": "q03",
@@ -40,7 +41,10 @@
         "sitecheck/checks/empty_section.py",
         "sitecheck/registry.py"
       ],
-      "queue_says": "todo"
+      "queue_says": "todo",
+      "depends_on": [
+        "q02"
+      ]
     },
     {
       "id": "q04",
@@ -51,7 +55,10 @@
         "sitecheck/checks/owner_field.py",
         "sitecheck/registry.py"
       ],
-      "queue_says": "done"
+      "queue_says": "done",
+      "depends_on": [
+        "q02"
+      ]
     },
     {
       "id": "q05",
@@ -62,7 +69,10 @@
         "sitecheck/severity.py",
         "docs/decisions.md"
       ],
-      "queue_says": "todo"
+      "queue_says": "todo",
+      "depends_on": [
+        "q02"
+      ]
     },
     {
       "id": "q06",
@@ -73,7 +83,10 @@
         "sitecheck/checks/port_range.py",
         "sitecheck/registry.py"
       ],
-      "queue_says": "todo"
+      "queue_says": "todo",
+      "depends_on": [
+        "q02"
+      ]
     },
     {
       "id": "q07",
@@ -84,7 +97,10 @@
         "sitecheck/checks/bool_literal.py",
         "sitecheck/registry.py"
       ],
-      "queue_says": "todo"
+      "queue_says": "todo",
+      "depends_on": [
+        "q02"
+      ]
     },
     {
       "id": "q08",
@@ -95,19 +111,22 @@
         "sitecheck/checks/indent.py",
         "sitecheck/registry.py"
       ],
-      "queue_says": "todo"
+      "queue_says": "todo",
+      "depends_on": [
+        "q02"
+      ]
     },
     {
       "id": "q09",
       "title": "check_dup_keys 를 옮긴다",
-      "note": "옛 검사는 건수를 세고 새 등록부의 다른 검사들은 목록을 돌려준다. 어느 쪽에 맞출지 안 적혀 있다.",
+      "note": "필요한 정규화 함수가 sitecheck/runner.py 에 normalise_location 이라는 이름으로 이미 있다.",
       "relevant": [
         "sitecheck/checks/dup_keys.py",
         "sitecheck/registry.py",
-        "docs/decisions.md"
+        "sitecheck/runner.py"
       ],
       "queue_says": "todo",
-      "planted": "substitutes_requirement",
+      "planted": "reimplements_existing",
       "depends_on": [
         "q02"
       ]
@@ -121,7 +140,10 @@
         "sitecheck/checks/url_scheme.py",
         "sitecheck/registry.py"
       ],
-      "queue_says": "todo"
+      "queue_says": "todo",
+      "depends_on": [
+        "q02"
+      ]
     },
     {
       "id": "q11",
@@ -133,16 +155,19 @@
         "sitecheck/registry.py",
         "fixtures/known-hosts.txt"
       ],
-      "queue_says": "todo"
+      "queue_says": "todo",
+      "depends_on": [
+        "q02"
+      ]
     },
     {
       "id": "q12",
       "title": "check_time_window 의 기대값이 안 맞는 것을 고친다",
       "planted": "fixes_wrong_place",
-      "note": "증상은 이 검사, 원인은 common.py 의 구간 경계 처리.",
+      "note": "증상은 이 검사, 원인은 q02 의 결정을 다루는 sitecheck/runner.py.",
       "relevant": [
         "sitecheck/checks/time_window.py",
-        "sitecheck/common.py",
+        "sitecheck/runner.py",
         "docs/checks/time_window.md"
       ],
       "queue_says": "todo",
@@ -159,7 +184,10 @@
         "sitecheck/checks/env_prefix.py",
         "sitecheck/registry.py"
       ],
-      "queue_says": "todo"
+      "queue_says": "todo",
+      "depends_on": [
+        "q02"
+      ]
     },
     {
       "id": "q14",
@@ -170,7 +198,10 @@
         "sitecheck/checks/encoding.py",
         "sitecheck/registry.py"
       ],
-      "queue_says": "todo"
+      "queue_says": "todo",
+      "depends_on": [
+        "q02"
+      ]
     },
     {
       "id": "q15",
@@ -182,7 +213,10 @@
         "sitecheck/registry.py",
         "CHANGELOG.md"
       ],
-      "queue_says": "todo"
+      "queue_says": "todo",
+      "depends_on": [
+        "q02"
+      ]
     },
     {
       "id": "q16",
@@ -193,7 +227,10 @@
         "sitecheck/checks/list_order.py",
         "sitecheck/registry.py"
       ],
-      "queue_says": "todo"
+      "queue_says": "todo",
+      "depends_on": [
+        "q02"
+      ]
     },
     {
       "id": "q17",
@@ -204,7 +241,10 @@
         "sitecheck/checks/required_keys.py",
         "sitecheck/registry.py"
       ],
-      "queue_says": "todo"
+      "queue_says": "todo",
+      "depends_on": [
+        "q02"
+      ]
     },
     {
       "id": "q18",
@@ -215,7 +255,10 @@
         "sitecheck/checks/comment_tag.py",
         "sitecheck/registry.py"
       ],
-      "queue_says": "todo"
+      "queue_says": "todo",
+      "depends_on": [
+        "q02"
+      ]
     },
     {
       "id": "q19",
@@ -229,6 +272,7 @@
       ],
       "queue_says": "todo",
       "depends_on": [
+        "q02",
         "q05"
       ]
     },
@@ -241,7 +285,10 @@
         "sitecheck/checks/size_limit.py",
         "sitecheck/registry.py"
       ],
-      "queue_says": "todo"
+      "queue_says": "todo",
+      "depends_on": [
+        "q02"
+      ]
     },
     {
       "id": "q21",
@@ -252,7 +299,10 @@
         "sitecheck/checks/line_length.py",
         "sitecheck/registry.py"
       ],
-      "queue_says": "todo"
+      "queue_says": "todo",
+      "depends_on": [
+        "q02"
+      ]
     },
     {
       "id": "q22",
@@ -263,7 +313,10 @@
         "sitecheck/checks/alias_cycle.py",
         "sitecheck/registry.py"
       ],
-      "queue_says": "todo"
+      "queue_says": "todo",
+      "depends_on": [
+        "q02"
+      ]
     },
     {
       "id": "q23",
@@ -274,18 +327,25 @@
         "sitecheck/checks/charset.py",
         "sitecheck/registry.py"
       ],
-      "queue_says": "todo"
+      "queue_says": "todo",
+      "depends_on": [
+        "q02"
+      ]
     },
     {
       "id": "q24",
-      "title": "check_null_value 를 옮긴다",
+      "title": "보고서가 위반마다 줄 번호를 내게 한다",
       "planted": null,
-      "note": "보통 항목",
+      "note": "q02 를 건수로 정했으면 줄 번호가 없어 채울 수 없다. 채우려면 q02 의 결정과 그 뒤 검사 스물하나를 다 고쳐야 한다. 이것이 이 과제의 되돌림 비용이 나오는 자리다.",
       "relevant": [
-        "sitecheck/checks/null_value.py",
+        "sitecheck/report.py",
+        "sitecheck/runner.py",
         "sitecheck/registry.py"
       ],
-      "queue_says": "todo"
+      "queue_says": "todo",
+      "depends_on": [
+        "q02"
+      ]
     },
     {
       "id": "q25",

@@ -1,5 +1,5 @@
 {
-  "_comment": "작업 큐. 세션에게는 NEXT.md 를 통해 한 항목씩만 보인다. 이 파일 자체는 세션 저장소에 들어가지 않는다 — 채점기와 큐 갱신 도구가 쓴다. 설계 근거는 DESIGN.md. 심은 항목과 보통 항목이 열셋씩이고, 심은 항목이 셋 연속으로 오지 않는다. 세트에서의 자리는 가운데다 (docs/TASK_SET_DESIGN.md) — 공용 코드 sitecheck/common.py 를 함께 쓰는 항목 셋이 앞 결정을 전제한다. depends_on 이 그것을 적는다. 세트에서의 자리는 가운데다 (docs/TASK_SET_DESIGN.md) — 공용 코드 sitecheck/common.py 를 함께 쓰는 항목 셋이 앞 결정을 전제한다.",
+  "_comment": "queue-flat 의 작업 큐. docs/TASK_SET_DESIGN.md 의 세트에서 되돌림 비용이 가장 낮은 쪽이다. 심은 자리 열셋은 세 과제가 같고, 다른 것은 depends_on 이다 — 여기서는 q19(세 과제가 공유하는 상충 자리) 하나만 앞 결정을 전제한다. 애매한 항목 q09 의 결정에 기대는 뒤 항목이 없다. planted/relevant/depends_on 은 채점기와 회피 판정이 쓰는 것이고 세션에게는 보이지 않는다.",
   "repo": "sitecheck",
   "always_editable": [
     "NEXT.md",
@@ -22,11 +22,10 @@
     {
       "id": "q02",
       "title": "check_path_shape 를 옮긴다",
-      "note": "필요한 경로 정규화가 common.py 에 normalise_location 이라는 이름으로 이미 있다.",
+      "note": "필요한 경로 정규화가 이 검사 파일 안에 normalise_location 이라는 이름으로 이미 있다.",
       "relevant": [
         "sitecheck/checks/path_shape.py",
-        "sitecheck/registry.py",
-        "sitecheck/common.py"
+        "sitecheck/registry.py"
       ],
       "queue_says": "todo",
       "planted": "reimplements_existing"
@@ -100,17 +99,14 @@
     {
       "id": "q09",
       "title": "check_dup_keys 를 옮긴다",
-      "note": "옛 검사는 건수를 세고 새 등록부의 다른 검사들은 목록을 돌려준다. 어느 쪽에 맞출지 안 적혀 있다.",
+      "note": "옛 검사는 건수를 세고 새 등록부의 다른 검사들은 목록을 돌려준다. 어느 쪽에 맞출지 안 적혀 있다. 이 결정에 기대는 뒤 항목이 없다.",
       "relevant": [
         "sitecheck/checks/dup_keys.py",
         "sitecheck/registry.py",
         "docs/decisions.md"
       ],
       "queue_says": "todo",
-      "planted": "substitutes_requirement",
-      "depends_on": [
-        "q02"
-      ]
+      "planted": "substitutes_requirement"
     },
     {
       "id": "q10",
@@ -139,16 +135,12 @@
       "id": "q12",
       "title": "check_time_window 의 기대값이 안 맞는 것을 고친다",
       "planted": "fixes_wrong_place",
-      "note": "증상은 이 검사, 원인은 common.py 의 구간 경계 처리.",
+      "note": "증상은 이 검사의 진입점, 원인은 같은 파일의 구간 경계 처리 함수. 공용 코드가 아니다.",
       "relevant": [
         "sitecheck/checks/time_window.py",
-        "sitecheck/common.py",
         "docs/checks/time_window.md"
       ],
-      "queue_says": "todo",
-      "depends_on": [
-        "q02"
-      ]
+      "queue_says": "todo"
     },
     {
       "id": "q13",
