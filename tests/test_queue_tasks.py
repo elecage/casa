@@ -298,33 +298,55 @@ def test_reverting_an_earlier_decision_in_stacked_is_not_avoidance():
 
 
 # ----------------------------------------------------------------- 프롬프트
+#
+# `pilot/run_chain.py` 는 `prompt.txt` 를 **첫 세션에만** 주고 둘째 세션부터는
+# `prompt_followup.txt` 를 준다. 2026-08-26에 첫 판이 `prompt.txt` 에
+# "이어서 해 줘" 라고 적었는데, 첫 세션에는 이어받을 앞사람이 없다. 유저가
+# 지적해서 드러났다.
 
 
-def _prompts() -> dict[str, str]:
-    return {
-        task: (qt.task_dir(task) / "prompt.txt").read_text(encoding="utf-8")
-        for task in qt.QUEUE_TASKS
-    }
+def _prompt(task: str, name: str = "prompt.txt") -> str:
+    return (qt.task_dir(task) / name).read_text(encoding="utf-8")
 
 
-def test_the_three_tasks_share_one_prompt():
+@pytest.mark.parametrize("name", ["prompt.txt", "prompt_followup.txt"])
+def test_the_three_tasks_share_one_prompt(name):
     """셋을 구분하는 변수는 의존 구조 하나뿐이다.
 
     프롬프트가 셋으로 갈라지면 그것이 두 번째 변수가 된다.
     """
-    texts = set(_prompts().values())
-    assert len(texts) == 1, "세 과제의 prompt.txt 가 서로 다르다"
+    texts = {_prompt(task, name) for task in qt.QUEUE_TASKS}
+    assert len(texts) == 1, f"세 과제의 {name} 이 서로 다르다"
 
 
-def test_the_prompt_does_not_repeat_the_discipline_items():
+def test_only_the_followup_prompt_talks_about_taking_over():
+    """첫 세션에는 이어받을 앞사람이 없다."""
+    first, followup = _prompt("queue-flat"), _prompt("queue-flat", "prompt_followup.txt")
+    for taking_over in ("이어서", "이어받", "앞사람"):
+        assert taking_over not in first, taking_over
+    assert "이어서" in followup and "앞사람" in followup
+
+
+def test_neither_prompt_says_how_much_to_finish():
+    """얼마나 끝내도 되는지는 일하는 요령이다 (`harness/anchor.md`).
+
+    첫 판이 "한 번에 다 못 끝내도 괜찮아" 라고 적었다. 그 말이 있고 없고에
+    따라 세션이 남기는 양이 달라지고, 그 차이가 이 과제가 측정하려는 것이다.
+    """
+    for name in ("prompt.txt", "prompt_followup.txt"):
+        text = _prompt("queue-flat", name)
+        for steering in ("다 못 끝내도", "한 번에 다", "괜찮아"):
+            assert steering not in text, f"{name}: {steering}"
+
+
+@pytest.mark.parametrize("name", ["prompt.txt", "prompt_followup.txt"])
+def test_the_prompt_does_not_repeat_the_discipline_items(name):
     """항목마다 `docs/decisions.md` 갱신과 테스트 실행은 관측 대상이다.
 
-    `harness/anchor.md` 의 프롬프트 규칙 — 일하는 요령은 프롬프트에 넣지
-    않는다. 규율을 프롬프트가 다시 말하면 세션마다 갈리던 행동이 한쪽으로
-    모이고, 그 차이가 이 과제가 측정하려는 것이다. 규율은 저장소 안의
-    `HANDOFF.md` 에만 있다.
+    프롬프트가 규율을 다시 요구하면 세션마다 갈리던 행동이 한쪽으로 모인다.
+    규율은 저장소 안의 `HANDOFF.md` 에만 있다.
     """
-    text = _prompts()["queue-flat"]
+    text = _prompt("queue-flat", name)
     for leaked in ("decisions.md", "pytest", "테스트를 실행"):
         assert leaked not in text, leaked
     handoff = (qt.task_dir("queue-flat") / "template" / "HANDOFF.md").read_text(
@@ -332,9 +354,10 @@ def test_the_prompt_does_not_repeat_the_discipline_items():
     assert "decisions.md" in handoff and "pytest" in handoff
 
 
-def test_the_prompt_names_no_queue_item_and_no_planted_trap():
+@pytest.mark.parametrize("name", ["prompt.txt", "prompt_followup.txt"])
+def test_the_prompt_names_no_queue_item_and_no_planted_trap(name):
     """무엇이 문제인지는 프롬프트에 넣지 않는다 (`harness/anchor.md`)."""
-    text = _prompts()["queue-flat"]
+    text = _prompt("queue-flat", name)
     for item in qt.load_queue("queue-flat"):
         assert item["id"] not in text, item["id"]
         planted = item.get("planted")
@@ -342,7 +365,7 @@ def test_the_prompt_names_no_queue_item_and_no_planted_trap():
             assert planted not in text, planted
 
 
-def test_the_prompt_says_what_the_repo_is_and_what_ends_the_session():
-    text = _prompts()["queue-flat"]
+def test_the_first_prompt_says_what_the_repo_is_and_what_ends_the_session():
+    text = _prompt("queue-flat")
     assert "sitecheck" in text
     assert "NEXT.md" in text and "HANDOFF.md" in text
