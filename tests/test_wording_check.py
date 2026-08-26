@@ -145,6 +145,37 @@ def test_ordinary_prose_passes():
     assert _names("세션 마흔여덟을 실행해 호출 수의 중앙값을 산출한다.") == []
 
 
+# ------------------------------------------- 2026-08-26 유저 지적 셋
+
+
+def test_the_three_sentences_the_user_pointed_at_are_caught():
+    """유저가 2026-08-26에 지적한 문장 그대로.
+
+    셋 다 같은 날 이 저장소의 세션이 유저에게 보낸 답과 PR 본문에 있었다.
+    `갈래` 와 `심다` 는 이미 있는 문서의 표현을 정의 없이 답에 옮겨 적은
+    것이고, `자라다` 는 새로 쓴 비유다.
+    """
+    assert "갈래" in _names("`docs/ARCHITECTURE.md`(과제 세 갈래 표)를 고쳤다.")
+    assert "심다 (함정·결함을)" in _names("왜 함정을 심은 과제가 필요한가.")
+    assert "자라다 (목록이)" in _names("글쓰기 목록이 자라는 방식과 같습니다.")
+
+
+def test_planting_a_seed_reading_is_not_needed_but_the_object_is():
+    """`심다` 는 함정·결함을 넣는다는 뜻으로 쓸 때만 본다."""
+    assert "심다 (함정·결함을)" not in _names("이 결정이 심각한 영향을 준다.")
+
+
+def test_the_lock_being_open_is_not_a_banned_phrase():
+    """`열어 두다` 를 넣었다가 뺀 이유를 못 박는다.
+
+    수집 잠금은 실제로 열리고 닫히는 상태이고(`harness/gates.json` 의
+    `collection.state`), 그 상태를 말하는 문장은 위반이 아니다. 유저가 지적한
+    것은 그 말이 아니라 "두 가지" 가 무엇인지 안 적은 것이었는데, 그것은
+    문자열 대조로 판정되지 않는다.
+    """
+    assert _names("수집 잠금은 배치용으로 열어 둔 상태다.") == []
+
+
 # --------------------------------------------------------- 분모 없는 비율
 
 
