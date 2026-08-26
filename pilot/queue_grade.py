@@ -161,8 +161,8 @@ def _sorted_by_severity(work_dir: Path, decisions: str) -> tuple[bool, str]:
 
 #: 줄 번호로 볼 표시. **`"line" 이 들어 있는가` 로 보면 안 된다** — 검사 이름
 #: `line_length` 에 걸려서, 줄 번호를 내지 않는 보고서가 통과한다. 2026-08-24에
-#: 실제로 그렇게 통과했고 `queue-stacked` 의 을이 스물여섯 항목을 다 채운 것으로
-#: 나왔다.
+#: 실제로 그렇게 통과했고, 건수를 고른 쪽이 `queue-stacked` 에서 스물여섯 항목을
+#: 다 채운 것으로 나왔다.
 _LINE_MARK = re.compile(r"(?:line|줄)\s*[:=]?\s*\d+", re.IGNORECASE)
 
 
