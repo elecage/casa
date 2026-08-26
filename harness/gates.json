@@ -31,6 +31,13 @@
     "blocks": "수집 잠금이 걸려 있는 동안, 분석 스크립트를 total 회 이상 실행했거나 한 스크립트를 서로 다른 인자로 variants 회 이상 실행하고 끝내려 하면 한 번 되돌려보낸다 (harness/repeat_check.py).",
     "history": "2026-08-24 유저 지시로 신설."
   },
+  "claim_check": {
+    "state": "on",
+    "since": "2026-08-26",
+    "reason": "옛 과제 열한 종에 대한 틀린 문장이 harness/anchor.md 에서 다른 파일 다섯으로 옮겨 적혔고, 2026-08-26 세션이 그것을 검증 없이 유저에게 인용했다. 앵커 한 자리를 고친 뒤에도 나머지 다섯이 남아 있었고 유저가 다시 물어서야 드러났다. 목록은 harness/claim_rules.json 이고 유저가 지적한 사실 오류 하나가 항목 하나가 된다.",
+    "blocks": "마지막 답이 목록의 틀린 주장을 다시 적으면 세션 종료를 한 번 되돌려보낸다 (harness/claim_check.py). 파일에 대해서는 pre-commit 에서 harness/check_claims.py 가 같은 목록으로 검사한다.",
+    "history": "2026-08-26 유저 지시로 신설."
+  },
   "legacy": {
     "state": "sealed",
     "since": "2026-08-23",

@@ -88,6 +88,17 @@ same-commit rule. Read `harness/README.md` before changing anything under it.
   `harness/legacy_tasks.txt` — that list must not grow.
 - Report in plain language: internal labels (RQ2, F1, W15) and undefined
   statistics terms trigger a Stop-hook block once per session.
+- **한 번 틀린 것으로 확인된 사실 주장은 목록에 넣는다** (2026-08-26 유저 지시
+  — "기존의 레거시 문제들이 자꾸 튀어나오면 안돼"). 한 자리를 고치는 것으로는
+  같은 문장이 다시 나오는 것을 막지 못했다: 옛 과제 열한 종에 대한 틀린 문장이
+  `harness/anchor.md` 에서 다른 파일 다섯으로 옮겨 적혔고, 앵커를 고친 뒤에도
+  나머지 다섯이 남아 유저가 다시 물어서야 드러났다. 목록은
+  `harness/claim_rules.json` 이고, `harness/check_claims.py` 가 pre-commit 에서
+  파일을, `harness/claim_check.py` 가 Stop 훅으로 마지막 답을 본다.
+  **유저가 지적한 사실 오류 하나가 목록 항목 하나가 된다** — 글쓰기 목록이
+  자라는 방식과 같다. 항목은 틀린 서술과 그 서술의 대상을 짝으로 적는다(같은
+  표현이 다른 대상에 대해서는 맞는 말일 수 있다). 틀린 문장을 이름으로 부를
+  때는 백틱으로 감싼다.
 
 ## How to write (2026-08-21, user instruction — applies from now on)
 
