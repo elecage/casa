@@ -56,7 +56,9 @@
 
 #### 지금 서 있는 자리
 
-- 브랜치 `claude/session-handover-review-irdgvu`, PR #96(초안, 병합 안 함).
+- **PR #96 을 이 세션 끝에 `main` 으로 병합했다**(유저 지시). 브랜치는
+  `claude/session-handover-review-irdgvu`. 다음 세션은 `main` 에서 새 브랜치를
+  따서 시작한다.
 - `harness/gates.json` 의 `collection` 은 `locked`. 이번 세션에서 건드리지 않았다.
 - 과제 세트 셋(`queue-flat`, `queue-migrate`, `queue-stacked`)은 만들어져 있고
   실행 대기다. 설계는 `docs/TASK_SET_DESIGN.md`.
