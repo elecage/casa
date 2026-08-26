@@ -95,10 +95,10 @@ same-commit rule. Read `harness/README.md` before changing anything under it.
   나머지 다섯이 남아 유저가 다시 물어서야 드러났다. 목록은
   `harness/claim_rules.json` 이고, `harness/check_claims.py` 가 pre-commit 에서
   파일을, `harness/claim_check.py` 가 Stop 훅으로 마지막 답을 본다.
-  **유저가 지적한 사실 오류 하나가 목록 항목 하나가 된다** — 글쓰기 목록이
-  자라는 방식과 같다. 항목은 틀린 서술과 그 서술의 대상을 짝으로 적는다(같은
-  표현이 다른 대상에 대해서는 맞는 말일 수 있다). 틀린 문장을 이름으로 부를
-  때는 백틱으로 감싼다.
+  **유저가 지적한 사실 오류 하나가 목록 항목 하나가 된다** — 유저가 지적할
+  때마다 `harness/wording_rules.json` 에 항목이 하나씩 더해지는 것과 같다.
+  항목은 틀린 서술과 그 서술의 대상을 짝으로 적는다(같은 표현이 다른 대상에
+  대해서는 맞는 말일 수 있다). 틀린 문장을 이름으로 부를 때는 백틱으로 감싼다.
 
 ## How to write (2026-08-21, user instruction — applies from now on)
 
@@ -120,6 +120,11 @@ checkpoint. Three bans, all of them broken on 2026-08-21:
   문제다" says nothing checkable. Say who did what and how it was observed:
   "18세션 전부가 명세 문서와 코드를 둘 다 열었는데, 값이 틀린 어댑터 둘은
   아무도 못 찾았다".
+  **여기에는 개수만 말하고 무엇인지 말하지 않는 것이 포함된다** (2026-08-26
+  유저 지적 — "두 가지는 일부러 열어 두었습니다. -> 이렇게 말하면 두 가지가
+  뭔지 어떻게 알아"). 개수를 말하는 자리에서 그 자리에 무엇인지를 함께 적는다.
+  **이것은 훅이 못 본다** — 무엇을 가리키는지는 문자열 대조로 판정되지 않는다.
+  `harness/README.md` 의 "무엇을 못 막는가" 에 적어 두었다.
 
 How to comply: prefer the plain sentence over any name. If a name is
 unavoidable, define it in one line where it first appears, and check whether

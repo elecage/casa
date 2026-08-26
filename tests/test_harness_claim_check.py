@@ -135,12 +135,22 @@ def test_scanned_paths_exclude_collected_output_and_task_repos():
 # ------------------------------------------------------------ 훅의 동작
 
 
-def _run_hook(payload: dict) -> subprocess.CompletedProcess:
+def _run_hook(payload: dict, env: dict | None = None) -> subprocess.CompletedProcess:
+    """훅을 따로 실행한다.
+
+    `encoding="utf-8"` 을 반드시 준다. 윈도우에서는 `text=True` 만 주면 자식의
+    출력을 로캘 인코딩(cp1252)으로 읽으려다 한글에서 실패하고, `stderr` 가
+    `None` 이 된다 — 2026-08-26에 이 시험이 CI 의 윈도우 두 조합에서만 그렇게
+    실패했다.
+    """
     return subprocess.run(
         [sys.executable, str(HARNESS / "claim_check.py")],
         input=json.dumps(payload),
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
         check=False,
     )
 
@@ -177,6 +187,26 @@ def test_hook_survives_garbage_input():
         input="not json",
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert res.returncode == 0
+
+
+def test_the_block_message_survives_a_non_utf8_console():
+    """윈도우가 기본으로 cp949 로 내보낸다. 차단 사유가 한글이라 여기서 깨진다."""
+    import os
+
+    payload = {
+        "session_id": "claim-check-cp949-probe",
+        "last_assistant_message": "과제 11종이 전부 함수 하나 구현이라 차원이 빠졌다.",
+    }
+    marker = claim_check._marker(payload["session_id"])
+    marker.unlink(missing_ok=True)
+    try:
+        res = _run_hook(payload, env=dict(os.environ, PYTHONIOENCODING="cp949"))
+        assert res.returncode == 2
+        assert "claim_rules.json" in res.stderr
+    finally:
+        marker.unlink(missing_ok=True)
