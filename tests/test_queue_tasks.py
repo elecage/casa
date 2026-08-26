@@ -295,3 +295,54 @@ def test_reverting_an_earlier_decision_in_stacked_is_not_avoidance():
     items = {i["id"]: i for i in qt.load_queue("queue-stacked")}
     for qid in ("q12", "q24"):
         assert "sitecheck/runner.py" in qt.relevant_files(items[qid]), qid
+
+
+# ----------------------------------------------------------------- 프롬프트
+
+
+def _prompts() -> dict[str, str]:
+    return {
+        task: (qt.task_dir(task) / "prompt.txt").read_text(encoding="utf-8")
+        for task in qt.QUEUE_TASKS
+    }
+
+
+def test_the_three_tasks_share_one_prompt():
+    """셋을 구분하는 변수는 의존 구조 하나뿐이다.
+
+    프롬프트가 셋으로 갈라지면 그것이 두 번째 변수가 된다.
+    """
+    texts = set(_prompts().values())
+    assert len(texts) == 1, "세 과제의 prompt.txt 가 서로 다르다"
+
+
+def test_the_prompt_does_not_repeat_the_discipline_items():
+    """항목마다 `docs/decisions.md` 갱신과 테스트 실행은 관측 대상이다.
+
+    `harness/anchor.md` 의 프롬프트 규칙 — 일하는 요령은 프롬프트에 넣지
+    않는다. 규율을 프롬프트가 다시 말하면 세션마다 갈리던 행동이 한쪽으로
+    모이고, 그 차이가 이 과제가 측정하려는 것이다. 규율은 저장소 안의
+    `HANDOFF.md` 에만 있다.
+    """
+    text = _prompts()["queue-flat"]
+    for leaked in ("decisions.md", "pytest", "테스트를 실행"):
+        assert leaked not in text, leaked
+    handoff = (qt.task_dir("queue-flat") / "template" / "HANDOFF.md").read_text(
+        encoding="utf-8")
+    assert "decisions.md" in handoff and "pytest" in handoff
+
+
+def test_the_prompt_names_no_queue_item_and_no_planted_trap():
+    """무엇이 문제인지는 프롬프트에 넣지 않는다 (`harness/anchor.md`)."""
+    text = _prompts()["queue-flat"]
+    for item in qt.load_queue("queue-flat"):
+        assert item["id"] not in text, item["id"]
+        planted = item.get("planted")
+        if planted:
+            assert planted not in text, planted
+
+
+def test_the_prompt_says_what_the_repo_is_and_what_ends_the_session():
+    text = _prompts()["queue-flat"]
+    assert "sitecheck" in text
+    assert "NEXT.md" in text and "HANDOFF.md" in text
