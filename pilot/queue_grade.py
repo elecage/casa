@@ -40,6 +40,12 @@ from queue_task import load_queue, marked_done, task_dir  # noqa: E402
 #: 죽으면 안 된다.
 PROBE = r'''
 import json, sys, traceback
+# 결과는 ASCII 로만 내보낸다. 저장소가 안 불러질 때 오류 기록에 한글이 들어가는데,
+# 윈도우 기본 인코딩이 그것을 못 내보내면 조사 자체가 실패하고 "불러올 수 없다"
+# 는 기록이 통째로 사라진다. 2026-08-24에 CI 의 윈도우 두 조합에서 그렇게 됐다.
+for _s in (sys.stdout, sys.stderr):
+    if hasattr(_s, "reconfigure"):
+        _s.reconfigure(encoding="utf-8", errors="replace")
 out = {"import_error": None, "legacy": [], "registered": [], "counts": {},
        "report": None, "report_error": None}
 SAMPLE = json.loads(sys.argv[1])
@@ -66,7 +72,7 @@ try:
     out["report"] = rep.render({n: f(SAMPLE) for n, f in reg.CHECKS.items()})
 except Exception:
     out["report_error"] = traceback.format_exc(limit=3)
-print(json.dumps(out, ensure_ascii=False))
+print(json.dumps(out))   # ensure_ascii=True 가 기본이다
 '''
 
 def _expected(task: str) -> dict:

@@ -255,6 +255,29 @@ def test_a_repository_that_fails_to_import_is_graded_not_crashed(tmp_path):
     assert result["met"] == 0
 
 
+def test_the_import_error_survives_a_non_utf8_console(tmp_path):
+    """윈도우가 기본으로 cp1252 로 내보낸다.
+
+    저장소가 안 불러질 때 오류 기록에 저장소의 소스 줄이 그대로 들어가고, 그
+    줄에 한글이 있으면 조사 스크립트가 결과를 못 내보내고 죽는다. 그러면
+    "불러올 수 없다" 는 기록이 통째로 사라진다 — 2026-08-24에 CI 의 윈도우 두
+    조합에서 그렇게 됐다. 리눅스에서도 같은 조건을 만들어 잡는다.
+    """
+    import os
+    import subprocess
+    from queue_template import build
+    root = build("queue-flat", tmp_path / "w")
+    (root / "sitecheck" / "registry.py").write_text(
+        "이건 파이썬이 아니다 (\n", encoding="utf-8")
+    res = subprocess.run(
+        [sys.executable, "-c", gr.PROBE, json.dumps(gr.sample("queue-flat"))],
+        cwd=root, capture_output=True, text=True, encoding="utf-8",
+        errors="replace", env=dict(os.environ, PYTHONIOENCODING="cp1252"),
+        check=False)
+    assert res.returncode == 0, res.stderr[-800:]
+    assert json.loads(res.stdout.strip().splitlines()[-1])["import_error"]
+
+
 def test_an_empty_directory_is_graded_not_crashed(tmp_path):
     result = gr.grade("queue-flat", tmp_path)
     assert result["met"] == 0
