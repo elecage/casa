@@ -174,10 +174,14 @@ def test_guard_survives_garbage_input():
 
 
 def test_session_start_emits_goal_and_lock_state():
+    """`능력`·`판별` 은 앵커의 "목표 (유저가 정의한 것, 바꾸지 말 것)" 절에 있는
+    말이다. 2026-08-26까지 이 시험은 `조기` 를 봤는데, 그 말은 측정 결과를 적어
+    둔 절에만 있었고 그 절을 유저 지시로 들어내자 시험이 실패했다. 시험이 보는
+    말은 바뀌지 않는 절에 있어야 한다."""
     out = session_start.render(
         gates.load_gates(), (ROOT / "harness" / "anchor.md").read_text(encoding="utf-8")
     )
-    assert "능력" in out and "조기" in out
+    assert "능력" in out and "판별" in out
     assert "collection" in out
 
 
