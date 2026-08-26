@@ -15,8 +15,31 @@ transcripts (JSONL) and hooks. No model internals, no server access.
 
 ## Design principles (do not violate)
 
-- Enforcement lives in code (hooks), never in prompts. A prompt-level rule is
-  a measurement subject here, not a mechanism.
+- **지켜지지 않으면 안 되는 규칙은 그 행동을 막는 훅으로 구현한다.**
+  `CLAUDE.md`, `harness/anchor.md`, 과제 프롬프트에만 적힌 규칙은 요청이지
+  장치가 아니다 — 이 저장소에는 그런 규칙이 지켜지지 않은 기록이 여럿 있다
+  (수집 배치 일곱 세션이 3주 동안 기록되지 않았고, 글쓰기 규칙을 읽은 세션이
+  같은 세션 안에서 그 규칙을 어겼다).
+
+  여기서 나오는 것이 둘이다.
+
+  1. **우리 세션이 지켜야 하는 것은 훅을 만든다.** 문서에 적는 것으로 끝내지
+     않는다. **목표·배경·현재 상태를 프롬프트로 전달하는 것은 여기 해당하지
+     않는다** — 이 규칙이 말하는 것은 규칙이지 정보가 아니다. 그러므로
+     `harness/anchor.md` 가 목표를 주입하는 것 자체는 이 규칙 위반이 아니다.
+  2. **연구 대상 세션에게 주는 규칙은 훅으로 강제하지 않는다.** 그 규칙을
+     지키는지가 우리가 측정하려는 것이므로, 강제하면 세션이 아니라 우리
+     장치를 측정하게 된다.
+
+  (2026-08-26에 고쳐 적었다. 앞 문장은 "Enforcement lives in code (hooks),
+  never in prompts. A prompt-level rule is a measurement subject here, not a
+  mechanism." 이었다. 유저 물음 — 사람이 읽어도 뜻이 분명하지 않고, 모델이
+  오해하지 않는다고 볼 수 있느냐. 실제로 넷이 정해져 있지 않았다.
+  ① `Enforcement` 가 막는 것만인지 알리는 것도 포함인지, ② `never` 를 문자
+  그대로 읽으면 규칙이 서른 개 가까이 적힌 `CLAUDE.md` 자신이 위반이 되는 것,
+  ③ 어느 프롬프트인지 — 우리 세션이 받는 것과 연구 대상 세션이 받는 것이 뜻이
+  다른데 한 문장에 있었던 것, ④ `here` 의 범위. 2026-08-26 세션이 이 문장을
+  근거로 앵커 전체를 위반이라고 읽은 사례가 있다.)
 - The audit engine must stay deterministic. LLM-as-judge is an optional,
   clearly-labeled auxiliary signal only (judges have ~70% precision; see
   AgentRewardBench in RELATED_WORK).
