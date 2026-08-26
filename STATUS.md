@@ -53,7 +53,10 @@
 
 #### 지금 서 있는 자리
 
-- 브랜치는 `claude/session-handover-review-irdgvu`(`main` 에서 새로 땄다).
+- **PR #97 을 이 세션 끝에 `main` 으로 병합했다**(유저 지시). 브랜치는
+  `claude/session-handover-review-irdgvu`(`main` 에서 새로 땄다). CI 네 조합이
+  커밋 `09f250f` 에서 전부 통과했다. 다음 세션은 `main` 에서 새 브랜치를 따서
+  시작한다.
 - `harness/gates.json` 의 `collection` 은 `locked`. 이번 세션에서 건드리지 않았다.
 - `harness/gates.json` 에 `claim_check` 항목이 새로 생겼다(`state: on`).
 - 과제 세트 셋(`queue-flat`, `queue-migrate`, `queue-stacked`)은 만들어져 있고
