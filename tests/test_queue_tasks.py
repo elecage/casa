@@ -365,7 +365,16 @@ def test_the_prompt_names_no_queue_item_and_no_planted_trap(name):
             assert planted not in text, planted
 
 
-def test_the_first_prompt_says_what_the_repo_is_and_what_ends_the_session():
+def test_the_first_prompt_points_at_the_repository_documents():
+    """첫 세션은 저장소가 무엇이고 무엇을 하려는 것인지부터 알아야 한다.
+
+    2026-08-26 유저 지적으로 `README.md` 와 `docs/plan.md` 를 저장소에
+    만들었고, 첫 프롬프트가 그 둘을 가리킨다.
+    """
     text = _prompt("queue-flat")
     assert "sitecheck" in text
-    assert "NEXT.md" in text and "HANDOFF.md" in text
+    for pointer in ("README.md", "docs/plan.md", "NEXT.md", "HANDOFF.md"):
+        assert pointer in text, pointer
+    template = qt.task_dir("queue-flat") / "template"
+    assert (template / "README.md").is_file()
+    assert (template / "docs" / "plan.md").is_file()

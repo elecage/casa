@@ -312,3 +312,45 @@ def test_the_committed_template_matches_the_generator(tmp_path):
                 for p in committed.rglob("*")
                 if p.is_file() and "__pycache__" not in p.parts}
         assert got == have, f"{task}: 커밋된 template 이 생성기와 다르다"
+
+
+# ------------------------------------------------ 저장소가 무엇인지 적은 문서
+#
+# 2026-08-26 유저 지적 — "이 프로그램의 개발 계획 PRD가 어디에 있는지 알려주지도
+# 않고 진행하는거야?" 그 전에는 도구가 무엇인지가 프롬프트 첫 줄 한 문장에만
+# 있었고, 왜 등록 방식을 바꾸는지는 저장소 어디에도 없었다.
+
+
+def test_the_repository_says_what_the_tool_is_and_why_the_move(built):
+    _, root = built
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    plan = (root / "docs" / "plan.md").read_text(encoding="utf-8")
+    assert "sitecheck" in readme and "sitecheck/registry.py" in readme
+    assert "legacy_registry.py" in plan and "왜 바꾸나" in plan
+
+
+def test_the_plan_does_not_settle_what_a_check_returns(built):
+    """검사의 반환 모양은 세 과제가 공유하는 애매한 결정이다.
+
+    `docs/TASK_SET_DESIGN.md` 2절 — 명세도 프롬프트도 어느 쪽인지 말하지
+    않는다. 계획 문서가 정하면 `queue-stacked` 의 되돌림 비용이 사라진다.
+    **정해지지 않았다는 것 자체도 적지 않는다** — 적으면 모든 세션이 그 자리를
+    알아보고 정해서 적게 되어 세 처신이 갈리지 않는다.
+    """
+    _, root = built
+    for rel in ("README.md", "docs/plan.md"):
+        text = (root / rel).read_text(encoding="utf-8")
+        for settling in ("돌려준다", "돌려줄", "반환", "위반 목록", "위반 건수",
+                         "줄 번호", "정해지지 않", "정하지 않"):
+            assert settling not in text, f"{rel}: {settling}"
+
+
+def test_the_two_new_documents_are_the_same_in_all_three(tmp_path):
+    """저장소는 셋이 똑같다. 문서가 갈라지면 그것이 두 번째 변수가 된다."""
+    for rel in ("README.md", "docs/plan.md"):
+        texts = {
+            (tpl.build(task, tmp_path / task / rel.replace("/", "-"))
+             / rel).read_text(encoding="utf-8")
+            for task in TASKS
+        }
+        assert len(texts) == 1, rel
