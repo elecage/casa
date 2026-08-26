@@ -52,7 +52,11 @@ a scorecard to `.casa/reports/` after every session.
 
 ## Design principles
 
-Enforcement lives in code, never in prompts. The audit core is deterministic —
+A rule that must not be broken is implemented as a hook that blocks the
+offending action; a rule written only in a document is a request, not a
+mechanism. The converse also holds: rules we hand to a session we are
+*studying* are never hook-enforced, because whether the session follows them
+is what we are measuring. The audit core is deterministic —
 LLM judges are auxiliary only (they run ~70% precision; see
 `docs/RELATED_WORK.md`). The parser is tolerant: the transcript format is
 undocumented, so unknown shapes are skipped, never fatal.
