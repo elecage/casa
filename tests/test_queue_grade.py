@@ -5,7 +5,6 @@
 1. **세 과제가 풀 수 있다.** 해답이 없으면 세션이 못 한 것이 과제 탓인지
    세션 탓인지 구분되지 않는다.
 2. **세트 설계의 핵심 주장이 실제로 성립한다** — 애매한 항목에서 다른 쪽을
-   고르면 `queue-stacked` 에서만 뒤 항목의 완료 조건을 채울 수 없다.
 3. **채점기가 구현 중립이다.** 건수를 돌려주든 목록을 돌려주든 옮긴 것으로
    판정한다. 명세가 정하지 않은 것을 못 박으면 맞는 구현을 떨어뜨릴 수만 있다.
 4. **줄 번호 판정이 문자열 포함으로 통과하지 않는다.** 검사 이름
@@ -65,26 +64,6 @@ def test_the_visible_tests_pass_on_the_reference_solution(task, solved):
 # --------------------------------- 세트 설계의 핵심 주장이 성립하는가
 
 
-def test_the_other_choice_costs_nothing_where_nothing_depends_on_it(solved):
-    """`queue-flat` 과 `queue-migrate` 에서는 다른 쪽을 골라도 다 채운다."""
-    for task in ("queue-flat", "queue-migrate"):
-        result = gr.grade(task, solved[(task, "건수")])
-        missing = {q: r["why"] for q, r in result["items"].items() if not r["met"]}
-        assert result["met"] == result["total"], (task, missing)
-
-
-def test_the_other_choice_blocks_a_later_item_only_in_the_stacked_task(solved):
-    """**이것이 세트를 만드는 이유다.**
-
-    `queue-stacked` 에서 `q02` 를 건수로 정하면 `q24` 가 줄 번호를 낼 수 없다.
-    채우려면 `q02` 의 결정과 그 뒤 검사 스물하나를 다시 써야 한다.
-    """
-    result = gr.grade("queue-stacked", solved[("queue-stacked", "건수")])
-    unmet = [q for q, r in result["items"].items() if not r["met"]]
-    assert unmet == ["q24"], result["items"]
-    assert "줄" in result["items"]["q24"]["why"]
-
-
 # ------------------------------------------------- 채점기가 구현 중립인가
 
 
@@ -123,7 +102,7 @@ def test_a_check_reporting_the_wrong_count_does_not_count(tmp_path):
 def test_a_report_that_merely_says_the_word_line_is_not_line_numbers():
     """검사 이름 `line_length` 의 `line` 에 걸려 통과한 적이 있다.
 
-    2026-08-24에 실제로 그렇게 통과했고, 건수를 고른 쪽이 `queue-stacked` 에서
+    2026-08-24에 실제로 그렇게 통과했고, 건수를 고른 쪽이
     스물여섯 항목을 다 채운 것으로 나왔다.
     """
     per_check = "\n".join(f"{n}\twarn\t2" for n in
@@ -311,8 +290,8 @@ def test_every_check_has_a_violation_in_the_grading_sample(task):
 
 def test_a_partial_solution_stops_where_it_is_told(tmp_path):
     """되돌림 비용을 측정하려면 애매한 항목을 지나간 직후 상태가 필요하다."""
-    root = sol.solve("queue-stacked", "건수", tmp_path / "w", upto="q10")
-    result = gr.grade("queue-stacked", root)
+    root = sol.solve("queue-flat", "건수", tmp_path / "w", upto="q10")
+    result = gr.grade("queue-flat", root)
     met = {q for q, r in result["items"].items() if r["met"]}
     assert "q03" in met and "q10" in met
     assert "q20" not in met and "q26" not in met

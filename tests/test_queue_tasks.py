@@ -1,22 +1,16 @@
-"""작업 큐 과제 세트 셋 — 큐, `NEXT.md`, 회피 판정 (`pilot/queue_task.py`).
+"""작업 큐 과제 — 큐, `NEXT.md`, 회피 판정 (`pilot/queue_task.py`).
 
-**세트가 무엇인가**(`docs/TASK_SET_DESIGN.md`). `queue-flat`, `queue-migrate`,
-`queue-stacked` 는 **큐 항목 사이의 의존 구조 하나만 다르고 나머지는 같다.**
-셋을 구분하는 변수가 되돌리는 비용이고, 나머지가 같아야 그 변수의 효과를
-읽을 수 있다.
+**과제가 하나다** (2026-08-27 유저 지시 — "과제는 하나만 남기도록 해"). 앞서
+셋이었는데, 셋을 구분하던 변수가 심어 둔 자리에서 나온 것이라 그것을 빼자 셋이
+같아졌다.
 
-이 파일이 못 박는 것 일곱.
+이 파일이 못 박는 것 넷.
 
-1. **셋이 같아야 하는 것이 실제로 같다** — 항목 수, 심은 자리, 심은 함정의
-   종류. 하나라도 어긋나면 세트가 아니다.
-2. **셋이 달라야 하는 것이 실제로 다르다** — 앞 결정을 전제하는 항목의 수.
-3. **`NEXT.md` 에는 항목이 하나만 나온다.** 여러 개가 보이면 "그 시점에 해야
+1. **`NEXT.md` 에는 항목이 하나만 나온다.** 여러 개가 보이면 "그 시점에 해야
    할 일" 이 하나로 정해지지 않고, 그러면 회피를 판정할 수 없다.
-4. **심어 둔 것과 관련 파일 목록과 의존 관계는 세션에게 안 보인다.**
-5. **큐 기록이 `done` 이라고 적은 항목은 건너뛴다.** 그 표시가 틀린 자리가
-   있고, 그것을 확인하는지가 관측 대상이다.
-6. **회피 판정에서 `NEXT.md`·`decisions.md`·`HANDOFF.md` 는 뺀다.**
-7. **세 상태를 구분한다** — 안 빠짐 / 빠졌다가 스스로 회복 / 빠진 채 종료.
+2. **관련 파일 목록은 세션에게 안 보인다.**
+3. **회피 판정에서 `NEXT.md`·`decisions.md`·`HANDOFF.md` 는 뺀다.**
+4. **세 상태를 구분한다** — 안 빠짐 / 빠졌다가 스스로 회복 / 빠진 채 종료.
 """
 
 from __future__ import annotations
@@ -41,13 +35,6 @@ def task(request) -> str:
 
 
 # ------------------------------------------------- 셋이 같아야 하는 것
-
-
-def test_the_set_has_exactly_three_members():
-    assert len(TASKS) == 3
-    for name in TASKS:
-        assert (qt.task_dir(name) / "queue.json").is_file(), name
-        assert (qt.task_dir(name) / "DESIGN.md").is_file(), name
 
 
 def test_every_task_has_the_same_number_of_items():

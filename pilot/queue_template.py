@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""작업 큐 과제 셋의 시작 상태 저장소(`template/`)를 만든다.
+"""작업 큐 과제의 시작 상태 저장소(`template/`)를 만든다.
 
-**왜 생성기인가.** 저장소 셋을 손으로 쓰면 "나머지는 같다" 가 시간이 지나면서
-성립하지 않는다. 여기서 셋을 다 만들고, 무엇이 다른지는 `VARIANTS` 한 곳에만
-적는다.
+**왜 생성기인가.** 검사 스물넷의 모듈과 문서와 등록부가 서로 맞아야 하는데,
+손으로 쓰면 시간이 지나면서 어긋난다.
 
 **시작 상태에 일부러 넣은 결함이 없다** (2026-08-27 유저 지시 — "심어둔 함정
 39자리 전부 빼고 과제 다시 설계해"). 그 전에는 과제마다 항목 스물여섯 중 열셋에
@@ -18,9 +17,7 @@
 
 사용:
 
-    python pilot/queue_template.py                 # 셋 다 만든다 (커밋된 자리)
-    python pilot/queue_template.py queue-flat      # 하나만
-    python pilot/queue_template.py --side count --out results/queue-check
+    python pilot/queue_template.py                 # 커밋된 자리에 만든다
 """
 
 from __future__ import annotations
@@ -35,16 +32,9 @@ sys.path.insert(0, str(HERE))
 
 from queue_task import QUEUE_TASKS, load_queue, task_dir  # noqa: E402
 
-#: 과제마다 다른 것.
-#:
-#: **지금은 셋이 완전히 같다** (2026-08-27). 셋을 구분하던 것은 `q02` 의 결정이
-#: 정해져 있지 않은 것과 그 결정에 기대는 항목 수였는데, 그 결정을 정해져 있지
-#: 않게 둔 것이 심어 둔 자리 하나였으므로 함께 뺐다. 무엇으로 셋을 구분할지는
-#: 정해지지 않았다 — `docs/TASK_SET_DESIGN.md`.
+#: 과제 하나의 설정. **과제가 하나다** (2026-08-27 유저 지시).
 VARIANTS = {
     "queue-flat": {"shared_module": None, "convention_as_list": True},
-    "queue-migrate": {"shared_module": None, "convention_as_list": True},
-    "queue-stacked": {"shared_module": None, "convention_as_list": True},
 }
 
 #: 어느 과제의 큐에도 없는 검사. 이미 옮겨진 것으로 두어 새 등록부의 관례를
@@ -54,12 +44,7 @@ CONVENTION_CHECK = "schema_version"
 
 
 def _all_checks() -> set[str]:
-    """세 과제의 큐가 부르는 검사 전부와 관례용 검사 하나.
-
-    **저장소는 셋이 똑같아야 하므로 합집합을 쓴다.** `queue-stacked` 는
-    `q24` 가 보고서 항목이라 검사 하나를 큐에서 부르지 않는데, 저장소에서까지
-    빼면 세 과제가 같은 저장소를 안 갖게 된다.
-    """
+    """큐가 부르는 검사 전부와 관례용 검사 하나."""
     names = {CONVENTION_CHECK}
     for task in QUEUE_TASKS:
         for item in load_queue(task):
@@ -245,7 +230,7 @@ def grade_entry_text(task: str, pilot_hint: str | None = None) -> str:
 
     `pilot/run_chain.py` 는 과제 디렉토리의 `grade.py` 를 별도 프로세스로
     실행하고 stdout 을 JSON 으로 읽는다. 판정 자체는 `pilot/queue_grade.py`
-    에 있다 — 세 과제가 같은 것을 쓴다.
+    에 있다.
 
     **결과를 ASCII 로만 내보낸다.** 못 채운 이유가 한글인데, 윈도우 기본
     인코딩이 그것을 못 내보내면 채점 출력이 통째로 사라진다. 2026-08-24에 조사

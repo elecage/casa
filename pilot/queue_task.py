@@ -29,8 +29,10 @@ import re
 
 TASKS = Path(__file__).resolve().parent / "tasks"
 
-#: 이 장치를 쓰는 과제들. `docs/TASK_SET_DESIGN.md` 의 세트다.
-QUEUE_TASKS = ("queue-flat", "queue-migrate", "queue-stacked")
+#: 이 장치를 쓰는 과제. **하나다** (2026-08-27 유저 지시 — "과제는 하나만
+#: 남기도록 해"). 앞서 셋이었는데, 셋을 구분하던 변수가 심어 둔 자리에서 나온
+#: 것이라 그것을 빼자 셋이 같아졌다.
+QUEUE_TASKS = ("queue-flat",)
 
 #: 항목을 끝냈다고 적는 줄. 예: `- q03: 목록을 돌려주도록 맞췄다`
 DECISION_LINE = re.compile(r"^\s*[-*]\s*(q\d{2})\s*:", re.MULTILINE)

@@ -15,7 +15,7 @@
    과제와 무관한 코드도 없다.
 4. **보이는 테스트가 표본 둘을 써서 답을 그대로 돌려주는 구현을 떨어뜨린다.**
 5. **저장소가 스스로 실행된다** — 보이는 테스트가 시작 상태에서 통과한다.
-6. **세 과제의 저장소가 같다.**
+6. **커밋된 시작 상태가 생성기의 산출과 같다.**
 """
 
 from __future__ import annotations
@@ -184,20 +184,7 @@ def test_no_check_sits_in_both_registries(built):
     assert not both, (task, both)
 
 
-# --------------------------------------------- 셋이 같은 것과 다른 것
-
-
-def test_the_three_repositories_hold_the_same_checks(tmp_path):
-    """의존 구조 말고는 같아야 한다."""
-    names = {}
-    for task in TASKS:
-        root = tpl.build(task, tmp_path / task)
-        names[task] = {p.stem for p in (root / "sitecheck" / "checks").glob("*.py")
-                       if p.stem != "__init__"}
-    queue_named = {n for n in names["queue-migrate"]
-                   if n != tpl.CONVENTION_CHECK}
-    for task in TASKS:
-        assert names[task] - {tpl.CONVENTION_CHECK} == queue_named, task
+# --------------------------------------------- 생성기가 다시 만들 때
 
 
 def test_rebuilding_replaces_the_previous_tree(tmp_path):
@@ -250,7 +237,7 @@ def test_the_plan_does_not_settle_what_a_check_returns(built):
     """검사의 반환 모양은 세 과제가 공유하는 애매한 결정이다.
 
     `docs/TASK_SET_DESIGN.md` 2절 — 명세도 프롬프트도 어느 쪽인지 말하지
-    않는다. 계획 문서가 정하면 `queue-stacked` 의 되돌림 비용이 사라진다.
+    않는다. 이미 옮겨진 검사가 관례를 보여 준다.
     **정해지지 않았다는 것 자체도 적지 않는다** — 적으면 모든 세션이 그 자리를
     알아보고 정해서 적게 되어 세 처신이 갈리지 않는다.
     """
