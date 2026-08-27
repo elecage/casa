@@ -2023,6 +2023,15 @@ n 증가로 판정 (사후 조작 방지, 결정 로그 기록) / 노벨티 워�
 
 ## 결정 로그 (뒤집으려면 유저와 상의)
 
+- 2026-08-27 **레퍼런스 궤적 실측 한 세션이 끝나 재잠금했다.** 실행한 것은
+  `pilot/run_chain.py pilot/tasks/queue-flat --chains 1 --sessions 1 --budget 0
+  --timeout-min 40 --out results/queue-ref2/queue-flat` 이고, 프로세스는 종료
+  코드 0으로 끝났다.
+  **결과를 보기 전에 잠갔다.** `harness/gates.json` 의 `relock_when` 이 그렇게
+  적혀 있고, 같은 날 오전 실측에서는 이 순서를 지키지 않아 결과를 먼저 읽었다.
+  이번에는 종료 코드 말고는 아무것도 읽지 않은 상태에서 이 커밋을 만든다.
+  산출은 이 커밋 다음에 `pilot/queue_observe.py` 로 한다.
+
 - 2026-08-27 **수집 잠금을 레퍼런스 궤적 실측 한 세션용으로 다시 열었다** (유저
   승인 — 다음에 할 일 셋 중 "1"). 과제 `queue-flat`(같은 날 다시 만든 것), 예산
   훅 없이 제한 시간 40분, 세션 하나. 출력은 `results/queue-ref2/queue-flat`.
