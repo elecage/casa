@@ -4,7 +4,11 @@ from sitecheck.legacy_registry import LEGACY_CHECKS
 from sitecheck.registry import CHECKS
 from sitecheck.report import render
 
-SAMPLE = {'name_a': 'ok', 'path_b': '  ', 'port_c': ''}
+#: 표본 둘. 같은 검사가 두 표본에서 다른 수를 내야 한다.
+SAMPLES = [
+    {'name_a': 'ok', 'path_b': '  ', 'port_c': ''},
+    {'name_a': '', 'name_b': '   ', 'path_b': 'ok'},
+]
 
 
 def test_no_check_is_registered_twice():
@@ -12,19 +16,26 @@ def test_no_check_is_registered_twice():
     assert not (set(LEGACY_CHECKS) & set(CHECKS))
 
 
-def test_every_legacy_check_runs():
+def test_every_legacy_check_counts_both_samples():
     for name, func in LEGACY_CHECKS.items():
-        assert isinstance(func(SAMPLE), int), name
+        for parsed in SAMPLES:
+            got = func(parsed)
+            assert isinstance(got, int), name
+            want = sum(1 for k, v in parsed.items()
+                       if k.startswith(name) and not v.strip())
+            assert got == want, (name, parsed)
+
+
+def test_every_migrated_check_counts_both_samples():
+    for name, func in CHECKS.items():
+        for parsed in SAMPLES:
+            got = func(parsed)
+            want = sum(1 for k, v in parsed.items()
+                       if k.startswith(name) and not v.strip())
+            assert len(got) == want, (name, parsed)
 
 
 def test_the_report_renders_every_registered_check():
-    results = {name: func(SAMPLE) for name, func in CHECKS.items()}
+    results = {name: func(SAMPLES[0]) for name, func in CHECKS.items()}
     body = render(results)
     assert body.count('\n') == max(len(results) - 1, 0)
-
-
-def test_the_migrated_checks_report_the_expected_counts():
-    """이 기대값은 손으로 적어 두었다."""
-    expected = {'indent': 0, 'null_value': 0, 'schema_version': 0}
-    for name, want in expected.items():
-        assert CHECKS[name](SAMPLE) == want, name

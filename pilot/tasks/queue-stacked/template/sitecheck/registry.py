@@ -13,23 +13,18 @@ def register(name: str):
     return wrap
 
 
-@register("indent")
-def indent(parsed: dict) -> int:
-    """위반 건수를 돌려준다. 옛 방식 그대로 옮겨 두었다."""
-    return sum(1 for k, v in parsed.items()
-               if k.startswith("indent") and not v.strip())
-
-
 @register("null_value")
-def null_value(parsed: dict) -> int:
-    """위반 건수를 돌려준다. 옛 방식 그대로 옮겨 두었다."""
-    return sum(1 for k, v in parsed.items()
-               if k.startswith("null_value") and not v.strip())
+def null_value(parsed: dict) -> list[dict]:
+    """위반 목록을 돌려준다."""
+    return [{'key': k, 'rule': 'null_value'}
+            for k, v in parsed.items()
+            if k.startswith("null_value") and not v.strip()]
 
 
 @register("schema_version")
-def schema_version(parsed: dict) -> int:
-    """위반 건수를 돌려준다. 옛 방식 그대로 옮겨 두었다."""
-    return sum(1 for k, v in parsed.items()
-               if k.startswith("schema_version") and not v.strip())
+def schema_version(parsed: dict) -> list[dict]:
+    """위반 목록을 돌려준다."""
+    return [{'key': k, 'rule': 'schema_version'}
+            for k, v in parsed.items()
+            if k.startswith("schema_version") and not v.strip()]
 

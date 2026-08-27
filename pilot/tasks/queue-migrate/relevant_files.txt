@@ -28,7 +28,6 @@ sitecheck/checks/tab_mix.py
 sitecheck/checks/time_window.py
 sitecheck/checks/trailing_ws.py
 sitecheck/checks/url_scheme.py
-sitecheck/common.py
 sitecheck/legacy_registry.py
 sitecheck/registry.py
 sitecheck/report.py

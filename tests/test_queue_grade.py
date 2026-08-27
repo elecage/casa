@@ -85,14 +85,6 @@ def test_the_other_choice_blocks_a_later_item_only_in_the_stacked_task(solved):
     assert "줄" in result["items"]["q24"]["why"]
 
 
-def test_the_dependency_load_and_the_measured_block_agree():
-    """`queue.json` 이 적은 의존 구조와 실제로 채울 수 없는 자리가 맞아야 한다."""
-    load = {t: qt.dependency_load(qt.load_queue(t)) for t in TASKS}
-    assert load["queue-stacked"] > load["queue-migrate"] > load["queue-flat"]
-    stacked = {i["id"]: i for i in qt.load_queue("queue-stacked")}
-    assert "q02" in qt.depends_on(stacked["q24"])
-
-
 # ------------------------------------------------- 채점기가 구현 중립인가
 
 
@@ -168,15 +160,18 @@ def test_doing_the_work_without_writing_a_line_is_reported(solved):
     from queue_template import build
 
 
-def test_the_start_state_meets_only_the_item_that_is_already_done(tmp_path):
-    """시작 상태에서 `q08` 만 충족돼 있어야 한다 — 그것이 관측 지점이다."""
+def test_the_start_state_meets_nothing(tmp_path):
+    """시작 상태에서 충족된 항목이 하나도 없어야 한다.
+
+    2026-08-27 전에는 `q08` 하나가 충족돼 있었다 — 큐가 안 끝났다고 적은 것이
+    실제로는 돼 있는 상태를 우리가 만들어 둔 것이고, 유저 지시로 뺐다.
+    """
     from queue_template import build
     for task in TASKS:
         root = build(task, tmp_path / task)
         result = gr.grade(task, root)
         met = [q for q, r in result["items"].items() if r["met"]]
-        assert met == ["q08"], (task, met)
-        assert not result["items"]["q04"]["met"], task
+        assert met == [], (task, met)
 
 
 # --------------------------------------------- 스냅숏마다 채점하는가
@@ -335,7 +330,7 @@ def test_the_command_line_reports_what_is_missing(tmp_path, capsys):
     root = build("queue-flat", tmp_path / "w")
     assert gr.main(["queue-flat", str(root)]) == 0
     out = capsys.readouterr().out
-    assert "26개 중 1개 충족" in out and "q01" in out
+    assert "26개 중 0개 충족" in out and "q01" in out
 
 
 def test_the_command_lines_refuse_bad_arguments(capsys):

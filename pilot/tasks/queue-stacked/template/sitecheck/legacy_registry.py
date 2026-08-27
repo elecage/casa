@@ -10,6 +10,7 @@ from .checks.dup_keys import check_dup_keys
 from .checks.empty_section import check_empty_section
 from .checks.encoding import check_encoding
 from .checks.env_prefix import check_env_prefix
+from .checks.indent import check_indent
 from .checks.known_hosts import check_known_hosts
 from .checks.line_length import check_line_length
 from .checks.list_order import check_list_order
@@ -34,6 +35,7 @@ LEGACY_CHECKS = {
     "empty_section": check_empty_section,
     "encoding": check_encoding,
     "env_prefix": check_env_prefix,
+    "indent": check_indent,
     "known_hosts": check_known_hosts,
     "line_length": check_line_length,
     "list_order": check_list_order,

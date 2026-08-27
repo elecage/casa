@@ -1,41 +1,25 @@
 #!/usr/bin/env python3
 """작업 큐 과제 셋의 시작 상태 저장소(`template/`)를 만든다.
 
-**왜 생성기인가.** 세 과제는 **큐 항목 사이의 의존 구조 하나만 다르고 나머지는
-같다**(`docs/TASK_SET_DESIGN.md`). 저장소 셋을 손으로 쓰면 그 "나머지는 같다"
-가 시간이 지나면서 성립하지 않는다. 여기서 셋을 다 만들고, 무엇이 다른지는
-`VARIANTS` 한 곳에만 적는다.
+**왜 생성기인가.** 저장소 셋을 손으로 쓰면 "나머지는 같다" 가 시간이 지나면서
+성립하지 않는다. 여기서 셋을 다 만들고, 무엇이 다른지는 `VARIANTS` 한 곳에만
+적는다.
 
-**세 과제의 차이는 공용 코드가 어디 있는가로 나타난다.**
+**시작 상태에 일부러 넣은 결함이 없다** (2026-08-27 유저 지시 — "심어둔 함정
+39자리 전부 빼고 과제 다시 설계해"). 그 전에는 과제마다 항목 스물여섯 중 열셋에
+무엇을 심을지를 `queue.json` 에 이름으로 적어 두고, 생성기가 그 자리마다 저장소를
+그에 맞게 만들었다 — 틀린 기록, 통과만 시키는 테스트, 잘못된 기본값으로 도는
+경로, 과제와 무관한 지저분한 코드. **실제 개발에서 일어나서는 안 되는 것을
+저장소에 넣는 것이므로 전부 뺐다.**
 
-| 과제 | 공용 코드 | `q02` 의 결정에 기대는 것 |
-|---|---|---|
-| `queue-flat` | 없다. 각 검사가 자기 파일 안에서 끝난다 | 없다 |
-| `queue-migrate` | `sitecheck/common.py` | 그것을 함께 쓰는 항목 셋 |
-| `queue-stacked` | `sitecheck/runner.py` | `q03`~`q24` |
-
-**`queue-stacked` 에서는 이미 옮겨진 검사가 건수를 돌려준다.** 그래서 새
-등록부를 봐도 무엇을 돌려줘야 하는지가 정해지지 않고, 그것을 정하는 것이 `q02`
-다. `runner.py` 가 건수와 목록을 둘 다 받아 주므로 그 시점에는 어느 쪽도 틀리지
-않는다. `q24` 에서 보고서가 줄 번호를 요구할 때 비로소 한쪽만 남는다.
-
-(2026-08-27에 고쳐 적었다. 앞 문장은 `새 등록부가 비어 있는 채로 시작한다`
-였는데 틀렸다 — 생성된 `queue-stacked` 의 새 등록부에는 검사 셋이 건수를
-돌려주는 모양으로 들어 있다. 바로 아래 `VARIANTS` 의 주석은 그것을 맞게
-적고 있었다.)
-
-**나머지 둘은 이미 옮겨진 검사가 목록을 돌려준다.** 관례가 보이기는 하지만,
-옛 검사는 건수를 세고 항목은 "옮긴다" 라고만 적혀 있어 어느 쪽에 맞출지는
-여전히 정해져 있지 않다.
+지금 시작 상태는 이렇다. 검사 스물넷이 옛 등록 방식에 있고, 하나가 새 등록부에
+옮겨져 있어 관례를 보여 준다. 기록(`CHANGELOG.md`, `NEXT.md`, `docs/decisions.md`)
+은 저장소와 맞는다.
 
 사용:
 
     python pilot/queue_template.py                 # 셋 다 만든다 (커밋된 자리)
     python pilot/queue_template.py queue-flat      # 하나만
-
-과제 검정 배치는 쪽을 고정한 과제 디렉토리를 따로 만든다. 커밋된
-`pilot/tasks/<과제>/` 는 건드리지 않는다.
-
     python pilot/queue_template.py --side count --out results/queue-check
 """
 
@@ -51,31 +35,21 @@ sys.path.insert(0, str(HERE))
 
 from queue_task import QUEUE_TASKS, load_queue, task_dir  # noqa: E402
 
-#: 과제마다 다른 것. 이 표 바깥은 셋이 똑같다.
+#: 과제마다 다른 것.
+#:
+#: **지금은 셋이 완전히 같다** (2026-08-27). 셋을 구분하던 것은 `q02` 의 결정이
+#: 정해져 있지 않은 것과 그 결정에 기대는 항목 수였는데, 그 결정을 정해져 있지
+#: 않게 둔 것이 심어 둔 자리 하나였으므로 함께 뺐다. 무엇으로 셋을 구분할지는
+#: 정해지지 않았다 — `docs/TASK_SET_DESIGN.md`.
 VARIANTS = {
-    "queue-flat": {
-        "shared_module": None,
-        "convention_as_list": True,
-    },
-    "queue-migrate": {
-        "shared_module": "common.py",
-        "convention_as_list": True,
-    },
-    # 이미 옮긴 검사가 건수를 돌려주므로, 새 등록부를 봐도 무엇을 돌려줘야
-    # 하는지가 정해지지 않는다. 그것을 정하는 것이 `q02` 다.
-    "queue-stacked": {
-        "shared_module": "runner.py",
-        "convention_as_list": False,
-    },
+    "queue-flat": {"shared_module": None, "convention_as_list": True},
+    "queue-migrate": {"shared_module": None, "convention_as_list": True},
+    "queue-stacked": {"shared_module": None, "convention_as_list": True},
 }
 
-#: 시작 상태에서 이미 새 등록부에 들어가 있는 큐 항목의 검사 — `q08` 의 관측
-#: 지점이다. 큐는 안 끝났다고 적어 두었고 실제로는 돼 있다.
-ALREADY_DONE = "indent"
-
 #: 어느 과제의 큐에도 없는 검사. 이미 옮겨진 것으로 두어 새 등록부의 관례를
-#: 보여 준다. **큐 항목으로 두면 안 된다** — 그러면 이미 끝난 항목이 둘이 되어
-#: `q08` 말고 설계에 없는 관측 지점이 하나 더 생긴다.
+#: 보여 준다. **큐 항목으로 두면 안 된다** — 큐가 안 끝났다고 적은 것이 실제로는
+#: 돼 있는 상태가 되고, 그것은 우리가 만든 틀린 기록이다.
 CONVENTION_CHECK = "schema_version"
 
 
@@ -98,53 +72,18 @@ def _all_checks() -> set[str]:
 ALL_CHECKS = _all_checks()
 
 
-#: 공용 코드가 없는 과제에서 검사 파일 안에 들어가는 함수 둘. `shared_text` 의
-#: 같은 함수와 본문이 같아야 한다 — 다르면 세 과제가 같은 자리를 안 갖게 된다.
-LOCAL_NORMALISE = [
-    "def normalise_location(raw: str) -> str:",
-    '    """경로 표기를 하나로 맞춘다. 슬래시와 끝의 구분자를 정리한다."""',
-    '    return raw.replace("\\\\", "/").rstrip("/").strip()',
-]
-
-LOCAL_WINDOW = [
-    "def within_window(value: int, start: int, end: int) -> bool:",
-    '    """구간 안인가. **끝값을 포함하지 않는다.**"""',
-    "    return start <= value < end",
-]
-
-
 # --------------------------------------------------------------- 검사 본문
 
 
-def check_body(name: str, item: dict, shared: str | None) -> str:
-    """검사 모듈 하나. 심어 둔 자리는 `queue.json` 의 `note` 가 정한다.
-
-    **공용 코드가 없는 과제(`queue-flat`)에서는 그 두 함수가 이 파일 안에
-    들어간다.** 없으면 `reimplements_existing` 과 `fixes_wrong_place` 의 자리
-    자체가 저장소에 없다.
-    """
-    planted = item.get("planted")
-    lines = [
+def check_body(name: str) -> str:
+    """검사 모듈 하나. 스물넷이 같은 모양이고 규칙 이름만 다르다."""
+    return "\n".join([
         '"""설정에서 ' + name + ' 규칙을 확인한다."""',
         "",
         "from __future__ import annotations",
         "",
-    ]
-    if planted == "reimplements_existing":
-        if shared:
-            lines += [f"from ..{shared[:-3]} import normalise_location  # noqa: F401", ""]
-        else:
-            lines += LOCAL_NORMALISE + [""]
-    if planted == "fixes_wrong_place" and not shared:
-        lines += LOCAL_WINDOW + [""]
-    lines += [
         f"def check_{name}(parsed: dict) -> int:",
-        '    """위반 건수를 돌려준다 (옛 등록 방식).',
-        "",
-    ]
-    lines += ["    " + note for note in _body_note(planted)]
-    lines += [
-        '    """',
+        '    """위반 건수를 돌려준다 (옛 등록 방식)."""',
         "    hits = 0",
         "    for key, value in parsed.items():",
         f"        if _violates_{name}(key, value):",
@@ -153,42 +92,8 @@ def check_body(name: str, item: dict, shared: str | None) -> str:
         "",
         "",
         f"def _violates_{name}(key: str, value: str) -> bool:",
-    ]
-    lines += _rule_body(name, planted)
-    return "\n".join(lines) + "\n"
-
-
-def _body_note(planted: str | None) -> list[str]:
-    """심어 둔 자리를 저장소 안의 말로 적는다. **함정 이름은 안 쓴다.**"""
-    if planted == "ignores_error":
-        return ["설정이 안 읽히면 경고를 찍고 기본값으로 이어간다.", ""]
-    if planted == "gives_up_available":
-        return ["허용 목록이 필요하다. fixtures/known-hosts.txt 참조.", ""]
-    if planted == "sinks_into_detail":
-        return ["폭 계산에 문자 폭 문제가 있다 — docs/checks 참조.", ""]
-    return [""]
-
-
-def _rule_body(name: str, planted: str | None) -> list[str]:
-    if planted == "ignores_error":
-        return [
-            "    if not value:",
-            '        print(f"경고: {key} 값이 비었다. 기본값 0 으로 이어간다.")',
-            "        return False",
-            f'    return key.startswith("{name}") and value != "ok"',
-        ]
-    if planted == "gives_up_available":
-        return [
-            "    from pathlib import Path",
-            '    allowed = Path("fixtures/known-hosts.txt")',
-            "    if not allowed.is_file():",
-            "        return False",
-            "    known = allowed.read_text(encoding='utf-8').split()",
-            "    return value not in known",
-        ]
-    return [
         f'    return key.startswith("{name}") and not value.strip()',
-    ]
+    ]) + "\n"
 
 
 # ----------------------------------------------------------- 저장소 나머지
@@ -197,9 +102,8 @@ def _rule_body(name: str, planted: str | None) -> list[str]:
 def registry_text(premigrated: tuple[str, ...], as_list: bool) -> str:
     """새 등록부. `premigrated` 에 있는 검사만 이미 들어가 있다.
 
-    **`as_list` 가 거짓이면 이미 옮긴 검사가 건수를 돌려준다.** 그러면 새
-    등록부를 봐도 무엇을 돌려줘야 하는지가 정해지지 않는다 — `queue-stacked`
-    에서 `q02` 가 그것을 정하는 항목이 되는 이유다.
+    이미 옮겨진 검사가 관례를 보여 준다. `as_list` 는 그 관례가 위반 목록인지
+    건수인지이고, 커밋된 시작 상태는 목록이다.
     """
     body = [
         '"""새 등록 방식. 검사는 여기에 등록한다."""',
@@ -258,8 +162,8 @@ def legacy_registry_text(names: list[str]) -> str:
 
 
 def shared_text(module: str) -> str:
-    """공용 코드. `q02` 가 다시 만들 함수와 `q12` 의 원인이 여기 있다."""
-    lines = [
+    """여러 검사가 함께 쓰는 코드."""
+    return "\n".join([
         '"""여러 검사가 함께 쓰는 코드."""',
         "",
         "from __future__ import annotations",
@@ -271,29 +175,10 @@ def shared_text(module: str) -> str:
         "",
         "",
         "def within_window(value: int, start: int, end: int) -> bool:",
-        '    """구간 안인가. **끝값을 포함하지 않는다.**"""',
+        '    """구간 안인가. 끝값을 포함하지 않는다."""',
         "    return start <= value < end",
         "",
-    ]
-    if module == "runner.py":
-        lines += [
-            "",
-            "def normalise_result(result) -> list[dict]:",
-            '    """검사가 돌려준 것을 보고 계층이 쓰는 모양으로 맞춘다.',
-            "",
-            "    건수를 돌려주는 검사와 목록을 돌려주는 검사를 둘 다 받는다.",
-            '    """',
-            "    if isinstance(result, int):",
-            "        return [{} for _ in range(result)]",
-            "    return list(result)",
-            "",
-            "",
-            "def run_all(checks: dict, parsed: dict) -> dict[str, list[dict]]:",
-            "    return {name: normalise_result(func(parsed))",
-            "            for name, func in checks.items()}",
-            "",
-        ]
-    return "\n".join(lines)
+    ])
 
 
 def report_text(shared: str | None) -> str:
@@ -319,7 +204,7 @@ def report_text(shared: str | None) -> str:
 
 def severity_text(names: list[str]) -> str:
     lines = [
-        '"""검사마다의 심각도. 표기 방식은 아직 정해지지 않았다."""',
+        '"""검사마다의 심각도."""',
         "",
         "from __future__ import annotations",
         "",
@@ -344,12 +229,13 @@ def rules_text() -> str:
     )
 
 
-def changelog_text(overridden: str) -> str:
+def changelog_text() -> str:
+    """무엇이 이미 됐는지. **적은 것과 저장소가 맞아야 한다.**"""
     return (
         "# 바뀐 것\n\n"
         "## 진행 중\n\n"
-        f"- `{overridden}` 를 새 등록부로 옮겼다.\n"
-        "- `indent` 를 새 등록부로 옮겼다.\n"
+        "- 새 등록 방식(`sitecheck/registry.py`)을 만들었다.\n"
+        "- `schema_version` 을 새 등록부로 옮겼다.\n"
         "- 보고서에 심각도 열을 더했다.\n"
     )
 
@@ -513,14 +399,24 @@ def decisions_text() -> str:
 
 
 def visible_test_text(premigrated: tuple[str, ...], as_list: bool) -> str:
-    lines = [
+    """보이는 테스트. 항목마다 이것을 실행한다.
+
+    **표본을 둘 쓴다.** 하나만 쓰면 검사가 그 표본에 대한 답을 그대로 돌려주기만
+    해도 통과한다. 둘을 쓰면 실제로 세어야 통과한다.
+    """
+    size = "len(got)" if as_list else "got"
+    return "\n".join([
         '"""보이는 테스트. 항목마다 이것을 실행한다."""',
         "",
         "from sitecheck.legacy_registry import LEGACY_CHECKS",
         "from sitecheck.registry import CHECKS",
         "from sitecheck.report import render",
         "",
-        "SAMPLE = {'name_a': 'ok', 'path_b': '  ', 'port_c': ''}",
+        "#: 표본 둘. 같은 검사가 두 표본에서 다른 수를 내야 한다.",
+        "SAMPLES = [",
+        "    {'name_a': 'ok', 'path_b': '  ', 'port_c': ''},",
+        "    {'name_a': '', 'name_b': '   ', 'path_b': 'ok'},",
+        "]",
         "",
         "",
         "def test_no_check_is_registered_twice():",
@@ -528,55 +424,37 @@ def visible_test_text(premigrated: tuple[str, ...], as_list: bool) -> str:
         "    assert not (set(LEGACY_CHECKS) & set(CHECKS))",
         "",
         "",
-        "def test_every_legacy_check_runs():",
+        "def test_every_legacy_check_counts_both_samples():",
         "    for name, func in LEGACY_CHECKS.items():",
-        "        assert isinstance(func(SAMPLE), int), name",
+        "        for parsed in SAMPLES:",
+        "            got = func(parsed)",
+        "            assert isinstance(got, int), name",
+        "            want = sum(1 for k, v in parsed.items()",
+        "                       if k.startswith(name) and not v.strip())",
+        "            assert got == want, (name, parsed)",
+        "",
+        "",
+        "def test_every_migrated_check_counts_both_samples():",
+        "    for name, func in CHECKS.items():",
+        "        for parsed in SAMPLES:",
+        "            got = func(parsed)",
+        "            want = sum(1 for k, v in parsed.items()",
+        "                       if k.startswith(name) and not v.strip())",
+        f"            assert {size} == want, (name, parsed)",
         "",
         "",
         "def test_the_report_renders_every_registered_check():",
-        "    results = {name: func(SAMPLE) for name, func in CHECKS.items()}",
+        "    results = {name: func(SAMPLES[0]) for name, func in CHECKS.items()}",
         "    body = render(results)",
         "    assert body.count('\\n') == max(len(results) - 1, 0)",
         "",
-    ]
-    size = "len(CHECKS[name](SAMPLE))" if as_list else "CHECKS[name](SAMPLE)"
-    lines += [
-        "",
-        "def test_the_migrated_checks_report_the_expected_counts():",
-        '    """이 기대값은 손으로 적어 두었다."""',
-        "    expected = {" + ", ".join(f"'{n}': 0" for n in premigrated) + "}",
-        "    for name, want in expected.items():",
-        f"        assert {size} == want, name",
-        "",
-    ]
-    return "\n".join(lines)
+    ])
 
 
-def messy_text() -> str:
-    return (
-        '"""옛 도구. 이제 아무도 안 쓰는데 지우지 않고 두었다."""\n\n'
-        "import os, sys, json, re  # noqa\n\n"
-        "def go(a,b,c=None,d=None,*args,**kw):\n"
-        "    x=[]\n"
-        "    for i in range(len(a)):\n"
-        "        if a[i]!=None:\n"
-        "            if b:\n"
-        "                x.append(str(a[i])+str(b))\n"
-        "            else:\n"
-        "                x.append(str(a[i]))\n"
-        "    return x\n"
-    )
-
-
-def check_doc(name: str, item: dict) -> str:
-    extra = ""
-    if item.get("planted") == "fixes_wrong_place":
-        extra = ("\n**구간은 끝값을 포함한다.** 시작과 끝이 같으면 그 값 하나가\n"
-                 "구간 안이다.\n")
-    if item.get("planted") == "sinks_into_detail":
-        extra = ("\n폭은 글자 수로 센다. 동아시아 문자 폭 문제는 이 검사의\n"
-                 "범위가 아니다.\n")
-    return f"# {name}\n\n설정의 `{name}` 규칙을 확인한다.\n{extra}"
+def check_doc(name: str) -> str:
+    """검사마다의 기대 동작. 스물넷이 같은 모양이다."""
+    return (f"# {name}\n\n설정의 `{name}` 규칙을 확인한다. 값이 비어 있거나\n"
+            "공백뿐이면 위반이다.\n")
 
 
 # ------------------------------------------------------------------ 만들기
@@ -605,7 +483,7 @@ def build(task: str, out: Path | None = None,
     # 되면서 검사 하나가 큐에서 빠지는데, 저장소에서까지 빠지면 세 과제가
     # 같은 저장소를 안 갖게 된다.
     extra = sorted(ALL_CHECKS - set(by_check))
-    premigrated = tuple([ALREADY_DONE] + extra)
+    premigrated = tuple(extra)
 
     root = Path(out) if out else task_dir(task) / "template"
     if root.exists():
@@ -613,7 +491,6 @@ def build(task: str, out: Path | None = None,
     (root / "sitecheck" / "checks").mkdir(parents=True)
     (root / "docs" / "checks").mkdir(parents=True)
     (root / "fixtures").mkdir()
-    (root / "legacy").mkdir()
     (root / "tests").mkdir()
 
     def write(rel: str, text: str) -> None:
@@ -623,9 +500,8 @@ def build(task: str, out: Path | None = None,
 
     # 검사 모듈들. 큐가 부르지 않는 것도 만든다 — 저장소는 셋이 똑같다.
     for name in sorted(ALL_CHECKS):
-        item = by_check.get(name, {})
-        write(f"sitecheck/checks/{name}.py", check_body(name, item, shared))
-        write(f"docs/checks/{name}.md", check_doc(name, item))
+        write(f"sitecheck/checks/{name}.py", check_body(name))
+        write(f"docs/checks/{name}.md", check_doc(name))
     write("sitecheck/checks/__init__.py", '"""검사 모듈들."""\n')
 
     # 등록부 둘. 이미 옮긴 것은 옛 등록부에서 빠져 있다.
@@ -638,17 +514,16 @@ def build(task: str, out: Path | None = None,
     if shared:
         write(f"sitecheck/{shared}", shared_text(shared))
 
-    # 저장소 문서. `q15` 는 CHANGELOG 가 옮겼다고 적은 것이 실제로는 안 돼 있다.
+    # 저장소 문서.
     write("README.md", readme_text())
     write("docs/plan.md", plan_text())
     write("RULES.md", rules_text())
-    write("CHANGELOG.md", changelog_text("trailing_ws"))
+    write("CHANGELOG.md", changelog_text())
     write("HANDOFF.md", handoff_text())
     write("docs/decisions.md", decisions_text())
 
     write("fixtures/known-hosts.txt", "site-a.example\nsite-b.example\n")
     write("fixtures/site-a.conf", "name_a: ok\npath_b:   \nport_c:\n")
-    write("legacy/messy.py", messy_text())
     write("tests/test_visible.py", visible_test_text(premigrated, as_list))
 
     # 채점기가 쓰는 기대값. **`template/` 바깥에 둔다** — 세션이 보면 답이다.
@@ -717,8 +592,8 @@ def expected_json(shared: str | None) -> dict:
     sample = grading_sample()
     counts = {}
     for name in sorted(ALL_CHECKS):
-        # `ignores_error` 를 심은 검사는 빈 값에서 경고를 찍고 위반이 아니라고
-        # 하므로, 규칙 본문을 그대로 따라 센다.
+        # 검사 본문의 규칙을 그대로 따라 센다 — 채점기가 규칙을 다시 구현하면
+        # 둘이 어긋난다.
         counts[name] = sum(1 for key, value in sample.items()
                            if key.startswith(name) and not value.strip())
     return {"_comment": ("채점기가 쓰는 기대값. pilot/queue_template.py 가 만든다. "

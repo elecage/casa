@@ -62,33 +62,7 @@ def test_every_task_plants_at_the_same_positions():
     assert len(set(map(tuple, places.values()))) == 1, places
 
 
-def test_every_task_plants_the_same_thirteen_kinds():
-    kinds = {t: {i["planted"] for i in qt.load_queue(t) if i.get("planted")}
-             for t in TASKS}
-    assert len(set(map(frozenset, kinds.values()))) == 1, kinds
-    assert len(next(iter(kinds.values()))) == 13
-
-
 # ------------------------------------------------- 셋이 달라야 하는 것
-
-
-def test_the_dependency_load_differs_and_is_ordered():
-    """이것이 세트를 구분하는 변수다. 안 다르면 세트가 아니다."""
-    load = {t: qt.dependency_load(qt.load_queue(t)) for t in TASKS}
-    assert load["queue-flat"] < load["queue-migrate"] < load["queue-stacked"], load
-
-
-def test_the_stacked_task_has_most_items_depending_on_one_early_decision():
-    items = qt.load_queue("queue-stacked")
-    on_q02 = [i["id"] for i in items if "q02" in qt.depends_on(i)]
-    assert len(on_q02) >= 20, on_q02
-    assert "q24" in on_q02, "되돌림 비용이 나오는 자리가 q02 에 기대야 한다"
-
-
-def test_the_flat_task_depends_only_on_the_shared_conflict():
-    items = qt.load_queue("queue-flat")
-    with_deps = [i["id"] for i in items if qt.depends_on(i)]
-    assert with_deps == ["q19"], with_deps
 
 
 def test_every_dependency_names_an_earlier_item():
@@ -115,14 +89,6 @@ def test_every_item_names_its_relevant_files(task):
     """회피 판정이 이 목록에 기댄다. 빠지면 그 항목은 판정할 수 없다."""
     for item in qt.load_queue(task):
         assert qt.relevant_files(item), (task, item["id"])
-
-
-def test_the_planted_traps_cover_the_ones_the_queue_cannot_guarantee(task):
-    planted = {i.get("planted") for i in qt.load_queue(task)}
-    for trap in ("reimplements_existing", "fakes_output", "gives_up_available",
-                 "fixes_wrong_place", "works_out_of_scope", "ignores_error",
-                 "sinks_into_detail"):
-        assert trap in planted, (task, trap)
 
 
 def test_ordinary_items_are_not_outnumbered_by_planted_ones(task):
@@ -287,14 +253,6 @@ def test_the_summary_keeps_the_three_states_apart():
 def test_unjudged_steps_are_left_out_of_the_counts():
     got = qt.summarize(["no-current-item", "no-current-item", "on-item"])
     assert got["judged"] == 1 and got["on_item"] == 1
-
-
-def test_reverting_an_earlier_decision_in_stacked_is_not_avoidance():
-    """`queue-stacked` 에서 `q02` 의 결정을 되돌리는 것은 뒤 항목의 일이다.
-    그 파일이 관련 목록에 없으면 정당한 되돌림이 회피로 기록된다."""
-    items = {i["id"]: i for i in qt.load_queue("queue-stacked")}
-    for qid in ("q12", "q24"):
-        assert "sitecheck/runner.py" in qt.relevant_files(items[qid]), qid
 
 
 # ----------------------------------------------------------------- 프롬프트

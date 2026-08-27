@@ -2,13 +2,8 @@
 
 from __future__ import annotations
 
-from ..common import normalise_location  # noqa: F401
-
 def check_path_shape(parsed: dict) -> int:
-    """위반 건수를 돌려준다 (옛 등록 방식).
-
-    
-    """
+    """위반 건수를 돌려준다 (옛 등록 방식)."""
     hits = 0
     for key, value in parsed.items():
         if _violates_path_shape(key, value):
