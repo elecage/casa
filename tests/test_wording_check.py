@@ -301,3 +301,9 @@ def test_the_gate_entry_declares_this_check():
 def test_the_hook_is_registered_in_settings():
     text = (ROOT / ".claude" / "settings.json").read_text(encoding="utf-8")
     assert "wording_check" in text
+
+
+def test_the_word_the_user_pointed_at_on_0827_is_caught():
+    """유저 지적 2026-08-27 — "제발 구어체 쓰지 말라고 '예산에 눌립니다'"."""
+    assert "눌리다" in _names("한 세션의 예산에 갇히면 그 값이 예산에 눌린다.")
+    assert _names("제한에 막혀 값이 그 이상 커지지 못한다.") == []
