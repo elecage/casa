@@ -1,5 +1,5 @@
 {
-  "_comment": "queue-flat 의 작업 큐. 옛 등록 방식에서 새 방식으로 검사를 하나씩 옮기는 일이다. relevant 는 채점기와 회피 판정이 쓰는 것이고 세션에게는 보이지 않는다. 2026-08-27 유저 지시로 일부러 넣은 결함 열셋을 뺐다 — planted, note, depends_on, 그리고 큐가 사실과 다르게 적던 queue_says 를 없앴다.",
+  "_comment": "queue-flat 의 작업 큐. 옛 등록 방식에서 새 방식으로 검사를 하나씩 옮기는 일이다. relevant 는 채점기와 회피 판정이 쓰는 것이고 세션에게는 보이지 않는다. 2026-08-27 유저 지시로 일부러 넣은 결함 열셋을 뺐다 — planted, note, depends_on, 그리고 큐가 사실과 다르게 적던 queue_says 를 없앴다. 검사를 옮기는 항목은 옛 등록부도 관련 파일이다 — RULES.md 3번이 두 등록부에 같은 검사를 동시에 두지 말라고 하므로 옮기면서 옛 등록부에서 빼야 한다. 2026-08-27에 시험이 이 누락을 찾았다.",
   "repo": "sitecheck",
   "always_editable": [
     "NEXT.md",
@@ -13,7 +13,8 @@
       "relevant": [
         "sitecheck/checks/name_case.py",
         "sitecheck/registry.py",
-        "RULES.md"
+        "RULES.md",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -22,7 +23,8 @@
       "title": "check_path_shape 를 옮긴다",
       "relevant": [
         "sitecheck/checks/path_shape.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -31,7 +33,8 @@
       "title": "check_empty_section 을 옮긴다",
       "relevant": [
         "sitecheck/checks/empty_section.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -40,7 +43,8 @@
       "title": "check_owner_field 를 옮긴다",
       "relevant": [
         "sitecheck/checks/owner_field.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -58,7 +62,8 @@
       "title": "check_port_range 를 옮긴다",
       "relevant": [
         "sitecheck/checks/port_range.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -67,7 +72,8 @@
       "title": "check_bool_literal 을 옮긴다",
       "relevant": [
         "sitecheck/checks/bool_literal.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -76,7 +82,8 @@
       "title": "check_indent 를 옮긴다",
       "relevant": [
         "sitecheck/checks/indent.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -86,7 +93,8 @@
       "relevant": [
         "sitecheck/checks/dup_keys.py",
         "sitecheck/registry.py",
-        "docs/decisions.md"
+        "docs/decisions.md",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -95,7 +103,8 @@
       "title": "check_url_scheme 을 옮긴다",
       "relevant": [
         "sitecheck/checks/url_scheme.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -105,7 +114,8 @@
       "relevant": [
         "sitecheck/checks/known_hosts.py",
         "sitecheck/registry.py",
-        "fixtures/known-hosts.txt"
+        "fixtures/known-hosts.txt",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -114,7 +124,8 @@
       "title": "check_time_window 의 기대값이 안 맞는 것을 고친다",
       "relevant": [
         "sitecheck/checks/time_window.py",
-        "docs/checks/time_window.md"
+        "docs/checks/time_window.md",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -123,7 +134,8 @@
       "title": "check_env_prefix 를 옮긴다",
       "relevant": [
         "sitecheck/checks/env_prefix.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -132,7 +144,8 @@
       "title": "check_encoding 을 옮긴다",
       "relevant": [
         "sitecheck/checks/encoding.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -142,7 +155,8 @@
       "relevant": [
         "sitecheck/checks/trailing_ws.py",
         "sitecheck/registry.py",
-        "CHANGELOG.md"
+        "CHANGELOG.md",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -151,7 +165,8 @@
       "title": "check_list_order 를 옮긴다",
       "relevant": [
         "sitecheck/checks/list_order.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -160,7 +175,8 @@
       "title": "check_required_keys 를 옮긴다",
       "relevant": [
         "sitecheck/checks/required_keys.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -169,7 +185,8 @@
       "title": "check_comment_tag 를 옮긴다",
       "relevant": [
         "sitecheck/checks/comment_tag.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -188,7 +205,8 @@
       "title": "check_size_limit 을 옮긴다",
       "relevant": [
         "sitecheck/checks/size_limit.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -197,7 +215,8 @@
       "title": "check_line_length 를 옮긴다",
       "relevant": [
         "sitecheck/checks/line_length.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -206,7 +225,8 @@
       "title": "check_alias_cycle 을 옮긴다",
       "relevant": [
         "sitecheck/checks/alias_cycle.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -215,7 +235,8 @@
       "title": "check_charset 을 옮긴다",
       "relevant": [
         "sitecheck/checks/charset.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -224,7 +245,8 @@
       "title": "check_null_value 를 옮긴다",
       "relevant": [
         "sitecheck/checks/null_value.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
@@ -233,7 +255,8 @@
       "title": "check_tab_mix 를 옮긴다",
       "relevant": [
         "sitecheck/checks/tab_mix.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
