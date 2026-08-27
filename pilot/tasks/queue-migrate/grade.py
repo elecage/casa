@@ -8,7 +8,19 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+def _pilot() -> Path:
+    """`queue_grade.py` 가 있는 디렉토리. 위로 훑어 찾는다."""
+    here = Path(__file__).resolve()
+    hint = None
+    for parent in [*here.parents, *([Path(hint)] if hint else [])]:
+        for candidate in (parent, parent / "pilot"):
+            if (candidate / "queue_grade.py").is_file():
+                return candidate
+    raise SystemExit("queue_grade.py 를 찾지 못했다")
+
+
+sys.path.insert(0, str(_pilot()))
 
 from queue_grade import grade  # noqa: E402
 

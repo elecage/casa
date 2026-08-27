@@ -30,8 +30,13 @@
 
 사용:
 
-    python pilot/queue_template.py                 # 셋 다 만든다
+    python pilot/queue_template.py                 # 셋 다 만든다 (커밋된 자리)
     python pilot/queue_template.py queue-flat      # 하나만
+
+과제 검정 배치는 쪽을 고정한 과제 디렉토리를 따로 만든다. 커밋된
+`pilot/tasks/<과제>/` 는 건드리지 않는다.
+
+    python pilot/queue_template.py --side count --out results/queue-check
 """
 
 from __future__ import annotations
@@ -349,7 +354,7 @@ def changelog_text(overridden: str) -> str:
     )
 
 
-def grade_entry_text(task: str) -> str:
+def grade_entry_text(task: str, pilot_hint: str | None = None) -> str:
     """러너가 부르는 채점기 진입점(`grade.py`).
 
     `pilot/run_chain.py` 는 과제 디렉토리의 `grade.py` 를 별도 프로세스로
@@ -359,6 +364,14 @@ def grade_entry_text(task: str) -> str:
     **결과를 ASCII 로만 내보낸다.** 못 채운 이유가 한글인데, 윈도우 기본
     인코딩이 그것을 못 내보내면 채점 출력이 통째로 사라진다. 2026-08-24에 조사
     스크립트가 같은 이유로 CI 의 윈도우 두 조합에서만 실패했다.
+
+    **`pilot/` 를 위로 훑어 찾는다.** 자리를 고정해 세면(`parents[2]`) 커밋된
+    과제 디렉토리에서만 맞고, 배치가 쪽별로 만들어 두는 과제 디렉토리에서는
+    엉뚱한 데를 가리킨다.
+
+    `pilot_hint` 는 위로 훑어도 못 찾을 때 마지막으로 볼 자리다. **커밋되는
+    과제 디렉토리에는 주지 않는다** — 절대 경로가 저장소에 들어가면 다른
+    사람의 clone 에서 뜻이 없다. 저장소 밖에 만드는 과제 디렉토리에만 준다.
     """
     return (
         '#!/usr/bin/env python3\n'
@@ -367,8 +380,17 @@ def grade_entry_text(task: str) -> str:
         '"""\n\n'
         'import json\n'
         'import sys\n'
-        'from pathlib import Path\n\n'
-        'sys.path.insert(0, str(Path(__file__).resolve().parents[2]))\n\n'
+        'from pathlib import Path\n\n\n'
+        'def _pilot() -> Path:\n'
+        '    """`queue_grade.py` 가 있는 디렉토리. 위로 훑어 찾는다."""\n'
+        '    here = Path(__file__).resolve()\n'
+        f'    hint = {pilot_hint!r}\n'
+        '    for parent in [*here.parents, *([Path(hint)] if hint else [])]:\n'
+        '        for candidate in (parent, parent / "pilot"):\n'
+        '            if (candidate / "queue_grade.py").is_file():\n'
+        '                return candidate\n'
+        '    raise SystemExit("queue_grade.py 를 찾지 못했다")\n\n\n'
+        'sys.path.insert(0, str(_pilot()))\n\n'
         'from queue_grade import grade  # noqa: E402\n\n'
         f'TASK = "{task}"\n\n\n'
         'def main() -> int:\n'
@@ -560,11 +582,19 @@ def check_doc(name: str, item: dict) -> str:
 # ------------------------------------------------------------------ 만들기
 
 
-def build(task: str, out: Path | None = None) -> Path:
-    """과제 하나의 시작 상태 저장소를 만든다. 만든 자리를 돌려준다."""
+def build(task: str, out: Path | None = None,
+          as_list: bool | None = None) -> Path:
+    """과제 하나의 시작 상태 저장소를 만든다. 만든 자리를 돌려준다.
+
+    `as_list` 를 주면 `VARIANTS` 의 쪽을 덮는다 — 참이면 이미 옮겨진 검사가
+    위반 목록을, 거짓이면 위반 건수를 돌려준다. **과제 검정 배치가 이것을
+    쓴다**(`docs/TASK_SET_PREDICTIONS.md` 2절): 과제마다 두 쪽을 다 만들어 놓고
+    한 쪽씩 사슬 여덟을 실행한다. 안 주면 `VARIANTS` 의 값이고, 저장소에 커밋된
+    `template/` 이 그것이다.
+    """
     variant = VARIANTS[task]
     shared = variant["shared_module"]
-    as_list = variant["convention_as_list"]
+    as_list = variant["convention_as_list"] if as_list is None else as_list
     items = load_queue(task)
     by_check = {i["relevant"][0].split("/")[-1][:-3]: i for i in items
                 if i["relevant"][0].startswith("sitecheck/checks/")}
@@ -628,10 +658,37 @@ def build(task: str, out: Path | None = None) -> Path:
         json.dumps(expected_json(shared), ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8")
     # 러너가 쓰는 둘. 이것도 `template/` 바깥이다.
-    (outside / "grade.py").write_text(grade_entry_text(task), encoding="utf-8")
+    (outside / "grade.py").write_text(
+        grade_entry_text(task, None if out is None else str(HERE)),
+        encoding="utf-8")
     (outside / "relevant_files.txt").write_text(
         relevant_files_text(items), encoding="utf-8")
+    # 다른 자리에 만든 것은 **그 자체로 러너에 넘길 수 있는 과제 디렉토리**여야
+    # 한다. 프롬프트는 생성물이 아니라 손으로 쓴 것이므로 원본에서 복사한다.
+    if out is not None:
+        for name in ("prompt.txt", "prompt_followup.txt"):
+            source = task_dir(task) / name
+            if source.is_file():
+                shutil.copyfile(source, outside / name)
     return root
+
+
+#: 고른 쪽의 이름과 `as_list` 값. `docs/TASK_SET_PREDICTIONS.md` 1절.
+SIDES = {"list": True, "count": False}
+
+
+def build_side(task: str, side: str, dest: Path) -> Path:
+    """쪽을 고정한 **과제 디렉토리 하나**를 만든다. 그 디렉토리를 돌려준다.
+
+    과제 검정 배치가 이것을 쓴다 — 과제마다 두 쪽을 만들어 놓고 한 쪽씩 사슬
+    여덟을 실행한다(`docs/TASK_SET_PREDICTIONS.md` 2절). 돌려주는 자리를
+    `pilot/run_chain.py` 에 그대로 넘길 수 있다.
+    """
+    if side not in SIDES:
+        raise ValueError(f"모르는 쪽: {side} (쓸 수 있는 것: {sorted(SIDES)})")
+    dest = Path(dest)
+    build(task, dest / "template", as_list=SIDES[side])
+    return dest
 
 
 def grading_sample() -> dict[str, str]:
@@ -670,12 +727,32 @@ def expected_json(shared: str | None) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    names = (argv or sys.argv[1:]) or list(QUEUE_TASKS)
+    args = list(argv if argv is not None else sys.argv[1:])
+    side = out = None
+    if "--side" in args:
+        at = args.index("--side")
+        side = args[at + 1] if at + 1 < len(args) else None
+        del args[at:at + 2]
+    if "--out" in args:
+        at = args.index("--out")
+        out = args[at + 1] if at + 1 < len(args) else None
+        del args[at:at + 2]
+    if (side is None) != (out is None):
+        print("--side 와 --out 은 같이 준다")
+        return 1
+    if side is not None and side not in SIDES:
+        print(f"모르는 쪽: {side} (쓸 수 있는 것: {sorted(SIDES)})")
+        return 1
+
+    names = args or list(QUEUE_TASKS)
     for name in names:
         if name not in VARIANTS:
             print(f"모르는 과제: {name}")
             return 1
-        root = build(name)
+        if side is None:
+            root = build(name)
+        else:
+            root = build_side(name, side, Path(out) / name) / "template"
         made = sum(1 for _ in root.rglob("*") if _.is_file())
         print(f"{name}: {root} 에 파일 {made}개")
     return 0
