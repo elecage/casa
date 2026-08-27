@@ -123,18 +123,30 @@
 
 ## 5. 실행 전에 남은 것 — 지금은 이 배치를 돌릴 수 없다
 
-(3)은 2026-08-27에 유저가 정했다. (1)과 (2)가 남아 있다.
+(1)과 (3)은 2026-08-27에 끝났다. **(2)가 남아 있다.**
 
-### (1) 생성기가 두 쪽을 다 만들 수 있어야 한다
+### (1) 생성기가 두 쪽을 다 만든다 — 끝 (2026-08-27)
 
-지금 `pilot/queue_template.py` 의 `VARIANTS` 는 과제마다 쪽을 하나로 고정하고
-있다 — `queue-flat` 과 `queue-migrate` 는 목록, `queue-stacked` 는 건수. 이
-배치는 **과제마다 두 쪽이 다 필요하다.** 시작 상태를 만들 때 쪽을 지정할 수
-있어야 한다.
+`pilot/queue_template.py` 의 `VARIANTS` 는 과제마다 쪽을 하나로 고정한다 —
+`queue-flat` 과 `queue-migrate` 는 목록, `queue-stacked` 는 건수. 커밋된
+`pilot/tasks/<과제>/template/` 이 그것이고, 그대로 둔다.
 
-함께 확인해야 하는 것: 보이는 테스트가 쪽에 따라 다르게 생성되고
-(`visible_test_text`), 채점기는 반환 모양을 보지 않는다(`_migrated`). 두 쪽에서
-`expected.json` 의 기대 위반 수가 같아야 한다.
+배치는 **커밋된 자리를 건드리지 않고 쪽을 고정한 과제 디렉토리를 따로 만든다.**
+
+    python pilot/queue_template.py --side count --out results/queue-check
+
+만들어지는 것은 `<out>/<과제>/` 이고, 그 안에 `template/` 과 `prompt.txt`,
+`prompt_followup.txt`, `grade.py`, `relevant_files.txt`, `expected.json` 이 다
+들어 있다. **그 디렉토리를 `pilot/run_chain.py` 에 그대로 넘길 수 있다.**
+
+확인한 것 셋(`tests/test_queue_template.py`).
+
+- 세 과제 각각에서 두 쪽이 다 만들어진다 — 건수 쪽은 `-> int`, 목록 쪽은
+  `-> list[dict]`.
+- **`expected.json` 의 기대 위반 수가 두 쪽에서 같다.** 채점기는 반환 모양을
+  보지 않으므로(`_migrated`) 같아야 한다.
+- 저장소 밖에 만든 과제 디렉토리에서도 `grade.py` 가 돈다. 커밋되는 쪽에는
+  절대 경로를 안 적는다 — 다른 사람의 clone 에서 뜻이 없다.
 
 ### (2) 예산을 정하는 레퍼런스 궤적 실측
 

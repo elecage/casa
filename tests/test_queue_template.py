@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -354,3 +355,73 @@ def test_the_two_new_documents_are_the_same_in_all_three(tmp_path):
             for task in TASKS
         }
         assert len(texts) == 1, rel
+
+
+# ------------------------------------------------- 쪽을 고정한 과제 디렉토리
+#
+# 과제 검정 배치는 과제마다 두 쪽(목록·건수)을 다 필요로 한다
+# (`docs/TASK_SET_PREDICTIONS.md` 2절). `VARIANTS` 는 과제마다 쪽을 하나로
+# 고정하므로, 배치는 커밋된 `pilot/tasks/<과제>/` 를 건드리지 않고 따로 만든다.
+
+
+def _registry(root: Path) -> str:
+    return (root / "template" / "sitecheck" / "registry.py").read_text(
+        encoding="utf-8")
+
+
+@pytest.mark.parametrize("task", TASKS)
+def test_both_sides_can_be_built_for_every_task(task, tmp_path):
+    counted = tpl.build_side(task, "count", tmp_path / "count")
+    listed = tpl.build_side(task, "list", tmp_path / "list")
+    assert "-> int:" in _registry(counted)
+    assert "-> list[dict]:" in _registry(listed)
+
+
+def test_the_expected_counts_do_not_depend_on_the_side(tmp_path):
+    """채점기는 반환 모양을 보지 않는다. 기대 위반 수가 두 쪽에서 같아야 한다."""
+    counted = tpl.build_side(TASKS[0], "count", tmp_path / "count")
+    listed = tpl.build_side(TASKS[0], "list", tmp_path / "list")
+    assert (counted / "expected.json").read_text(encoding="utf-8") == \
+        (listed / "expected.json").read_text(encoding="utf-8")
+
+
+def test_a_built_task_directory_has_everything_the_runner_needs(tmp_path):
+    built = tpl.build_side(TASKS[0], "count", tmp_path / "count")
+    for name in ("prompt.txt", "prompt_followup.txt", "grade.py",
+                 "relevant_files.txt", "expected.json"):
+        assert (built / name).is_file(), name
+    assert (built / "template" / "sitecheck" / "registry.py").is_file()
+
+
+def test_the_grade_entry_point_works_outside_the_repository(tmp_path):
+    """위로 훑어도 `pilot/` 을 못 찾는 자리에서도 돌아야 한다.
+
+    `tmp_path` 는 저장소 밖이다. 생성기가 그런 자리에 만들 때만 절대 경로를
+    적어 둔다 — 커밋되는 과제 디렉토리에는 안 적는다.
+    """
+    built = tpl.build_side(TASKS[0], "count", tmp_path / "count")
+    done = subprocess.run(
+        [sys.executable, str(built / "grade.py"), str(built / "template")],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        check=False)
+    assert done.returncode == 0, done.stderr[-2000:]
+    assert json.loads(done.stdout)["task"] == TASKS[0]
+
+
+def test_the_committed_grade_entry_point_holds_no_absolute_path():
+    """절대 경로가 저장소에 들어가면 다른 사람의 clone 에서 뜻이 없다."""
+    body = (qt.task_dir(TASKS[0]) / "grade.py").read_text(encoding="utf-8")
+    assert "hint = None" in body
+    assert str(ROOT) not in body
+
+
+def test_an_unknown_side_is_refused(tmp_path):
+    with pytest.raises(ValueError):
+        tpl.build_side(TASKS[0], "somethingelse", tmp_path / "x")
+
+
+def test_building_a_side_does_not_touch_the_committed_template(tmp_path):
+    before = _registry(qt.task_dir("queue-flat").parent / "queue-flat")
+    tpl.build_side("queue-flat", "count", tmp_path / "count")
+    after = _registry(qt.task_dir("queue-flat").parent / "queue-flat")
+    assert before == after
