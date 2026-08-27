@@ -39,8 +39,8 @@ CONFIG_NAME = ".casa-snapshot.json"
 
 #: 스냅숏에서 빼는 것들. 우리가 심어 둔 설정 파일과 부산물이라 세션의
 #: 작업이 아니다.
-EXCLUDES = (".casa-chain.json", ".casa-snapshot.json", ".claude/",
-            "__pycache__/", "*.pyc")
+EXCLUDES = (".casa-chain.json", ".casa-snapshot.json", ".casa-queue.json",
+            ".claude/", "__pycache__/", "*.pyc")
 
 
 def _git(git_dir: Path, work_tree: Path, *args: str) -> subprocess.CompletedProcess:
