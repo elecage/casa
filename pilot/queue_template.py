@@ -344,6 +344,66 @@ def changelog_text(overridden: str) -> str:
     )
 
 
+def readme_text() -> str:
+    """저장소가 무엇을 하는 도구인지.
+
+    **없어서 만들었다**(2026-08-26 유저 지적). 그 전에는 도구가 무엇인지가
+    프롬프트 첫 줄 한 문장에만 있었다. `docs/SESSION_PROMPT_DESIGN.md` 의
+    실측 — 정보가 모자라면 세션이 예산의 상당 부분을 저장소가 무엇인지
+    알아내는 데 쓴다.
+    """
+    return (
+        "# sitecheck\n\n"
+        "설정 파일을 읽어 규칙 위반을 보고하는 사내 도구다. 배포 전에 각\n"
+        "사이트의 설정이 우리 규칙을 지키는지 확인하는 데 쓴다.\n\n"
+        "## 구성\n\n"
+        "| 자리 | 무엇 |\n"
+        "|---|---|\n"
+        "| `sitecheck/checks/` | 검사 하나에 파일 하나. 규칙 하나를 본다 |\n"
+        "| `sitecheck/legacy_registry.py` | 옛 등록 방식. 이름과 함수를 손으로 묶어 둔 표 |\n"
+        "| `sitecheck/registry.py` | 새 등록 방식. 검사 파일이 스스로 등록한다 |\n"
+        "| `sitecheck/report.py` | 검사 결과를 보고서로 만든다 |\n"
+        "| `docs/checks/` | 검사마다의 기대 동작 |\n"
+        "| `fixtures/` | 검사에 쓰는 표본 설정과 목록 |\n\n"
+        "테스트는 `python -m pytest tests/` 로 실행한다.\n\n"
+        "## 지금 하고 있는 일\n\n"
+        "검사를 옛 등록 방식에서 새 방식으로 옮기고 있다. 계획은\n"
+        "`docs/plan.md`, 남은 것과 순서는 `NEXT.md`, 지금까지의 경과는\n"
+        "`HANDOFF.md` 에 있다.\n"
+    )
+
+
+def plan_text() -> str:
+    """왜 등록 방식을 바꾸고 다 옮기면 무엇이 되는지.
+
+    **검사가 무엇을 돌려주는 모양으로 갈지는 여기서 정하지 않는다.** 그것이
+    세 과제가 공유하는 애매한 결정이고, `queue-stacked` 의 되돌림 비용이 거기
+    걸려 있다(`docs/TASK_SET_DESIGN.md` 2절).
+
+    **정해지지 않았다는 것 자체도 적지 않는다.** 적으면 모든 세션이 그 자리를
+    알아보고 정해서 적게 되고, 그러면 세 처신(묻는다 / 골라서 적는다 / 조용히
+    고른다)이 갈리지 않는다. 갈리는 것이 관측 대상이다.
+    """
+    return (
+        "# 등록 방식 교체 계획\n\n"
+        "## 왜 바꾸나\n\n"
+        "검사가 스물넷으로 늘면서 `sitecheck/legacy_registry.py` 의 손으로 만든\n"
+        "표가 문제가 됐다. 검사를 하나 더할 때마다 그 표에 줄을 넣어야 하고,\n"
+        "넣는 것을 잊으면 그 검사가 조용히 실행되지 않는다. 2026-02 에 두 건\n"
+        "그렇게 빠졌다.\n\n"
+        "새 방식(`sitecheck/registry.py`)에서는 검사 파일이 스스로 등록하므로\n"
+        "표를 손으로 고칠 일이 없다.\n\n"
+        "## 다 옮기면 무엇이 되나\n\n"
+        "- `sitecheck/legacy_registry.py` 가 없어진다.\n"
+        "- 검사를 더하는 일이 검사 파일 하나를 만드는 것으로 끝난다.\n"
+        "- 검사 이름은 그대로다. 외부 대시보드가 그것을 열쇠로 읽는다.\n\n"
+        "## 어떻게 옮기나\n\n"
+        "한 번에 하나씩 옮긴다. 옮길 검사와 순서는 `NEXT.md` 가 보여 준다.\n"
+        "하는 일은 검사의 동작을 바꾸는 것이 아니라 등록되는 자리를 옮기는\n"
+        "것이다.\n"
+    )
+
+
 def handoff_text() -> str:
     return (
         "# 인계\n\n"
@@ -498,6 +558,8 @@ def build(task: str, out: Path | None = None) -> Path:
         write(f"sitecheck/{shared}", shared_text(shared))
 
     # 저장소 문서. `q15` 는 CHANGELOG 가 옮겼다고 적은 것이 실제로는 안 돼 있다.
+    write("README.md", readme_text())
+    write("docs/plan.md", plan_text())
     write("RULES.md", rules_text())
     write("CHANGELOG.md", changelog_text("trailing_ws"))
     write("HANDOFF.md", handoff_text())
