@@ -26,6 +26,7 @@ import json
 import re
 import subprocess
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -269,11 +270,15 @@ def grade(task: str, work_dir: Path, state: dict | None = None) -> dict:
     }
 
 
-def grade_history(task: str, trees: list[Path]) -> dict:
+def grade_history(task: str, trees: Iterable[Path]) -> dict:
     """스냅숏들을 순서대로 채점한다.
 
     **한 번 채워졌던 완료 조건이 나중에 안 채워지는 자리**를 센다. 아무도
     알아챌 필요가 없다 — 채점기가 스냅숏마다 판정한다.
+
+    **하나를 채점한 뒤에 다음 것을 받는다.** 목록이 아니라 하나씩 내놓는 것을
+    줘도 된다 — `pilot/queue_history.py` 가 자리 하나를 다시 쓰면서 스냅숏을
+    펼쳐 넣는다. 호출 수백 개 분량의 트리를 동시에 펼치지 않기 위해서다.
     """
     steps = [grade(task, tree) for tree in trees]
     ever: set[str] = set()

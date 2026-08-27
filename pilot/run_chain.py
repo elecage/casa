@@ -46,6 +46,7 @@ from casa.audit import audit_session  # noqa: E402
 from casa.rules import load_rules  # noqa: E402
 import chain_budget  # noqa: E402
 import cut_hook  # noqa: E402
+import queue_hook  # noqa: E402
 import snapshot  # noqa: E402
 from run_sessions import (  # noqa: E402
     check_auth, prepare_workdir, rules_for, run_headless,
@@ -101,6 +102,36 @@ def trailing_cut_streak(rows: list[dict]) -> int:
             break
         streak += 1
     return streak
+
+
+def progress_of(result: dict) -> int | None:
+    """그 시점에 채워진 완료 조건 수. 못 읽으면 None.
+
+    **과제마다 채점기 출력의 열쇠가 다르다** — 옛 과제들은 `milestone_score`,
+    큐 과제 셋(`pilot/queue_grade.py`)은 `met` 이다. 사슬 요약이 진척을 세려면
+    둘 다 읽어야 한다.
+
+    **이 수는 점수가 아니라 부수 기록이다**(`pilot/tasks/queue-flat/DESIGN.md`
+    8절). 세션 점수는 관측 대상의 상태 벡터다.
+    """
+    for key in ("milestone_score", "met"):
+        value = (result or {}).get(key)
+        if isinstance(value, int):
+            return value
+    return None
+
+
+def progress_line(result: dict) -> str:
+    """실행 중에 한 줄로 보여 주는 진행 표시."""
+    result = result or {}
+    if isinstance(result.get("milestone_score"), int):
+        return (f"마일스톤 {result['milestone_score']}  "
+                f"위반 {result.get('violations')}")
+    if isinstance(result.get("met"), int):
+        claimed = len(result.get("claimed_not_met") or [])
+        return (f"충족 {result['met']}/{result.get('total')}  "
+                f"적었는데 안 된 항목 {claimed}")
+    return "채점 결과 없음"
 
 
 def grade(task_dir: Path, workdir: Path) -> dict:
@@ -205,9 +236,19 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
     # 순서가 뒤집히면 끊는 장치가 조용히 사라지고, 두 조건이 같아진 채로
     # 배치가 돈다.
     cut_hook.install(workdir, cut_at, max_streak=max_cut_streak)
+    # 큐 과제는 `NEXT.md` 가 시작 상태의 일부다. **스냅숏 훅보다 먼저 만든다** —
+    # 그쪽이 세션 시작 전 상태를 커밋 하나로 찍어 두기 때문이다.
+    is_queue_task = (task_dir / "queue.json").is_file()
+    if is_queue_task:
+        queue_hook.prepare(workdir, task_dir.name)
     # 예산 훅 다음에 배선한다 — settings.json 을 덮지 않고 합친다.
     snapshot.install(workdir, out_dir / SNAPSHOT_DIR_NAME /
                      f"chain-{chain:02d}.git")
+    # 갱신 훅은 스냅숏 훅 **다음에** 배선한다 — 그쪽이 `PostToolUse` 목록을
+    # 통째로 쓰고, 이쪽은 맨 앞에 끼워 넣어 갱신된 `NEXT.md` 가 이번 호출의
+    # 스냅숏에 담기게 한다.
+    if is_queue_task:
+        queue_hook.install(workdir, task_dir.name)
 
     seen: set[str] = set()
     rows: list[dict] = []
@@ -276,9 +317,8 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
         used += calls_of(row)
         row["calls_used_in_chain"] = used
 
-        score = row["grade"].get("milestone_score")
-        print(f"  {label}  {row['wall_s']:>6.1f}s  마일스톤 {score}  "
-              f"위반 {row['grade'].get('violations')}")
+        print(f"  {label}  {row['wall_s']:>6.1f}s  "
+              f"{progress_line(row['grade'])}")
 
         # CLI가 아예 시작하지 못했으면 **배치를 멈춘다.** 다음 세션도 같은
         # 이유로 안 돌 것이고, 계속 돌리면 한 번도 실행되지 않은 세션 열 개가
@@ -313,14 +353,16 @@ def served_models(cli: dict) -> list[str]:
 
 def chain_summary(rows: list[dict]) -> dict:
     """Chain-level roll-up. The session is not the unit of analysis here."""
-    scores = [r["grade"].get("milestone_score") for r in rows
-              if isinstance(r["grade"].get("milestone_score"), int)]
+    scores = [p for p in (progress_of(r["grade"]) for r in rows)
+              if isinstance(p, int)]
     gains = [b - a for a, b in zip(scores, scores[1:])] if len(scores) > 1 else []
     final = rows[-1]["grade"] if rows else {}
     return {
         "sessions": len(rows),
         "final_milestone_score": final.get("milestone_score"),
         "final_violations": final.get("violations"),
+        # 큐 과제 셋은 채점기 출력의 열쇠가 달라 위 둘이 비어 있다.
+        "final_progress": progress_of(final),
         "per_session_scores": scores,
         "per_session_gain": gains,
         "stalled_sessions": sum(1 for g in gains if g <= 0),

@@ -344,6 +344,52 @@ def changelog_text(overridden: str) -> str:
     )
 
 
+def grade_entry_text(task: str) -> str:
+    """러너가 부르는 채점기 진입점(`grade.py`).
+
+    `pilot/run_chain.py` 는 과제 디렉토리의 `grade.py` 를 별도 프로세스로
+    실행하고 stdout 을 JSON 으로 읽는다. 판정 자체는 `pilot/queue_grade.py`
+    에 있다 — 세 과제가 같은 것을 쓴다.
+
+    **결과를 ASCII 로만 내보낸다.** 못 채운 이유가 한글인데, 윈도우 기본
+    인코딩이 그것을 못 내보내면 채점 출력이 통째로 사라진다. 2026-08-24에 조사
+    스크립트가 같은 이유로 CI 의 윈도우 두 조합에서만 실패했다.
+    """
+    return (
+        '#!/usr/bin/env python3\n'
+        f'"""`{task}` 채점기 진입점. 판정은 pilot/queue_grade.py 에 있다.\n\n'
+        '이 파일은 pilot/queue_template.py 가 만든다. 손으로 고치지 말 것.\n'
+        '"""\n\n'
+        'import json\n'
+        'import sys\n'
+        'from pathlib import Path\n\n'
+        'sys.path.insert(0, str(Path(__file__).resolve().parents[2]))\n\n'
+        'from queue_grade import grade  # noqa: E402\n\n'
+        f'TASK = "{task}"\n\n\n'
+        'def main() -> int:\n'
+        '    if len(sys.argv) != 2:\n'
+        '        print(json.dumps({"error": "사용: grade.py <작업 디렉토리>"}))\n'
+        '        return 1\n'
+        '    print(json.dumps(grade(TASK, Path(sys.argv[1]))))\n'
+        '    return 0\n\n\n'
+        'if __name__ == "__main__":\n'
+        '    raise SystemExit(main())\n'
+    )
+
+
+def relevant_files_text(items: list[dict]) -> str:
+    """`relevant_files.txt` — 이 과제에서 손대는 것이 정당한 파일 전부.
+
+    `pilot/run_chain.py` 가 `casa.audit` 에 넘긴다. 큐 항목마다 적어 둔 관련
+    파일의 합집합에 항상 고쳐도 되는 셋을 더한 것이다. **큐에서 뽑는다** —
+    따로 적어 두면 큐가 바뀔 때 조용히 어긋난다.
+    """
+    from queue_task import ALWAYS_EDITABLE  # 순환 import 를 피해 여기서 부른다
+
+    names = {rel for item in items for rel in item.get("relevant", [])}
+    return "\n".join(sorted(names | set(ALWAYS_EDITABLE))) + "\n"
+
+
 def readme_text() -> str:
     """저장소가 무엇을 하는 도구인지.
 
@@ -571,10 +617,15 @@ def build(task: str, out: Path | None = None) -> Path:
     write("tests/test_visible.py", visible_test_text(premigrated, as_list))
 
     # 채점기가 쓰는 기대값. **`template/` 바깥에 둔다** — 세션이 보면 답이다.
-    (task_dir(task) if out is None else root.parent).mkdir(parents=True, exist_ok=True)
-    where = (task_dir(task) if out is None else root.parent) / "expected.json"
-    where.write_text(json.dumps(expected_json(shared), ensure_ascii=False,
-                                indent=2) + "\n", encoding="utf-8")
+    outside = task_dir(task) if out is None else root.parent
+    outside.mkdir(parents=True, exist_ok=True)
+    (outside / "expected.json").write_text(
+        json.dumps(expected_json(shared), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8")
+    # 러너가 쓰는 둘. 이것도 `template/` 바깥이다.
+    (outside / "grade.py").write_text(grade_entry_text(task), encoding="utf-8")
+    (outside / "relevant_files.txt").write_text(
+        relevant_files_text(items), encoding="utf-8")
     return root
 
 
