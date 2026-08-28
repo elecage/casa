@@ -387,3 +387,52 @@ def test_work_recorded_in_the_same_call_is_not_avoidance(tmp_path):
     assert got["avoidance"]["off_item"] == 0
     assert got["avoidance"]["state"] == "안 빠짐"
     assert got["steps"][0]["current_item"] == qid
+
+
+# --------------------- 배치 출력 디렉토리 하나를 통째로 산출하는가
+#
+# `docs/QUEUE_TASK_DEFECTS.md` 10-4. 앞서는 사슬마다 스냅숏 저장소와
+# 트랜스크립트 경로를 손으로 맞춰 줘야 했고, 2026-08-27에 그 경로를 틀렸다.
+
+
+def _run_dir(tmp_path: Path, chains: int = 2) -> Path:
+    """`pilot/run_chain.py` 가 만드는 것과 같은 모양의 출력 디렉토리."""
+    out = tmp_path / "out"
+    (out / "snapshots").mkdir(parents=True)
+    for chain in range(1, chains + 1):
+        work = out / f"chain-{chain:02d}"
+        tpl.build(TASK, work)
+        git_dir = out / "snapshots" / f"chain-{chain:02d}.git"
+        snapshot.install(work, git_dir)
+        _, name = _first_check(TASK)
+        _migrate(work, name)
+        snapshot.take(work)
+        _transcript(out / f"transcript-c{chain:02d}s01.jsonl", [
+            {"name": "Bash", "input": {"command": "python -m pytest tests/"}},
+            {"name": "Edit", "input": {"file_path": "docs/decisions.md"}},
+        ])
+    return out
+
+
+def test_every_chain_in_a_run_is_observed(tmp_path):
+    out = _run_dir(tmp_path, chains=2)
+    got = obs.observe_run(TASK, out)
+    assert [row["chain"] for row in got["chains"]] == [1, 2]
+    for row in got["chains"]:
+        assert row["met_at_end"] == 1
+        assert len(row["discipline"]) == 1
+
+
+def test_the_command_line_takes_a_run_directory(tmp_path, capsys):
+    out = _run_dir(tmp_path, chains=2)
+    assert obs.main([TASK, str(out), "--out", str(tmp_path / "o.json")]) == 0
+    printed = capsys.readouterr().out
+    assert "사슬 01" in printed and "사슬 02" in printed
+    saved = json.loads((tmp_path / "o.json").read_text(encoding="utf-8"))
+    assert len(saved["chains"]) == 2
+
+
+def test_a_directory_with_no_chains_is_refused(tmp_path):
+    (tmp_path / "snapshots").mkdir()
+    with pytest.raises(ValueError, match="snapshots/chain-NN.git"):
+        obs.observe_run(TASK, tmp_path)

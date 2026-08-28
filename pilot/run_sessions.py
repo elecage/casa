@@ -40,11 +40,25 @@ import snapshot  # noqa: E402
 CANARY_RULES = REPO / "rules" / "canary_rules.yaml"
 
 
-def rules_for(task_dir: Path) -> Path:
-    """Task-local canary_rules.yaml (task-specific refinements, e.g. the
-    concretized search-before-write prerequisite) wins over the default."""
+def rules_for(task_dir: Path) -> Path | None:
+    """이 과제에 적용할 캐너리 규칙 파일. **없으면 `None` 이다.**
+
+    과제에 둔 `canary_rules.yaml` 이 기본값보다 앞선다 — 과제마다 구체화한
+    것(예: `plugin-add` 의 search-before-write 전제)이 있다.
+
+    **규칙을 세션에게 말하지 않는 과제에는 적용하지 않는다** (2026-08-28,
+    `docs/QUEUE_TASK_DEFECTS.md` 10-1). `rules/canary_rules.yaml` 머리에
+    적혀 있듯이 이 규칙들은 **과제 저장소의 `CLAUDE.md` 에 자연어로 같이
+    적혀 있어야** 하고, CASA 가 재는 것은 세션이 그 파일을 지키는지다. 옛 과제
+    열한 종은 `template/CLAUDE.md` 에 그 여덟 줄을 담고 있다. 뒤에 만든 과제들
+    (`queue-flat` 포함)은 담고 있지 않은데도 채점만 되고 있었다 — 2026-08-27
+    실측이 셸 `cat` 과 `grep` 두 건을 위반으로 기록했는데, 그 세션은 그러지
+    말라는 말을 어디서도 받지 않았다.
+    """
     local = task_dir / "canary_rules.yaml"
-    return local if local.exists() else CANARY_RULES
+    if local.exists():
+        return local
+    return CANARY_RULES if (task_dir / "template" / "CLAUDE.md").is_file() else None
 
 
 def munge_project_dir(path: str | Path) -> str:
@@ -346,7 +360,9 @@ def run_one(task_dir: Path, out_dir: Path, index: int, model: str | None,
         saved = out_dir / f"transcript-{index:02d}.jsonl"
         shutil.copyfile(transcript, saved)
         summary["transcript"] = str(saved)
-        summary["audit"] = audit_session(saved, rules=load_rules(rules_for(task_dir)),
+        rules_path = rules_for(task_dir)
+        summary["audit"] = audit_session(
+            saved, rules=load_rules(rules_path) if rules_path else None,
                                          relevant_files=relevant)
     else:
         summary["transcript"] = None

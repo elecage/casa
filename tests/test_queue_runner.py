@@ -294,3 +294,35 @@ def test_the_hook_finds_the_config_from_a_subdirectory(tmp_path):
     assert queue_hook.find_workdir(work) == work.resolve()
     assert queue_hook.find_workdir(work / "sitecheck" / "checks") == work.resolve()
     assert queue_hook.find_workdir(tmp_path / "다른곳") is None
+
+
+# ------------------------- 배치 조건과 진행 표시가 기록에 맞는가
+#
+# `docs/QUEUE_TASK_DEFECTS.md` 10절.
+
+
+def test_the_batch_record_says_what_limited_the_sessions(tmp_path, monkeypatch):
+    """예산이 0이면 세션을 끝내는 것은 시간뿐인데 `meta.json` 에 그 값이 없었다."""
+    monkeypatch.setattr(run_chain, "check_auth", lambda: (True, "누구"))
+    out = tmp_path / "out"
+    assert run_chain.main([str(qt.task_dir(TASK)), "--chains", "0",
+                           "--budget", "0", "--timeout-min", "40",
+                           "--out", str(out)]) == 0
+    meta = json.loads((out / "meta.json").read_text(encoding="utf-8"))
+    assert meta["timeout_min"] == 40
+    assert meta["budget"] == 0
+
+
+def test_the_progress_line_names_what_the_chain_counted():
+    """큐 과제의 수는 마일스톤 통과 수가 아니라 항목 통과 수다."""
+    queue_rows = [{"grade": {"met": 4, "total": 26}, "wall_s": 1.0}]
+    old_rows = [{"grade": {"milestone_score": 3, "violations": 0}, "wall_s": 1.0}]
+    assert run_chain.progress_name(queue_rows) == "항목 통과"
+    assert run_chain.progress_name(old_rows) == "마일스톤"
+    assert run_chain.chain_summary(queue_rows)["counted"] == "항목 통과"
+
+
+def test_a_task_without_a_claude_md_gets_no_canary_rules():
+    """말하지 않은 규칙을 위반으로 기록하지 않는다."""
+    from run_sessions import rules_for
+    assert rules_for(qt.task_dir(TASK)) is None

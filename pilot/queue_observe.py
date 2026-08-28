@@ -34,10 +34,15 @@
 **스냅숏 저장소 경로는 사슬 하나의 것이다** — `<출력>/snapshots/chain-01.git`.
 그 위를 주면 스냅숏을 하나도 못 찾는다. 그때는 오류로 끝난다(같은 문서 6절).
 
-사용:
+사용. **배치 전체를 주는 것이 보통이다** — 사슬마다의 스냅숏 저장소와
+트랜스크립트를 스스로 찾는다.
 
-    python pilot/queue_observe.py <과제 이름> <스냅숏 저장소.git> \\
-        [--transcript t.jsonl ...] [--out out.json]
+    python pilot/queue_observe.py <과제 이름> <run_chain 의 --out> [--out o.json]
+
+사슬 하나만 볼 때는 그 저장소를 직접 준다.
+
+    python pilot/queue_observe.py <과제 이름> <출력>/snapshots/chain-01.git \\
+        [--transcript t.jsonl ...] [--out o.json]
 """
 
 from __future__ import annotations
@@ -314,21 +319,75 @@ def report(result: dict) -> str:
     return "\n".join(lines)
 
 
+#: 사슬 저장소 이름. `pilot/run_chain.py` 의 `SNAPSHOT_DIR_NAME` 과 짝이다.
+_CHAIN_GIT = re.compile(r"^chain-(\d+)\.git$")
+
+
+def chains_in(out_dir: Path) -> list[tuple[int, Path, list[Path]]]:
+    """배치 출력 디렉토리 안의 (사슬 번호, 스냅숏 저장소, 트랜스크립트들).
+
+    **경로를 손으로 맞추지 않게 한다** — `pilot/run_chain.py` 가 저장소를
+    `<출력>/snapshots/chain-NN.git` 에, 트랜스크립트를
+    `<출력>/transcript-cNNsMM.jsonl` 에 둔다. 2026-08-27에 사슬 디렉토리 위를
+    주고 `스냅숏 0개` 를 읽었다(`docs/QUEUE_TASK_DEFECTS.md` 6절).
+    """
+    out_dir = Path(out_dir)
+    found = []
+    for git_dir in sorted((out_dir / "snapshots").glob("chain-*.git")):
+        match = _CHAIN_GIT.match(git_dir.name)
+        if not match:
+            continue
+        chain = int(match.group(1))
+        transcripts = sorted(out_dir.glob(f"transcript-c{chain:02d}s*.jsonl"))
+        found.append((chain, git_dir, transcripts))
+    return found
+
+
+def observe_run(task: str, out_dir: Path) -> dict:
+    """배치 출력 디렉토리 하나의 사슬 전부를 산출한다."""
+    chains = chains_in(out_dir)
+    if not chains:
+        raise ValueError(
+            f"{out_dir} 안에서 사슬을 하나도 못 찾았다. pilot/run_chain.py 의"
+            " --out 로 준 디렉토리를 줄 것 — 그 안에 snapshots/chain-NN.git 가"
+            " 있다")
+    return {
+        "task": task,
+        "out_dir": str(Path(out_dir).resolve()),
+        "chains": [{"chain": chain, **observe(task, git_dir, transcripts)}
+                   for chain, git_dir, transcripts in chains],
+    }
+
+
+def run_report(result: dict) -> str:
+    return "\n".join(f"사슬 {row['chain']:02d} — " + report(row)
+                     for row in result["chains"])
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("task")
-    ap.add_argument("git_dir")
+    ap.add_argument("target",
+                    help="사슬 하나의 스냅숏 저장소(...snapshots/chain-01.git) "
+                         "또는 배치 출력 디렉토리 전체(run_chain 의 --out)")
     ap.add_argument("--transcript", action="append", default=[],
-                    help="세션 트랜스크립트. 여러 번 줄 수 있다")
+                    help="세션 트랜스크립트. 여러 번 줄 수 있다. 배치 출력 "
+                         "디렉토리를 주면 스스로 찾으므로 필요 없다")
     ap.add_argument("--out", default=None)
     args = ap.parse_args(argv)
 
-    result = observe(args.task, Path(args.git_dir),
-                     [Path(p) for p in args.transcript])
+    target = Path(args.target)
+    if (target / "snapshots").is_dir():
+        result = observe_run(args.task, target)
+        text = run_report(result)
+    else:
+        result = observe(args.task, target,
+                         [Path(p) for p in args.transcript])
+        text = report(result)
     if args.out:
         Path(args.out).write_text(
             json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(report(result))
+    print(text)
     return 0
 
 
