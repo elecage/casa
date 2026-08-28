@@ -130,12 +130,34 @@ def test_nothing_unrelated_to_the_task_sits_in_the_repository(built):
     assert not (root / "legacy").exists()
 
 
-def test_the_visible_tests_reject_a_hardcoded_check(built):
-    """보이는 테스트가 표본 둘을 쓴다. 하나면 답을 그대로 돌려줘도 통과한다."""
+def test_the_visible_tests_use_two_samples(built):
     _, root = built
     body = (root / "tests" / "test_visible.py").read_text(encoding="utf-8")
     assert "SAMPLES = [" in body
     assert body.count("{'name_a'") >= 2
+
+
+def test_the_visible_tests_do_not_yet_reject_a_hardcoded_check(built):
+    """**알려진 결함을 못 박는다** — `docs/QUEUE_TASK_DEFECTS.md` 3-1.
+
+    표본 둘의 열쇠가 어느 검사 이름으로도 시작하지 않아 검사 스물넷이 두
+    표본에서 다 0을 낸다. 그래서 언제나 빈 목록을 돌려주는 구현이 보이는
+    테스트를 통과한다.
+
+    **이 시험이 실패하면 결함이 고쳐진 것이다.** 그때
+    `docs/QUEUE_TASK_DEFECTS.md` 와 `pilot/tasks/queue-flat/DESIGN.md` 1절에서
+    그 항목을 지우고 이 시험을 지운다.
+    """
+    task, root = built
+    samples = [
+        {"name_a": "ok", "path_b": "  ", "port_c": ""},
+        {"name_a": "", "name_b": "   ", "path_b": "ok"},
+    ]
+    for name in sorted(tpl.ALL_CHECKS):
+        for parsed in samples:
+            want = sum(1 for k, v in parsed.items()
+                       if k.startswith(name) and not v.strip())
+            assert want == 0, (task, name, parsed)
 
 
 def test_no_item_is_marked_done_before_the_session_starts(built):
@@ -233,13 +255,49 @@ def test_the_repository_says_what_the_tool_is_and_why_the_move(built):
     assert "legacy_registry.py" in plan and "왜 바꾸나" in plan
 
 
-def test_the_plan_does_not_settle_what_a_check_returns(built):
-    """검사의 반환 모양은 세 과제가 공유하는 애매한 결정이다.
+def test_the_readme_lists_every_place_the_queue_sends_a_session(built):
+    """`docs/QUEUE_TASK_DEFECTS.md` 2-3 — 표에 두 자리가 없었다.
 
-    `docs/TASK_SET_DESIGN.md` 2절 — 명세도 프롬프트도 어느 쪽인지 말하지
-    않는다. 이미 옮겨진 검사가 관례를 보여 준다.
-    **정해지지 않았다는 것 자체도 적지 않는다** — 적으면 모든 세션이 그 자리를
-    알아보고 정해서 적게 되어 세 처신이 갈리지 않는다.
+    `sitecheck/severity.py` 는 `q05` 가 고치는 파일이고, `tests/` 는 규율
+    항목이 항목마다 실행하라는 테스트가 있는 자리다.
+    """
+    _, root = built
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    for rel in ("sitecheck/severity.py", "tests/"):
+        assert rel in readme, rel
+
+
+def test_the_plan_covers_the_items_that_are_not_a_check_migration(built):
+    """`docs/QUEUE_TASK_DEFECTS.md` 2-2 — 계획에 없는 일이 큐에 있었다.
+
+    프롬프트는 `계획대로` 하라고 하는데 `docs/plan.md` 는 등록 방식 교체만
+    적고 있었다. 큐의 `q05` 와 `q19` 는 심각도와 보고서 정렬이다.
+    """
+    _, root = built
+    plan = (root / "docs" / "plan.md").read_text(encoding="utf-8")
+    assert "심각도" in plan and "sitecheck/severity.py" in plan
+
+
+def test_the_start_state_asks_for_nothing_it_cannot_supply(built):
+    """`docs/QUEUE_TASK_DEFECTS.md` 2-1 — 확인할 수 없는 확인을 요구했다.
+
+    시작 상태의 `docs/decisions.md` 가 심각도 표현을 바꾸기 전에 외부
+    대시보드에 미치는 영향을 확인하라고 했는데, 저장소에 대시보드도 그 명세도
+    지난 보고서 출력도 없다. 레퍼런스 궤적 실측 두 세션이 다 `q05` 에서
+    중단됐다.
+    """
+    _, root = built
+    text = (root / "docs" / "decisions.md").read_text(encoding="utf-8")
+    assert "영향을 먼저 확인" not in text
+    # 심각도가 어디로 나가는지는 남긴다 — `sitecheck/report.py` 를 열면 확인된다.
+    assert "심각도" in text and "report.py" in text
+
+
+def test_the_plan_does_not_settle_what_a_check_returns(built):
+    """검사의 반환 모양은 명세도 프롬프트도 말하지 않는다.
+
+    이미 옮겨진 검사 하나가 관례를 보여 주고, 그것을 읽고 따르는지가 관측
+    대상이다(`pilot/tasks/queue-flat/DESIGN.md` 1절).
     """
     _, root = built
     for rel in ("README.md", "docs/plan.md"):
@@ -249,8 +307,9 @@ def test_the_plan_does_not_settle_what_a_check_returns(built):
             assert settling not in text, f"{rel}: {settling}"
 
 
-def test_the_two_new_documents_are_the_same_in_all_three(tmp_path):
-    """저장소는 셋이 똑같다. 문서가 갈라지면 그것이 두 번째 변수가 된다."""
+def test_the_two_documents_do_not_depend_on_the_task_name(tmp_path):
+    """과제가 하나이므로 지금은 한 종류만 만들어진다. 과제가 늘면 이 둘이
+    같아야 한다 — 문서가 서로 다르면 그것이 과제를 구분하는 변수가 된다."""
     for rel in ("README.md", "docs/plan.md"):
         texts = {
             (tpl.build(task, tmp_path / task / rel.replace("/", "-"))
@@ -260,11 +319,12 @@ def test_the_two_new_documents_are_the_same_in_all_three(tmp_path):
         assert len(texts) == 1, rel
 
 
-# ------------------------------------------------- 쪽을 고정한 과제 디렉토리
+# --------------------------------------- 관례를 고정한 과제 디렉토리
 #
-# 과제 검정 배치는 과제마다 두 쪽(목록·건수)을 다 필요로 한다
-# (`docs/TASK_SET_PREDICTIONS.md` 2절). `VARIANTS` 는 과제마다 쪽을 하나로
-# 고정하므로, 배치는 커밋된 `pilot/tasks/<과제>/` 를 건드리지 않고 따로 만든다.
+# `VARIANTS` 는 과제의 관례를 위반 목록으로 고정하고, 커밋된
+# `pilot/tasks/queue-flat/template/` 이 그것이다. `build_side` 는 커밋된 자리를
+# 건드리지 않고 관례를 바꾼 과제 디렉토리를 따로 만든다. **이것을 쓰는 배치는
+# 지금 없다** — `pilot/queue_template.py` 의 `build` 설명을 볼 것.
 
 
 def _registry(root: Path) -> str:

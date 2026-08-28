@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""작업 큐 과제 셋의 채점기 — 항목마다 완료 조건을 판정한다.
+"""작업 큐 과제 `queue-flat` 의 채점기 — 항목마다 완료 조건을 판정한다.
 
-**호출별 스냅숏마다 실행된다**(`docs/TASK_SET_DESIGN.md` 3절). 지금까지의
+**호출별 스냅숏마다 실행된다**(`pilot/tasks/queue-flat/DESIGN.md` 6절). 지금까지의
 채점기들은 최종 트리 하나에 대해서만 실행됐고, 그래서 "한 번 채워졌던 완료
 조건이 나중에 안 채워지는 자리" 를 셀 수 없었다. `grade_history` 가 그것을
 센다.
@@ -12,8 +12,13 @@
 검사가 **무엇을 돌려주는지는 보지 않고**, 그 검사가 보고하는 위반 수가 옳은지만
 본다. 건수를 돌려주든 목록을 돌려주든 둘 다 통과한다.
 
-**판단 자체를 채점하지 않는다.** 애매한 항목과 상충하는 항목에서는 **고른 쪽과
-`docs/decisions.md` 가 서로 맞는지**만 본다.
+**판단 자체를 채점하지 않는다.** 세션이 정해야 하는 항목(`q05`)에서는 **고른
+것과 `docs/decisions.md` 가 서로 맞는지**만 본다. 어느 쪽을 골랐는지는 보지
+않는다.
+
+**`q05` 와 `q19` 의 판정 방법은 지금 구현 방식을 못 박고 있다** —
+`docs/QUEUE_TASK_DEFECTS.md` 4절. 위 문단이 말하는 원칙을 그 둘이 지키지
+못한다.
 
 사용:
 
@@ -168,19 +173,20 @@ def _sorted_by_severity(work_dir: Path, decisions: str) -> tuple[bool, str]:
 
 #: 줄 번호로 볼 표시. **`"line" 이 들어 있는가` 로 보면 안 된다** — 검사 이름
 #: `line_length` 에 걸려서, 줄 번호를 내지 않는 보고서가 통과한다. 2026-08-24에
-#: 실제로 그렇게 통과했고, 건수를 고른 쪽이 `queue-stacked` 에서 스물여섯 항목을
-#: 다 채운 것으로 나왔다.
+#: 그렇게 통과해서, 위반 건수만 돌려주는 저장소가 항목 스물여섯을 다 채운 것으로
+#: 나왔다.
 _LINE_MARK = re.compile(r"(?:line|줄)\s*[:=]?\s*\d+", re.IGNORECASE)
 
 
 def _lines_in_report(state: dict, want_rows: int) -> tuple[bool, str]:
-    """`queue-stacked` 의 `q24` — 보고서가 위반마다 줄 번호를 내는가.
-
-    **이 항목이 `q02` 의 결정을 되돌리게 만드는 자리다.** 건수만 돌려주는
-    모양으로 정했으면 줄 번호가 없다.
+    """보고서가 위반마다 줄 번호를 내는가.
 
     판정은 동작으로 한다 — 보고서의 줄 수가 위반 수만큼 있고, 그 줄에 숫자로
     된 줄 번호가 붙어 있는가.
+
+    **지금 이 가지에 도달하는 항목이 없다**(`docs/QUEUE_TASK_DEFECTS.md` 3-2).
+    관련 파일 목록의 첫 항목이 `sitecheck/report.py` 인 항목은 `q19` 뿐이고,
+    `q19` 는 그 앞에서 처리된다. 부르는 곳이 `tests/test_queue_grade.py` 뿐이다.
     """
     body = state.get("report")
     if not body:
@@ -240,7 +246,8 @@ def grade(task: str, work_dir: Path, state: dict | None = None) -> dict:
         elif qid == "q26":
             ok, why = _legacy_removed(state, set(want))
         elif item["relevant"][0] == "sitecheck/report.py":
-            # `queue-stacked` 의 `q24`. 위반 수만큼 줄이 나와야 한다.
+            # 보고서 항목. 위반 수만큼 줄이 나와야 한다. 지금 여기 오는 항목은
+            # 없다 — `_lines_in_report` 의 설명을 볼 것.
             registered = set(state.get("registered", []))
             ok, why = _lines_in_report(
                 state, sum(v for k, v in want.items() if k in registered))
@@ -301,8 +308,12 @@ def grade_history(task: str, trees: Iterable[Path]) -> dict:
 
 # ------------------------------------------------------- 기술적 실패 분리
 #
-# `DESIGN.md` 7절. 2026-08-23에 이것이 없어서 중단된 세션 서른여섯을 "일찍 멈춘
-# 세션" 으로 잘못 읽었다(`docs/EARLY_STOP_SESSIONS.md`).
+# `pilot/tasks/queue-flat/DESIGN.md` 7절. 2026-08-23에 이것이 없어서 중단된 세션
+# 서른여섯을 "일찍 멈춘 세션" 으로 잘못 읽었다(`docs/EARLY_STOP_SESSIONS.md`).
+#
+# **아래 함수를 부르는 곳이 시험뿐이다**(`docs/QUEUE_TASK_DEFECTS.md` 3-3).
+# 받는 열쇠 이름도 `pilot/run_chain.py` 가 세션 기록에 적는 이름과 다르다 —
+# 러너는 `cut`, `timed_out`, `budget` 으로 적는다.
 
 TECHNICAL_KINDS = ("하네스가 끊음", "제한 시간 도달", "도구 호출 오류",
                    "같은 호출 반복", "세션이 스스로 끝냄")

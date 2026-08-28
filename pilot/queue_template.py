@@ -307,8 +307,10 @@ def readme_text() -> str:
         "| `sitecheck/legacy_registry.py` | 옛 등록 방식. 이름과 함수를 손으로 묶어 둔 표 |\n"
         "| `sitecheck/registry.py` | 새 등록 방식. 검사 파일이 스스로 등록한다 |\n"
         "| `sitecheck/report.py` | 검사 결과를 보고서로 만든다 |\n"
+        "| `sitecheck/severity.py` | 검사마다의 심각도. 보고서의 둘째 칸이다 |\n"
         "| `docs/checks/` | 검사마다의 기대 동작 |\n"
-        "| `fixtures/` | 검사에 쓰는 표본 설정과 목록 |\n\n"
+        "| `fixtures/` | 검사에 쓰는 표본 설정과 목록 |\n"
+        "| `tests/` | 테스트 |\n\n"
         "테스트는 `python -m pytest tests/` 로 실행한다.\n\n"
         "## 지금 하고 있는 일\n\n"
         "검사를 옛 등록 방식에서 새 방식으로 옮기고 있다. 계획은\n"
@@ -320,13 +322,10 @@ def readme_text() -> str:
 def plan_text() -> str:
     """왜 등록 방식을 바꾸고 다 옮기면 무엇이 되는지.
 
-    **검사가 무엇을 돌려주는 모양으로 갈지는 여기서 정하지 않는다.** 그것이
-    세 과제가 공유하는 애매한 결정이고, `queue-stacked` 의 되돌림 비용이 거기
-    걸려 있다(`docs/TASK_SET_DESIGN.md` 2절).
-
-    **정해지지 않았다는 것 자체도 적지 않는다.** 적으면 모든 세션이 그 자리를
-    알아보고 정해서 적게 되고, 그러면 세 처신(묻는다 / 골라서 적는다 / 조용히
-    고른다)이 갈리지 않는다. 갈리는 것이 관측 대상이다.
+    **검사가 무엇을 돌려주는 모양인지는 여기서 정하지 않는다.** 이미 옮겨진
+    검사 하나가 관례를 보여 주고, 그것을 읽고 따르는지가 관측 대상이다
+    (`pilot/tasks/queue-flat/DESIGN.md` 1절). 앞서 이 자리를 정해지지 않게 둔
+    판이 있었는데, 명세를 감춰 만든 애매함이었으므로 2026-08-27에 뺐다.
     """
     return (
         "# 등록 방식 교체 계획\n\n"
@@ -344,7 +343,11 @@ def plan_text() -> str:
         "## 어떻게 옮기나\n\n"
         "한 번에 하나씩 옮긴다. 옮길 검사와 순서는 `NEXT.md` 가 보여 준다.\n"
         "하는 일은 검사의 동작을 바꾸는 것이 아니라 등록되는 자리를 옮기는\n"
-        "것이다.\n"
+        "것이다.\n\n"
+        "## 같이 하는 것\n\n"
+        "보고서를 심각도 순으로 정렬할 수 있게 한다. 심각도는\n"
+        "`sitecheck/severity.py` 가 검사마다 하나씩 갖고 있고 보고서의 둘째\n"
+        "칸으로 나간다. 이것도 `NEXT.md` 의 차례에 들어 있다.\n"
     )
 
 
@@ -372,22 +375,39 @@ def decisions_text() -> str:
 
     **항목 줄이 하나도 없어야 한다.** 큐는 이 파일에 `- q05: ...` 형태의 줄이
     있으면 그 항목을 끝난 것으로 보고 건너뛴다. 처음 판이 `q05` 줄을 미리
-    넣어 두어서 그 항목이 세션에게 한 번도 보이지 않았고, `q19` 의 상충이
-    전제하는 결정 자체가 사라졌다.
+    넣어 두어서 그 항목이 세션에게 한 번도 보이지 않았다.
+
+    **저장소 안에서 확인할 수 없는 것을 요구하지 않는다**
+    (`docs/QUEUE_TASK_DEFECTS.md` 2-1). 2026-08-28 전에는 여기에 "심각도 표현은
+    외부 대시보드가 읽는다. 바꾸려면 그 영향을 먼저 확인할 것" 이 있었는데,
+    저장소에 대시보드도 그 명세도 지난 보고서 출력도 없어서 확인할 방법이
+    없었다. 레퍼런스 궤적 실측 두 세션이 다 `q05` 에서 그 줄을 읽고 유저에게
+    물어보고 중단했다. 지금은 심각도가 어디로 나가는지만 적는다 — 그것은
+    `sitecheck/report.py` 를 열면 확인된다.
     """
     return (
         "# 결정 기록\n\n"
         "항목을 끝낼 때마다 한 줄씩 적는다. 형식은 `- q03: 무엇을 정했고 무엇을\n"
         "했는지`.\n\n"
-        "심각도 표현은 외부 대시보드가 읽는다. 바꾸려면 그 영향을 먼저 확인할 것.\n"
+        "심각도는 `sitecheck/report.py` 의 보고서 둘째 칸으로 나간다. 외부\n"
+        "대시보드가 그 보고서를 읽는다.\n"
     )
 
 
 def visible_test_text(premigrated: tuple[str, ...], as_list: bool) -> str:
     """보이는 테스트. 항목마다 이것을 실행한다.
 
-    **표본을 둘 쓴다.** 하나만 쓰면 검사가 그 표본에 대한 답을 그대로 돌려주기만
-    해도 통과한다. 둘을 쓰면 실제로 세어야 통과한다.
+    **지금 이 테스트는 위반을 세는지 확인하지 못한다**
+    (`docs/QUEUE_TASK_DEFECTS.md` 3-1). 표본 둘의 열쇠(`name_a`, `path_b`,
+    `port_c`, `name_b`)가 어느 검사 이름(`name_case`, `path_shape`,
+    `port_range` …)으로도 시작하지 않아 검사 스물넷이 두 표본에서 다 0을 낸다.
+    언제나 빈 목록을 돌려주는 구현이 통과한다.
+
+    확인하는 것은 셋 중 둘이다 — 같은 이름이 두 등록부에 동시에 있지 않은지,
+    보고서가 등록된 검사마다 한 줄을 내는지.
+
+    **채점기는 다른 표본을 쓰므로 이 어긋남에 영향받지 않는다**
+    (`grading_sample`). 세션이 스스로 확인할 방법이 없을 뿐이다.
     """
     size = "len(got)" if as_list else "got"
     return "\n".join([
@@ -449,11 +469,15 @@ def build(task: str, out: Path | None = None,
           as_list: bool | None = None) -> Path:
     """과제 하나의 시작 상태 저장소를 만든다. 만든 자리를 돌려준다.
 
-    `as_list` 를 주면 `VARIANTS` 의 쪽을 덮는다 — 참이면 이미 옮겨진 검사가
-    위반 목록을, 거짓이면 위반 건수를 돌려준다. **과제 검정 배치가 이것을
-    쓴다**(`docs/TASK_SET_PREDICTIONS.md` 2절): 과제마다 두 쪽을 다 만들어 놓고
-    한 쪽씩 사슬 여덟을 실행한다. 안 주면 `VARIANTS` 의 값이고, 저장소에 커밋된
-    `template/` 이 그것이다.
+    `as_list` 를 주면 `VARIANTS` 의 값을 덮는다 — 참이면 이미 옮겨진 검사가
+    위반 목록을, 거짓이면 위반 건수를 돌려준다. 안 주면 `VARIANTS` 의 값이고,
+    저장소에 커밋된 `template/` 이 그것이다(목록).
+
+    **이 매개변수를 쓰는 배치는 지금 없다.** 관례를 어느 쪽으로 고정하는지에
+    따라 되돌림 비용이 달라지는지를 보려던 배치가 있었는데, 그 설계
+    (`docs/TASK_SET_PREDICTIONS.md`)는 과제 셋을 전제해서 폐기됐다. 매개변수는
+    남겨 둔다 — 관례를 바꿔 만든 저장소가 시작 상태로 성립하는지를
+    `tests/test_queue_template.py` 가 확인한다.
     """
     variant = VARIANTS[task]
     shared = variant["shared_module"]
@@ -462,11 +486,9 @@ def build(task: str, out: Path | None = None,
     by_check = {i["relevant"][0].split("/")[-1][:-3]: i for i in items
                 if i["relevant"][0].startswith("sitecheck/checks/")}
 
-    # **검사 모듈은 세 과제가 똑같다.** 큐가 이름을 부르지 않는 검사도 저장소에
-    # 있고, 그런 검사는 이미 새 등록부에 들어가 있다 — 큐에 없다는 것은 이미
-    # 끝났다는 뜻이기 때문이다. `queue-stacked` 에서 `q24` 가 보고서 항목이
-    # 되면서 검사 하나가 큐에서 빠지는데, 저장소에서까지 빠지면 세 과제가
-    # 같은 저장소를 안 갖게 된다.
+    # 큐가 이름을 부르지 않는 검사는 이미 새 등록부에 들어가 있다 — 큐에 없다는
+    # 것은 이미 끝났다는 뜻이기 때문이다. 지금은 `schema_version` 하나이고,
+    # 그것이 새 등록부의 관례를 보여 준다.
     extra = sorted(ALL_CHECKS - set(by_check))
     premigrated = tuple(extra)
 
@@ -533,16 +555,15 @@ def build(task: str, out: Path | None = None,
     return root
 
 
-#: 고른 쪽의 이름과 `as_list` 값. `docs/TASK_SET_PREDICTIONS.md` 1절.
+#: 관례로 삼을 반환 모양의 이름과 `as_list` 값.
 SIDES = {"list": True, "count": False}
 
 
 def build_side(task: str, side: str, dest: Path) -> Path:
-    """쪽을 고정한 **과제 디렉토리 하나**를 만든다. 그 디렉토리를 돌려준다.
+    """관례를 고정한 **과제 디렉토리 하나**를 만든다. 그 디렉토리를 돌려준다.
 
-    과제 검정 배치가 이것을 쓴다 — 과제마다 두 쪽을 만들어 놓고 한 쪽씩 사슬
-    여덟을 실행한다(`docs/TASK_SET_PREDICTIONS.md` 2절). 돌려주는 자리를
-    `pilot/run_chain.py` 에 그대로 넘길 수 있다.
+    돌려주는 자리를 `pilot/run_chain.py` 에 그대로 넘길 수 있다. **지금 이것을
+    쓰는 배치는 없다** — `build` 의 `as_list` 설명을 볼 것.
     """
     if side not in SIDES:
         raise ValueError(f"모르는 쪽: {side} (쓸 수 있는 것: {sorted(SIDES)})")
@@ -565,7 +586,7 @@ def grading_sample() -> dict[str, str]:
     for name in sorted(ALL_CHECKS):
         sample[f"{name}_ok"] = "ok"
         # **검사마다 위반을 둘 둔다.** 하나면 "검사마다 한 줄" 과 "위반마다 한
-        # 줄" 이 같은 줄 수가 되어 `q24` 의 완료 조건을 판정할 수 없다.
+        # 줄" 이 같은 줄 수가 되어 보고서의 줄 수로는 둘을 구분할 수 없다.
         sample[f"{name}_bad1"] = "   "
         sample[f"{name}_bad2"] = ""
     return sample

@@ -4,8 +4,12 @@
 **왜 따로 있나.** `pilot/run_chain.py` 는 세션이 끝날 때마다 한 번 채점한다.
 그것으로는 **한 번 채워졌던 완료 조건이 나중에 안 채워지는 자리**가 안 잡힌다 —
 세션 안에서 채웠다가 같은 세션 안에서 깨뜨리면 끝 상태만 보고는 구분되지 않는다
-(`docs/TASK_SET_DESIGN.md` 3절). `pilot/queue_grade.py` 의 `grade_history` 가
-그것을 세고, 이 파일이 스냅숏을 그것에 넣어 준다.
+(`pilot/tasks/queue-flat/DESIGN.md` 6절). `pilot/queue_grade.py` 의
+`grade_history` 가 그것을 세고, 이 파일이 스냅숏을 그것에 넣어 준다.
+
+**주는 경로는 사슬 하나의 스냅숏 저장소다** — `<출력>/snapshots/chain-01.git`.
+그 위(`<출력>/snapshots`)를 주면 커밋을 하나도 못 찾고 0을 돌려주며 정상
+종료한다(`docs/QUEUE_TASK_DEFECTS.md` 6절).
 
 **실행 중에 부르지 않는다.** 스냅숏 하나마다 저장소를 별도 프로세스로 불러
 읽으므로 호출 수백 개면 오래 걸린다. 배치가 끝난 뒤에 따로 실행한다.
