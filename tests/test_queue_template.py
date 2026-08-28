@@ -133,31 +133,68 @@ def test_nothing_unrelated_to_the_task_sits_in_the_repository(built):
 def test_the_visible_tests_use_two_samples(built):
     _, root = built
     body = (root / "tests" / "test_visible.py").read_text(encoding="utf-8")
-    assert "SAMPLES = [" in body
-    assert body.count("{'name_a'") >= 2
+    assert "SAMPLES = samples(ALL_NAMES)" in body
 
 
-def test_the_visible_tests_do_not_yet_reject_a_hardcoded_check(built):
-    """**알려진 결함을 못 박는다** — `docs/QUEUE_TASK_DEFECTS.md` 3-1.
+def test_the_visible_samples_make_every_check_count_something(built):
+    """`docs/QUEUE_TASK_DEFECTS.md` 3-1 — 표본이 아무것도 확인하지 못했다.
 
-    표본 둘의 열쇠가 어느 검사 이름으로도 시작하지 않아 검사 스물넷이 두
-    표본에서 다 0을 낸다. 그래서 언제나 빈 목록을 돌려주는 구현이 보이는
-    테스트를 통과한다.
+    2026-08-28 전에는 열쇠가 `name_a`·`path_b`·`port_c` 여서 어느 검사
+    이름으로도 시작하지 않았고, 검사 스물넷이 두 표본에서 다 0을 냈다. 언제나
+    빈 목록을 돌려주는 구현이 통과했다.
 
-    **이 시험이 실패하면 결함이 고쳐진 것이다.** 그때
-    `docs/QUEUE_TASK_DEFECTS.md` 와 `pilot/tasks/queue-flat/DESIGN.md` 1절에서
-    그 항목을 지우고 이 시험을 지운다.
+    지금은 검사마다 첫 표본에서 1, 둘째 표본에서 2가 나와야 한다. 기대 수가
+    표본마다 달라야 그 수를 그대로 돌려주는 구현이 떨어진다.
     """
-    task, root = built
-    samples = [
-        {"name_a": "ok", "path_b": "  ", "port_c": ""},
-        {"name_a": "", "name_b": "   ", "path_b": "ok"},
-    ]
-    for name in sorted(tpl.ALL_CHECKS):
-        for parsed in samples:
-            want = sum(1 for k, v in parsed.items()
-                       if k.startswith(name) and not v.strip())
-            assert want == 0, (task, name, parsed)
+    task, _root = built
+    names = sorted(tpl.ALL_CHECKS)
+    one, two = _visible_samples(names)
+    for name in names:
+        assert _hits(name, one) == 1, (task, name)
+        assert _hits(name, two) == 2, (task, name)
+
+
+def _visible_samples(names):
+    """생성되는 `tests/test_visible.py` 의 `samples()` 와 같은 것."""
+    one, two = {}, {}
+    for name in names:
+        one[f"{name}_alpha"] = ""
+        one[f"{name}_beta"] = "ok"
+        two[f"{name}_alpha"] = "   "
+        two[f"{name}_beta"] = ""
+        two[f"{name}_gamma"] = "ok"
+    return [one, two]
+
+
+def _hits(name, parsed):
+    return sum(1 for k, v in parsed.items()
+               if k.startswith(name) and not v.strip())
+
+
+def test_a_check_that_returns_nothing_fails_the_visible_tests(tmp_path):
+    """빈 목록을 돌려주는 구현이 보이는 테스트에서 떨어져야 한다."""
+    root = tpl.build("queue-flat", tmp_path / "work")
+    registry = root / "sitecheck" / "registry.py"
+    registry.write_text(
+        registry.read_text(encoding="utf-8")
+        + '\n\n@register("name_case")\n'
+          "def name_case(parsed: dict) -> list[dict]:\n"
+          "    return []\n", encoding="utf-8")
+    legacy = root / "sitecheck" / "legacy_registry.py"
+    legacy.write_text(
+        legacy.read_text(encoding="utf-8").replace(
+            '    "name_case": check_name_case,\n', ""), encoding="utf-8")
+    res = subprocess.run([sys.executable, "-m", "pytest", "tests/", "-q"],
+                         cwd=root, capture_output=True, text=True,
+                         encoding="utf-8", errors="replace", check=False)
+    assert res.returncode != 0, res.stdout[-2000:]
+
+
+def test_the_visible_samples_differ_from_the_grading_sample(built):
+    """같은 표본을 쓰면 세션이 그것에만 맞출 수 있다."""
+    _, _root = built
+    one, _ = _visible_samples(sorted(tpl.ALL_CHECKS))
+    assert not (set(one) & set(tpl.grading_sample()))
 
 
 def test_no_item_is_marked_done_before_the_session_starts(built):

@@ -208,3 +208,61 @@ def test_next_md_is_part_of_the_start_state_before_the_baseline(tmp_path):
         capture_output=True, text=True, encoding="utf-8", check=False)
     assert "NEXT.md" in listed.stdout.split()
     assert ".casa-queue.json" not in listed.stdout.split()
+
+
+# --------------------------- 측정 장치가 저장소 안에서 보이지 않는가
+#
+# `docs/QUEUE_TASK_DEFECTS.md` 7절. 2026-08-28 전에는 설정 파일이 작업 디렉토리
+# 안에 있었다 — 세션이 저장소를 훑으면 보이고, 어느 항목 목록으로 채점되는지를
+# 알려 준다. `pilot/cut_hook.py` 가 같은 이유로 그 위 디렉토리에 둔다.
+
+
+def test_the_queue_config_sits_outside_the_working_directory(tmp_path):
+    work = tmp_path / "work"
+    tpl.build(TASK, work)
+    queue_hook.prepare(work, TASK)
+    assert not (work / queue_hook.CONFIG_NAME).exists()
+    assert (tmp_path / queue_hook.CONFIG_NAME).is_file()
+
+
+def test_the_hook_still_finds_the_config_from_the_working_directory(tmp_path):
+    work = tmp_path / "work"
+    tpl.build(TASK, work)
+    queue_hook.prepare(work, TASK)
+    assert queue_hook.load_task(work) == TASK
+    assert queue_hook.refresh(work) is not None
+
+
+def test_nothing_of_ours_is_left_in_the_repository(tmp_path):
+    """세션이 `ls` 를 해도 우리 설정 파일이 안 보여야 한다."""
+    work = tmp_path / "work"
+    tpl.build(TASK, work)
+    queue_hook.prepare(work, TASK)
+    assert [p.name for p in work.iterdir() if p.name.startswith(".casa")] == []
+
+
+# ----------------------------- 세션이 어떻게 끝났는지를 기록에 적는가
+#
+# `docs/QUEUE_TASK_DEFECTS.md` 3-3. 판정 함수는 있었는데 부르는 곳이 시험뿐이었고,
+# 받는 열쇠 이름도 러너가 적는 이름과 달랐다.
+
+
+def test_the_runner_writes_the_technical_outcome():
+    row = {"cut": True, "timed_out": False,
+           "audit": {"metrics": {"n_tool_calls": 10, "tool_error_rate": 0.0}}}
+    assert run_chain.technical_outcome(row) == "하네스가 끊음"
+    assert run_chain.technical_outcome(
+        {"cut": False, "timed_out": True}) == "제한 시간 도달"
+
+
+def test_relevant_files_includes_the_repository_documents():
+    """`coverage` 는 이 목록의 파일 중 몇을 읽었는지다.
+
+    큐 항목의 관련 파일만 넣으면 `README.md`·`docs/plan.md`·`RULES.md` 를
+    읽었는지가 그 값에 들어가지 않는다.
+    """
+    listed = (qt.task_dir(TASK) / "relevant_files.txt").read_text(
+        encoding="utf-8").split()
+    for doc in ("README.md", "RULES.md", "docs/plan.md", "CHANGELOG.md",
+                "tests/test_visible.py"):
+        assert doc in listed, doc

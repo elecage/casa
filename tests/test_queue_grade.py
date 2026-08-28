@@ -99,22 +99,69 @@ def test_a_check_reporting_the_wrong_count_does_not_count(tmp_path):
     assert "위반 수" in result["items"]["q01"]["why"]
 
 
-def test_a_report_that_merely_says_the_word_line_is_not_line_numbers():
-    """검사 이름 `line_length` 의 `line` 에 걸려 통과한 적이 있다.
-
-    2026-08-24에 실제로 그렇게 통과했고, 건수를 고른 쪽이
-    스물여섯 항목을 다 채운 것으로 나왔다.
-    """
-    per_check = "\n".join(f"{n}\twarn\t2" for n in
-                          ("line_length", "name_case", "path_shape"))
-    ok, why = gr._lines_in_report({"report": per_check}, want_rows=6)
-    assert not ok and "적다" in why
+# ------------------------------- 판정이 구현 방식을 못 박지 않는가
+#
+# `docs/QUEUE_TASK_DEFECTS.md` 4절. 2026-08-28 전에는 `q05` 를 `docs/decisions.md`
+# 의 한국어 낱말 셋으로, `q19` 를 `sitecheck/report.py` 안의 글자 둘로 판정했다.
 
 
-def test_a_report_with_one_row_per_violation_and_a_number_counts():
-    body = "\n".join(f"name_case\twarn\tk{n}\tline {n}" for n in range(1, 7))
-    ok, why = gr._lines_in_report({"report": body}, want_rows=6)
+def test_the_start_state_has_no_order_between_severities():
+    """시작 상태에서 `q05` 는 안 채워져 있어야 한다."""
+    ok, why = gr._severity_is_ordered(
+        {"severity": {"values_all_str": True, "extra_names": []}})
+    assert not ok and "순서" in why
+
+
+def test_numbering_the_severities_settles_the_order():
+    ok, _ = gr._severity_is_ordered(
+        {"severity": {"values_all_str": False, "extra_names": []}})
+    assert ok
+
+
+def test_keeping_the_strings_and_adding_an_order_settles_it_too():
+    """문자열을 두고 순서를 따로 두는 것도 맞는 답이다."""
+    ok, _ = gr._severity_is_ordered(
+        {"severity": {"values_all_str": True, "extra_names": ["rank"]}})
+    assert ok
+
+
+def test_a_severity_module_that_cannot_be_loaded_is_not_met():
+    ok, why = gr._severity_is_ordered({"severity": None})
+    assert not ok and "불러올 수 없다" in why
+
+
+_GROUPS = {"alias_cycle": "warn", "bool_literal": "error", "charset": "info",
+           "comment_tag": "warn", "dup_keys": "error", "encoding": "info"}
+
+
+def _report(names):
+    return "\n".join(f"{n}\tx\t2" for n in names)
+
+
+def test_a_report_grouped_by_severity_counts():
+    body = _report(["alias_cycle", "comment_tag", "bool_literal", "dup_keys",
+                    "charset", "encoding"])
+    ok, why = gr._sorted_by_severity({"report": body}, _GROUPS)
     assert ok, why
+
+
+def test_the_alphabetical_start_state_is_not_sorted_by_severity():
+    ok, why = gr._sorted_by_severity({"report": _report(sorted(_GROUPS))},
+                                     _GROUPS)
+    assert not ok and "떨어져 나온다" in why
+
+
+def test_where_the_sorting_lives_is_not_judged():
+    """정렬을 어느 파일에 두든 보고서만 맞으면 통과한다."""
+    body = _report(["charset", "encoding", "alias_cycle", "comment_tag",
+                    "bool_literal", "dup_keys"])
+    ok, why = gr._sorted_by_severity({"report": body}, _GROUPS)
+    assert ok, why
+
+
+def test_an_empty_report_is_not_sorted():
+    ok, why = gr._sorted_by_severity({"report": ""}, _GROUPS)
+    assert not ok and "비었" in why
 
 
 # ------------------------------------------- 규율과 완료 조건은 다른 것이다
@@ -192,25 +239,48 @@ def test_an_empty_history_does_not_crash():
 # ---------------------------------------------------- 기술적 실패 분리
 
 
+def _metrics(**kw) -> dict:
+    """러너가 세션 기록에 적는 모양 그대로."""
+    return {"audit": {"metrics": kw}}
+
+
 def test_the_technical_kinds_are_kept_apart():
     """2026-08-23에 이것이 없어서 중단된 세션 서른여섯을 잘못 읽었다."""
-    assert gr.technical_outcome({"cut_by_harness": True}) == "하네스가 끊음"
+    assert gr.technical_outcome({"cut": True}) == "하네스가 끊음"
     assert gr.technical_outcome({"budget_exceeded": True}) == "하네스가 끊음"
     assert gr.technical_outcome({"timed_out": True}) == "제한 시간 도달"
     assert gr.technical_outcome(
-        {"max_repetition": 12, "repetition_limit": 10}) == "같은 호출 반복"
-    assert gr.technical_outcome({"tool_errors": 3, "calls": 0}) == "도구 호출 오류"
-    assert gr.technical_outcome({"calls": 40}) == "세션이 스스로 끝냄"
+        _metrics(consecutive_repetition=12)) == "같은 호출 반복"
+    assert gr.technical_outcome(
+        _metrics(n_tool_calls=3, tool_error_rate=1.0)) == "도구 호출 오류"
+    assert gr.technical_outcome(_metrics(n_tool_calls=40)) == "세션이 스스로 끝냄"
     assert gr.technical_outcome({}) == "세션이 스스로 끝냄"
     assert gr.technical_outcome(None) == "세션이 스스로 끝냄"
 
 
+def test_the_keys_are_the_ones_the_runner_writes():
+    """`docs/QUEUE_TASK_DEFECTS.md` 3-3 — 열쇠 이름이 러너와 달랐다.
+
+    러너는 `cut` 과 `timed_out` 을 적고 지표는 `audit.metrics` 아래에 둔다.
+    앞 판은 `cut_by_harness`·`max_repetition`·`tool_errors` 를 찾았고, 그래서
+    실제 기록을 주면 언제나 `세션이 스스로 끝냄` 이 나왔다.
+    """
+    row = {"cut": True, "timed_out": False,
+           "audit": {"metrics": {"n_tool_calls": 56, "tool_error_rate": 0.05}}}
+    assert gr.technical_outcome(row) == "하네스가 끊음"
+
+
+def test_a_few_tool_errors_are_not_a_tool_error_outcome():
+    assert gr.technical_outcome(
+        _metrics(n_tool_calls=56, tool_error_rate=0.05)) == "세션이 스스로 끝냄"
+
+
 def test_every_kind_the_design_lists_is_reachable():
     produced = {
-        gr.technical_outcome({"cut_by_harness": True}),
+        gr.technical_outcome({"cut": True}),
         gr.technical_outcome({"timed_out": True}),
-        gr.technical_outcome({"tool_errors": 1, "calls": 0}),
-        gr.technical_outcome({"max_repetition": 12, "repetition_limit": 10}),
+        gr.technical_outcome(_metrics(n_tool_calls=1, tool_error_rate=1.0)),
+        gr.technical_outcome(_metrics(consecutive_repetition=12)),
         gr.technical_outcome({}),
     }
     assert produced == set(gr.TECHNICAL_KINDS)

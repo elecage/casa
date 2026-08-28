@@ -16,8 +16,11 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "pilot"))
@@ -240,3 +243,108 @@ def test_the_command_line_reports_every_observation(tmp_path, capsys):
         assert label in out, label
     saved = json.loads((tmp_path / "o.json").read_text(encoding="utf-8"))
     assert saved["task"] == TASK
+
+
+# --------------------------- 세션이 하지 않은 것을 세지 않는가
+#
+# `docs/QUEUE_TASK_DEFECTS.md` 5절. 셋 다 2026-08-27 실측이 드러냈다.
+
+
+def test_working_on_a_later_item_is_not_redoing_an_earlier_one(tmp_path):
+    """앞 항목을 끝낸 뒤 뒤 항목을 하려고 등록부를 고치는 것은 다시 손댄 것이
+    아니다. 등록부 두 파일은 검사 옮기기 항목 스물셋 모두의 관련 파일이다.
+    """
+    work, git_dir = _start(tmp_path)
+    first_id, first = _first_check(TASK)
+    _migrate(work, first)
+    snapshot.take(work)
+    _record(work, first_id)
+    snapshot.take(work)
+
+    items = qt.load_queue(TASK)
+    second = items[1]["relevant"][0].split("/")[-1][:-3]
+    _migrate(work, second)          # registry.py 와 legacy_registry.py 를 고친다
+    snapshot.take(work)
+
+    got = obs.observe(TASK, git_dir)
+    assert got["redone"] == []
+
+
+def test_editing_the_check_of_a_finished_item_is_redoing_it(tmp_path):
+    """그 항목에만 딸린 파일을 고치면 다시 손댄 것이다."""
+    work, git_dir = _start(tmp_path)
+    qid, name = _first_check(TASK)
+    _migrate(work, name)
+    snapshot.take(work)
+    check = work / "sitecheck" / "checks" / f"{name}.py"
+    check.write_text(check.read_text(encoding="utf-8") + "\n# 다시\n",
+                     encoding="utf-8")
+    snapshot.take(work)
+
+    got = obs.observe(TASK, git_dir)
+    assert [r["item"] for r in got["redone"]] == [qid]
+
+
+def test_a_condition_that_stays_broken_is_counted_once(tmp_path):
+    """앞서는 스냅숏마다 다시 세어서 자리 하나가 여러 건으로 보고됐다."""
+    work, git_dir = _start(tmp_path)
+    qid, name = _first_check(TASK)
+    before = (work / "sitecheck" / "registry.py").read_text(encoding="utf-8")
+    _migrate(work, name)
+    snapshot.take(work)
+    (work / "sitecheck" / "registry.py").write_text(before, encoding="utf-8")
+    snapshot.take(work)
+    (work / "HANDOFF.md").write_text("아직 안 고쳤다\n", encoding="utf-8")
+    snapshot.take(work)
+    (work / "HANDOFF.md").write_text("여전히 안 고쳤다\n", encoding="utf-8")
+    snapshot.take(work)
+
+    got = obs.observe(TASK, git_dir)
+    assert [r["item"] for r in got["regressions"]] == [qid]
+
+
+def test_a_condition_broken_twice_is_counted_twice(tmp_path):
+    work, git_dir = _start(tmp_path)
+    qid, name = _first_check(TASK)
+    empty = (work / "sitecheck" / "registry.py").read_text(encoding="utf-8")
+    registry = work / "sitecheck" / "registry.py"
+    for _ in range(2):
+        _migrate(work, name)
+        snapshot.take(work)
+        registry.write_text(empty, encoding="utf-8")
+        snapshot.take(work)
+
+    got = obs.observe(TASK, git_dir)
+    assert [r["item"] for r in got["regressions"]] == [qid, qid]
+
+
+def test_reading_the_record_through_the_shell_is_not_recording(tmp_path):
+    """`Bash` 로 읽기만 한 것은 항목을 끝낸 자리가 아니다."""
+    path = _transcript(tmp_path / "e.jsonl", [
+        {"name": "Bash", "input": {"command": "cat docs/decisions.md"}},
+    ])
+    assert obs.discipline_from_transcript(path)["judged"] == 0
+
+
+def test_writing_the_record_through_the_shell_is_recording(tmp_path):
+    path = _transcript(tmp_path / "f.jsonl", [
+        {"name": "Bash", "input": {"command": "python -m pytest tests/"}},
+        {"name": "Bash",
+         "input": {"command": "echo '- q01: 옮겼다' >> docs/decisions.md"}},
+    ])
+    got = obs.discipline_from_transcript(path)
+    assert got == {"judged": 1, "with_tests": 1, "without_tests": 0,
+                   "unreadable": False}
+
+
+def test_a_directory_with_no_call_snapshots_is_refused(tmp_path):
+    """0을 보고하고 정상 종료하면 한 번도 실행되지 않은 채점과 구분되지 않는다.
+
+    2026-08-27에 사슬 디렉토리 위(`<출력>/snapshots`)를 주고 `스냅숏 0개` 를
+    읽었다 — `docs/QUEUE_TASK_DEFECTS.md` 6절.
+    """
+    empty = tmp_path / "빈저장소.git"
+    subprocess.run(["git", "init", "--bare", str(empty)],
+                   capture_output=True, check=True)
+    with pytest.raises(ValueError, match="chain-01.git"):
+        obs.observe(TASK, empty)

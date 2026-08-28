@@ -13,7 +13,6 @@
       "relevant": [
         "sitecheck/checks/name_case.py",
         "sitecheck/registry.py",
-        "RULES.md",
         "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
@@ -93,7 +92,6 @@
       "relevant": [
         "sitecheck/checks/dup_keys.py",
         "sitecheck/registry.py",
-        "docs/decisions.md",
         "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
@@ -114,17 +112,16 @@
       "relevant": [
         "sitecheck/checks/known_hosts.py",
         "sitecheck/registry.py",
-        "fixtures/known-hosts.txt",
         "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q12",
-      "title": "check_time_window 의 기대값이 안 맞는 것을 고친다",
+      "title": "check_time_window 를 옮긴다",
       "relevant": [
         "sitecheck/checks/time_window.py",
-        "docs/checks/time_window.md",
+        "sitecheck/registry.py",
         "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
@@ -155,7 +152,6 @@
       "relevant": [
         "sitecheck/checks/trailing_ws.py",
         "sitecheck/registry.py",
-        "CHANGELOG.md",
         "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"

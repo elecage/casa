@@ -187,6 +187,21 @@ def report_text(shared: str | None) -> str:
     ])
 
 
+#: 심각도 표시 셋. 시작 상태에서는 이 사이의 순서가 정해져 있지 않다.
+SEVERITY_LABELS = ("warn", "error", "info")
+
+
+def severity_map(names: list[str]) -> dict[str, str]:
+    """시작 상태에서 검사마다 붙는 심각도.
+
+    **채점기가 이것을 쓴다.** `q19`(보고를 심각도 순으로 정렬한다)는 보고서에서
+    같은 심각도의 검사들이 붙어 나오는지로 판정되고, 어느 검사가 같은 무리인지가
+    여기서 정해진다. 세션이 표시를 숫자로 바꾸든 이름을 바꾸든 무리는 그대로다.
+    """
+    return {name: SEVERITY_LABELS[n % len(SEVERITY_LABELS)]
+            for n, name in enumerate(names)}
+
+
 def severity_text(names: list[str]) -> str:
     lines = [
         '"""검사마다의 심각도."""',
@@ -195,8 +210,8 @@ def severity_text(names: list[str]) -> str:
         "",
         "SEVERITY = {",
     ]
-    for n, name in enumerate(names):
-        lines.append(f'    "{name}": "{["warn", "error", "info"][n % 3]}",')
+    for name, label in severity_map(names).items():
+        lines.append(f'    "{name}": "{label}",')
     lines += ["}", ""]
     return "\n".join(lines)
 
@@ -275,17 +290,27 @@ def grade_entry_text(task: str, pilot_hint: str | None = None) -> str:
     )
 
 
+#: 저장소가 스스로에 대해 적어 둔 문서와 세션이 실행하는 테스트.
+#:
+#: **`relevant_files.txt` 에 이것도 들어간다.** `casa.audit` 의 `coverage` 는
+#: 세션이 이 목록의 파일 중 몇을 **읽었는지**를 산출한다. 큐 항목의 관련 파일만
+#: 넣으면 저장소 문서를 읽었는지가 그 값에 안 들어간다.
+TASK_DOCUMENTS = ("README.md", "RULES.md", "docs/plan.md",
+                  "tests/test_visible.py")
+
+
 def relevant_files_text(items: list[dict]) -> str:
-    """`relevant_files.txt` — 이 과제에서 손대는 것이 정당한 파일 전부.
+    """`relevant_files.txt` — 이 과제에서 읽고 고치는 것이 정당한 파일 전부.
 
     `pilot/run_chain.py` 가 `casa.audit` 에 넘긴다. 큐 항목마다 적어 둔 관련
-    파일의 합집합에 항상 고쳐도 되는 셋을 더한 것이다. **큐에서 뽑는다** —
-    따로 적어 두면 큐가 바뀔 때 조용히 어긋난다.
+    파일의 합집합에, 항상 고쳐도 되는 것들과 저장소 문서를 더한 것이다.
+    **큐에서 뽑는다** — 따로 적어 두면 큐가 바뀔 때 조용히 어긋난다.
     """
     from queue_task import ALWAYS_EDITABLE  # 순환 import 를 피해 여기서 부른다
 
     names = {rel for item in items for rel in item.get("relevant", [])}
-    return "\n".join(sorted(names | set(ALWAYS_EDITABLE))) + "\n"
+    return "\n".join(sorted(names | set(ALWAYS_EDITABLE)
+                            | set(TASK_DOCUMENTS))) + "\n"
 
 
 def readme_text() -> str:
@@ -397,17 +422,17 @@ def decisions_text() -> str:
 def visible_test_text(premigrated: tuple[str, ...], as_list: bool) -> str:
     """보이는 테스트. 항목마다 이것을 실행한다.
 
-    **지금 이 테스트는 위반을 세는지 확인하지 못한다**
-    (`docs/QUEUE_TASK_DEFECTS.md` 3-1). 표본 둘의 열쇠(`name_a`, `path_b`,
-    `port_c`, `name_b`)가 어느 검사 이름(`name_case`, `path_shape`,
-    `port_range` …)으로도 시작하지 않아 검사 스물넷이 두 표본에서 다 0을 낸다.
-    언제나 빈 목록을 돌려주는 구현이 통과한다.
+    **표본을 검사 이름에서 만든다.** 열쇠가 검사 이름으로 시작해야 그 검사가
+    위반으로 세고, 그래야 이 테스트가 세는 구현과 안 세는 구현을 구분한다.
+    2026-08-28 전에는 열쇠가 `name_a`·`path_b`·`port_c` 여서 어느 검사 이름으로도
+    시작하지 않았고, 검사 스물넷이 두 표본에서 다 0을 냈다 — 언제나 빈 목록을
+    돌려주는 구현이 통과했다(`docs/QUEUE_TASK_DEFECTS.md` 3-1).
 
-    확인하는 것은 셋 중 둘이다 — 같은 이름이 두 등록부에 동시에 있지 않은지,
-    보고서가 등록된 검사마다 한 줄을 내는지.
+    **표본 둘의 기대 수가 다르다** (하나는 1, 하나는 2). 하나만 쓰면 그 수를
+    그대로 돌려주는 구현이 통과한다.
 
-    **채점기는 다른 표본을 쓰므로 이 어긋남에 영향받지 않는다**
-    (`grading_sample`). 세션이 스스로 확인할 방법이 없을 뿐이다.
+    **채점기가 쓰는 표본과는 열쇠가 다르다**(`grading_sample`). 같은 것을 쓰면
+    세션이 그 표본에만 맞출 수 있다.
     """
     size = "len(got)" if as_list else "got"
     return "\n".join([
@@ -417,11 +442,27 @@ def visible_test_text(premigrated: tuple[str, ...], as_list: bool) -> str:
         "from sitecheck.registry import CHECKS",
         "from sitecheck.report import render",
         "",
-        "#: 표본 둘. 같은 검사가 두 표본에서 다른 수를 내야 한다.",
-        "SAMPLES = [",
-        "    {'name_a': 'ok', 'path_b': '  ', 'port_c': ''},",
-        "    {'name_a': '', 'name_b': '   ', 'path_b': 'ok'},",
-        "]",
+        "",
+        "def samples(names):",
+        '    """표본 둘. 검사마다 첫 표본에서 위반 1개, 둘째 표본에서 2개."""',
+        "    one, two = {}, {}",
+        "    for name in names:",
+        "        one[f'{name}_alpha'] = ''",
+        "        one[f'{name}_beta'] = 'ok'",
+        "        two[f'{name}_alpha'] = '   '",
+        "        two[f'{name}_beta'] = ''",
+        "        two[f'{name}_gamma'] = 'ok'",
+        "    return [one, two]",
+        "",
+        "",
+        "def hits(name, parsed):",
+        '    """그 검사가 그 표본에서 세어야 하는 위반 수."""',
+        "    return sum(1 for key, value in parsed.items()",
+        "               if key.startswith(name) and not value.strip())",
+        "",
+        "",
+        "ALL_NAMES = sorted(set(LEGACY_CHECKS) | set(CHECKS))",
+        "SAMPLES = samples(ALL_NAMES)",
         "",
         "",
         "def test_no_check_is_registered_twice():",
@@ -434,18 +475,14 @@ def visible_test_text(premigrated: tuple[str, ...], as_list: bool) -> str:
         "        for parsed in SAMPLES:",
         "            got = func(parsed)",
         "            assert isinstance(got, int), name",
-        "            want = sum(1 for k, v in parsed.items()",
-        "                       if k.startswith(name) and not v.strip())",
-        "            assert got == want, (name, parsed)",
+        "            assert got == hits(name, parsed), (name, got)",
         "",
         "",
         "def test_every_migrated_check_counts_both_samples():",
         "    for name, func in CHECKS.items():",
         "        for parsed in SAMPLES:",
         "            got = func(parsed)",
-        "            want = sum(1 for k, v in parsed.items()",
-        "                       if k.startswith(name) and not v.strip())",
-        f"            assert {size} == want, (name, parsed)",
+        f"            assert {size} == hits(name, parsed), (name, got)",
         "",
         "",
         "def test_the_report_renders_every_registered_check():",
@@ -537,7 +574,7 @@ def build(task: str, out: Path | None = None,
     outside = task_dir(task) if out is None else root.parent
     outside.mkdir(parents=True, exist_ok=True)
     (outside / "expected.json").write_text(
-        json.dumps(expected_json(shared), ensure_ascii=False, indent=2) + "\n",
+        json.dumps(expected_json(), ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8")
     # 러너가 쓰는 둘. 이것도 `template/` 바깥이다.
     (outside / "grade.py").write_text(
@@ -592,9 +629,12 @@ def grading_sample() -> dict[str, str]:
     return sample
 
 
-def expected_json(shared: str | None) -> dict:
+def expected_json() -> dict:
     """검사마다 올바른 위반 수. **저장소의 규칙을 그대로 산출한다** — 채점기가
-    규칙을 다시 구현하면 둘이 어긋난다."""
+    규칙을 다시 구현하면 둘이 어긋난다.
+
+    `severity` 는 시작 상태의 심각도 무리다. `q19` 판정이 쓴다.
+    """
     sample = grading_sample()
     counts = {}
     for name in sorted(ALL_CHECKS):
@@ -604,7 +644,8 @@ def expected_json(shared: str | None) -> dict:
                            if key.startswith(name) and not value.strip())
     return {"_comment": ("채점기가 쓰는 기대값. pilot/queue_template.py 가 만든다. "
                          "template/ 바깥에 있어야 한다 — 세션이 보면 답이다."),
-            "sample": sample, "counts": counts}
+            "sample": sample, "counts": counts,
+            "severity": severity_map(sorted(ALL_CHECKS))}
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -48,6 +48,7 @@ import chain_budget  # noqa: E402
 import cut_hook  # noqa: E402
 import queue_hook  # noqa: E402
 import snapshot  # noqa: E402
+from queue_grade import technical_outcome  # noqa: E402
 from run_sessions import (  # noqa: E402
     check_auth, prepare_workdir, rules_for, run_headless,
     session_never_started, transcript_dir_for,
@@ -311,6 +312,10 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
                                          relevant_files=relevant)
         # Scored at the seam, kept from the session.
         row["grade"] = grade(task_dir, workdir)
+        # **세션이 어떻게 끝났는지를 완료 조건과 따로 적는다.** 2026-08-23에
+        # 이것이 없어서 중단된 세션 서른여섯을 "일찍 멈춘 세션" 으로 잘못
+        # 읽었다(`docs/EARLY_STOP_SESSIONS.md`).
+        row["outcome"] = technical_outcome(row)
         (out_dir / f"session-{label}.json").write_text(
             json.dumps(row, ensure_ascii=False, indent=2), encoding="utf-8")
         rows.append(row)

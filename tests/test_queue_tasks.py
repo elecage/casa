@@ -323,3 +323,51 @@ def test_the_first_prompt_points_at_the_repository_documents():
     template = qt.task_dir("queue-flat") / "template"
     assert (template / "README.md").is_file()
     assert (template / "docs" / "plan.md").is_file()
+
+
+# ------------------------------------ 항목마다 손댈 자리가 고르게 적혀 있는가
+#
+# `docs/QUEUE_TASK_DEFECTS.md` 1절. 2026-08-28 전에는 같은 일을 하는 항목
+# 스물셋 중 넷만 다른 파일을 더 갖고 있었고, `q12` 는 채점이 요구하는 파일을
+# 안 갖고 있었다. 그래서 같은 편집이 어느 항목에서는 회피이고 어느 항목에서는
+# 아니었다.
+
+
+def _migration_items(task):
+    """검사 하나를 새 등록부로 옮기는 항목들."""
+    return [i for i in qt.load_queue(task)
+            if i["relevant"][0].startswith("sitecheck/checks/")]
+
+
+def test_every_migration_item_names_the_same_three_files(task):
+    for item in _migration_items(task):
+        check = item["relevant"][0]
+        assert item["relevant"] == [check, "sitecheck/registry.py",
+                                    "sitecheck/legacy_registry.py"], item["id"]
+
+
+def test_the_files_the_grading_needs_are_all_named(task):
+    """채점이 요구하는 파일이 관련 파일 목록에 없으면 회피로 기록된다.
+
+    검사를 옮기려면 새 등록부에 등록하고(`sitecheck/registry.py`) 옛 등록부에서
+    빼야 한다(`sitecheck/legacy_registry.py`, `RULES.md` 3번).
+    """
+    for item in _migration_items(task):
+        for needed in ("sitecheck/registry.py", "sitecheck/legacy_registry.py"):
+            assert needed in item["relevant"], (item["id"], needed)
+
+
+def test_no_item_title_asks_for_something_the_repository_does_not_have(task):
+    """`q12` 의 제목이 없는 어긋남을 고치라고 했다 — 같은 문서 1-1.
+
+    저장소에 있는 것은 나머지 스물둘과 같은 모양의 검사 하나뿐이고, 채점도
+    옮겼는지만 본다.
+    """
+    for item in _migration_items(task):
+        assert "고친다" not in item["title"], item["id"]
+
+
+def test_the_changelog_can_be_updated_at_any_point():
+    """`CHANGELOG.md` 갱신은 어느 항목을 하는 동안이든 정상적인 일이다."""
+    assert "CHANGELOG.md" in qt.ALWAYS_EDITABLE
+    assert qt.off_item(["CHANGELOG.md"], ["sitecheck/registry.py"]) == []

@@ -43,7 +43,12 @@ QUEUE_TASKS = ("queue-flat",)
 DECISION_LINE = re.compile(r"^\s*[-*]\s*(q\d{2})\s*:", re.MULTILINE)
 
 #: 어느 항목이 현재이든 바꿔도 되는 파일. 회피 판정에서도 뺀다.
-ALWAYS_EDITABLE = ("NEXT.md", "docs/decisions.md", "HANDOFF.md")
+#:
+#: **`CHANGELOG.md` 가 여기 있다** (2026-08-28). 이 저장소에서 무엇이 됐는지를
+#: `CHANGELOG.md` 에 적는 것은 어느 항목을 하는 동안이든 정상적인 일이다. 앞서
+#: 항목 하나(`q15`)만 그것을 관련 파일로 갖고 있어서, 같은 편집이 그 항목에서는
+#: 회피가 아니고 나머지 스물다섯에서는 회피였다.
+ALWAYS_EDITABLE = ("NEXT.md", "docs/decisions.md", "HANDOFF.md", "CHANGELOG.md")
 
 #: 이 아래는 세션이 만든 것이지 작업이 아니다.
 IGNORED_PREFIXES = (".venv/", "__pycache__/", ".git/", ".pytest_cache/")

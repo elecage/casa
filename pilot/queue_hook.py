@@ -15,9 +15,11 @@
 
 이 훅은 **절대 세션을 막지 않는다.** 무슨 일이 있어도 0으로 끝난다.
 
-설정은 러너가 작업 디렉토리에 써 둔다:
+설정은 러너가 **작업 디렉토리 바깥**(그 위 디렉토리)에 써 둔다. 안에 두면
+세션이 저장소를 훑을 때 보이고, 그 파일이 어느 항목 목록으로 채점되는지를
+알려 준다. `pilot/cut_hook.py` 가 같은 자리에 같은 이유로 둔다.
 
-    .casa-queue.json   {"task": "queue-flat"}
+    <작업 디렉토리>/../.casa-queue.json   {"task": "queue-flat"}
 """
 
 from __future__ import annotations
@@ -38,10 +40,15 @@ for _stream in (sys.stdout, sys.stderr):
 CONFIG_NAME = ".casa-queue.json"
 
 
+def config_path(workdir: Path) -> Path:
+    """설정 파일 자리. **작업 디렉토리 바깥이다.**"""
+    return Path(workdir).resolve().parent / CONFIG_NAME
+
+
 def load_task(workdir: Path) -> str | None:
     """이 작업 디렉토리가 어느 큐 과제인가."""
     try:
-        data = json.loads((Path(workdir) / CONFIG_NAME).read_text(encoding="utf-8"))
+        data = json.loads(config_path(workdir).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     task = data.get("task") if isinstance(data, dict) else None
@@ -65,7 +72,7 @@ def prepare(workdir: Path, task: str) -> None:
     변경에 들어간다.
     """
     workdir = Path(workdir).resolve()
-    (workdir / CONFIG_NAME).write_text(
+    config_path(workdir).write_text(
         json.dumps({"task": task}, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8")
     write_next(workdir, task=task)

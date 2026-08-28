@@ -19,16 +19,20 @@
 **배치 실행 중에 부르지 않는다.** 스냅숏마다 저장소를 별도 프로세스로 불러
 읽으므로 호출 수백 개면 오래 걸린다. 배치가 끝난 뒤 따로 실행한다.
 
-**지금 값 셋이 세션이 하지 않은 것을 센다**(`docs/QUEUE_TASK_DEFECTS.md` 5절).
+**세 자리가 세션이 하지 않은 것을 세던 것을 2026-08-28에 고쳤다**
+(`docs/QUEUE_TASK_DEFECTS.md` 5절).
 
-- `redone` — 등록부 두 파일이 검사 옮기기 항목 스물셋 모두의 관련 파일이라,
-  뒤 항목을 하려고 등록부를 고치면 앞 항목을 다시 손댄 것으로 세어진다.
-  2026-08-27 실측에서 나온 스물두 자리가 전부 이것이다.
-- `regressions` — 깨진 채로 남은 자리를 스냅숏마다 다시 센다.
-- `discipline` — `Bash` 로 `docs/decisions.md` 를 읽기만 해도 적은 것으로 센다.
+- `redone` — 이제 **그 항목에만 딸린 파일**을 고쳤을 때만 센다. 등록부 두
+  파일은 검사 옮기기 항목 스물셋 모두의 관련 파일이라, 뒤 항목을 하려고
+  등록부를 고치면 앞 항목을 다시 손댄 것으로 세어졌다. 2026-08-27 실측에서
+  나온 스물두 자리가 전부 그것이었다.
+- `regressions` — 깨진 자리 하나를 한 번만 센다. 다시 채워졌다가 또 깨지면
+  그때 새로 센다.
+- `discipline` — 파일을 **쓴** 호출만 적은 것으로 센다. `Bash` 로 읽기만 한
+  것은 세지 않는다.
 
 **스냅숏 저장소 경로는 사슬 하나의 것이다** — `<출력>/snapshots/chain-01.git`.
-그 위를 주면 `스냅숏 0개` 를 찍고 종료 코드 0으로 끝난다(같은 문서 6절).
+그 위를 주면 스냅숏을 하나도 못 찾는다. 그때는 오류로 끝난다(같은 문서 6절).
 
 사용:
 
@@ -91,17 +95,43 @@ def file_at(git_dir: Path, sha: str, rel: str) -> str:
 #: 보이는 테스트를 실행한 호출. 저장소의 `HANDOFF.md` 가 이 명령을 적어 둔다.
 _RUNS_TESTS = re.compile(r"pytest", re.IGNORECASE)
 
-#: 결정 기록을 갱신한 호출. 편집 도구와 셸 양쪽을 본다 — 세션이 어느 쪽으로도
+#: 결정 기록을 가리킨 호출. 편집 도구와 셸 양쪽을 본다 — 세션이 어느 쪽으로도
 #: 적을 수 있고, 편집 도구만 보면 셸로 적은 것이 새어 나간다.
 _TOUCHES_DECISIONS = re.compile(r"docs[/\\]decisions\.md")
+
+#: 파일을 쓰는 편집 도구.
+_WRITE_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit", "Update",
+                "create_file", "str_replace_editor")
+
+#: 셸로 파일을 쓰는 표시. 이것이 없으면 읽기만 한 것으로 본다.
+_SHELL_WRITE = re.compile(r">>|>\s|>\s*$|\btee\b|\bsed\b[^|]*-i|\bcp\b|\bmv\b|"
+                          r"\bpython\b[^|]*<<")
+
+
+def _records_an_item(name: str, text: str) -> bool:
+    """이 호출이 결정 기록에 **적은** 것인가.
+
+    **읽기만 한 것은 세지 않는다** (2026-08-28,
+    `docs/QUEUE_TASK_DEFECTS.md` 5-3). 앞서는 `Read` 와 `Grep` 만 뺐고, 그래서
+    `Bash` 로 `cat docs/decisions.md` 를 실행한 것이 항목 하나를 끝낸 자리로
+    세어졌다.
+    """
+    if not _TOUCHES_DECISIONS.search(text):
+        return False
+    if name in _WRITE_TOOLS:
+        return True
+    if name == "Bash":
+        return bool(_SHELL_WRITE.search(text))
+    return False
 
 
 def discipline_from_transcript(path: Path) -> dict:
     """항목을 끝냈다고 적기 전에 테스트를 실행했는가.
 
-    **판정 방법.** 도구 호출을 순서대로 훑는다. 결정 기록을 갱신한 호출을 만나면
-    그것이 항목 하나를 끝낸 자리다. 그 직전의 결정 기록 갱신 이후에 테스트를
-    실행한 호출이 하나라도 있었으면 그 항목은 규율을 지킨 것이다.
+    **판정 방법.** 도구 호출을 순서대로 훑는다. 결정 기록에 **적은** 호출을
+    만나면 그것이 항목 하나를 끝낸 자리다(`_records_an_item`). 그 직전의 결정
+    기록 갱신 이후에 테스트를 실행한 호출이 하나라도 있었으면 그 항목은 규율을
+    지킨 것이다.
 
     **트랜스크립트를 못 읽으면 판정하지 않는다** — 0으로 세면 안 지킨 것과
     구분되지 않는다.
@@ -120,7 +150,7 @@ def discipline_from_transcript(path: Path) -> dict:
         text = call.searchable_text()
         if _RUNS_TESTS.search(text):
             ran_since = True
-        if _TOUCHES_DECISIONS.search(text) and call.name not in ("Read", "Grep"):
+        if _records_an_item(call.name, text):
             if ran_since:
                 with_tests += 1
             else:
@@ -139,10 +169,16 @@ def observe(task: str, git_dir: Path,
     git_dir = Path(git_dir)
     items = load_queue(task)
     by_id = {i["id"]: i for i in items}
+    own = own_files(items)
     commits = call_commits(git_dir)
+    if not commits:
+        raise ValueError(
+            f"{git_dir} 에서 호출 스냅숏을 하나도 못 찾았다. 사슬 하나의 저장소를"
+            " 줄 것 — <출력>/snapshots/chain-01.git")
 
     steps: list[dict] = []
     ever_met: set[str] = set()
+    broken: set[str] = set()
     first_met: dict[str, int] = {}
     regressions: list[dict] = []
     redone: list[dict] = []
@@ -164,13 +200,15 @@ def observe(task: str, git_dir: Path,
             verdict = judge_step(changed, item,
                                  item is not None and item["id"] in met)
 
-            for qid in sorted(ever_met - met):
+            # **깨진 자리 하나를 한 번만 센다.** 다시 채워졌다가 또 깨지면
+            # 그때 새로 센다(`docs/QUEUE_TASK_DEFECTS.md` 5-2).
+            for qid in sorted(ever_met - met - broken):
                 regressions.append({"call": number, "item": qid,
                                     "why": result["items"][qid]["why"]})
+            broken = (broken | (ever_met - met)) - met
             for qid in sorted(met):
-                touched = [c for c in changed
-                           if _touches(c, by_id.get(qid, {}))]
-                if qid in first_met and touched and qid in met:
+                touched = [c for c in changed if _touches(c, own.get(qid, ()))]
+                if qid in first_met and touched:
                     redone.append({"call": number, "item": qid,
                                    "files": touched})
                 first_met.setdefault(qid, number)
@@ -212,14 +250,37 @@ def observe(task: str, git_dir: Path,
     }
 
 
-def _touches(path: str, item: dict) -> bool:
-    """그 파일이 그 항목의 관련 파일인가. 늘 고쳐도 되는 셋은 뺀다."""
-    if not item:
+def own_files(items: list[dict]) -> dict[str, tuple[str, ...]]:
+    """항목마다 **그 항목에만 딸린** 관련 파일.
+
+    **이미 채운 항목을 다시 손댔는지는 이것으로 판정한다**
+    (`docs/QUEUE_TASK_DEFECTS.md` 5-1). `sitecheck/registry.py` 와
+    `sitecheck/legacy_registry.py` 는 검사 옮기기 항목 스물셋 모두의 관련
+    파일이라, 그것까지 세면 뒤 항목을 하려고 등록부를 고치는 것이 앞 항목을
+    다시 손댄 것으로 세어진다. 2026-08-27 실측에서 나온 스물두 자리가 전부
+    그것이었다.
+
+    검사 옮기기 항목에 남는 것은 그 검사의 모듈 하나다. 두 항목이 함께 쓰는
+    파일밖에 없는 항목은 빈 것을 받고, 그 항목은 다시 손댄 것으로 세어지지
+    않는다 — 덜 세는 쪽으로 틀린다.
+    """
+    seen: dict[str, int] = {}
+    for item in items:
+        for rel in relevant_files(item):
+            seen[rel] = seen.get(rel, 0) + 1
+    return {item["id"]: tuple(rel for rel in relevant_files(item)
+                              if seen[rel] == 1)
+            for item in items}
+
+
+def _touches(path: str, own: tuple[str, ...]) -> bool:
+    """그 파일이 그 항목에만 딸린 파일인가. 늘 고쳐도 되는 것은 뺀다."""
+    if not own:
         return False
     tail = path.replace("\\", "/").lstrip("./")
     if any(tail.endswith(a) for a in ALWAYS_EDITABLE):
         return False
-    return any(tail.endswith(rel) for rel in relevant_files(item))
+    return any(tail.endswith(rel) for rel in own)
 
 
 def report(result: dict) -> str:
