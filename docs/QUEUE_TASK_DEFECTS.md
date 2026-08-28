@@ -1,8 +1,13 @@
-# `queue-flat` 과제와 그 관측 장치의 결함 열넷 (2026-08-28)
+# `queue-flat` 과제와 그 관측 장치의 결함 스물넷 (2026-08-28)
 
-**열넷을 다 고쳤다** (2026-08-28 유저 지시 — "오류 모두 수정"). 아래 본문은
-무엇이 어떻게 어긋나 있었는지의 기록이고, 절마다 끝에 **무엇으로 고쳤는지와
-어느 시험이 그것을 확인하는지**를 적었다.
+**스물넷을 다 고쳤다.** 1~7절의 열넷은 첫 리뷰에서, 8~9절의 열은 그 고침을
+다시 리뷰해서 나왔다. 절마다 끝에 **무엇으로 고쳤는지와 어느 시험이 그것을
+확인하는지**를 적었다.
+
+**둘째 리뷰에서 나온 열 중 다섯이 첫 고침이 만든 것이다**(8절). 고친 자리를
+실제로 실행해 보지 않고 넘어간 결과다. 이번에는 셋을 실행해서 확인했다 —
+검사만 옮긴 저장소를 항목마다 채점하기, 부분 해답을 항목마다 채점하기, 올바른
+궤적 스물여섯 호출을 관측에 넣기.
 
 **이 문서를 쓰는 이유.** 2026-08-27에 과제에 넣어 둔 함정 서른아홉 자리를 빼고
 과제를 하나로 줄였는데, 그 자리들을 전제하고 만들어진 항목·채점 조건·문서가
@@ -300,11 +305,154 @@ sitecheck/registry.py, sitecheck/legacy_registry.py]` 셋으로 맞췄다. 그�
 `test_the_queue_config_sits_outside_the_working_directory` 와
 `test_nothing_of_ours_is_left_in_the_repository`.
 
-## 고친 뒤에 남는 것
+## 고친 뒤에 확인한 것
 
-**과제는 채점 기준대로 풀린다.** 레퍼런스 해답이 두 관례 다 26개를 다 채운다.
-시작 상태는 0개다.
+**과제는 채점 기준대로 풀린다.** 레퍼런스 해답이 두 관례 다 26개를 다 채우고,
+시작 상태는 0개다. 부분 해답은 그 항목까지만 채운다.
+
+**아무것도 안 한 저장소가 우연히 채우는 항목이 없다.** 검사만 차례로 옮기고
+나머지를 손대지 않은 저장소를 항목마다 채점해서 확인했다.
+
+**올바른 궤적이 여섯 관측 어디에서도 잘못 잡히지 않는다.** 레퍼런스 해답을
+항목마다 적용한 스물여섯 호출을 `pilot/queue_observe.py` 에 넣으면 통과 수
+26, 깨진 자리 0, 다시 손댄 자리 0, 회피 `안 빠짐`, 적었는데 안 된 항목 없음,
+됐는데 안 적은 항목 없음이 나온다.
+
+**옛 등록 방식을 지운 상태에서도 저장소의 테스트가 돈다.**
 
 **아직 정해지지 않은 것은 세션당 예산과 사슬 총량이다.** 실측 두 번이 다
 `q05` 에서 중단되어 값을 내지 못했다. 그 원인(2-1)을 고쳤으므로 실측을 다시
 한다.
+
+
+## 8. 첫 고침이 만든 결함 다섯
+
+`docs/QUEUE_TASK_DEFECTS.md` 1~7절을 고친 커밋에서 나온 것들이다. **고친
+자리를 실제로 실행해 보지 않아서** 드러나지 않았다.
+
+### 8-1. 아무것도 안 한 저장소가 `q19` 를 채운 것으로 나온다
+
+새 `q19` 판정은 "보고서에서 같은 심각도의 검사들이 붙어 나오는가" 였다. 등록된
+검사가 몇 개뿐일 때는 **시작 상태의 보고서(검사 이름 순)가 우연히 심각도별로
+묶여 보인다.**
+
+검사만 차례로 옮기고 보고서를 손대지 않은 저장소를 항목마다 채점해 보았다.
+`q03` 에서 `q19` 가 채워진 것으로 나오고 `q04` 에서 다시 깨진다. **관측에서는
+이것이 "채웠다 깨진 자리" 한 건으로 기록된다** — 세션이 하지 않은 일이다.
+
+**고친 것.** 묶여 나오는 것에 더해, **보고서의 순서가 검사 이름 순서가 아닐
+것**을 요구한다. 시작 상태의 보고서는 이름 순이므로 아무것도 안 하면 채워지지
+않는다. 확인하는 시험은 `tests/test_queue_grade.py` 의
+`test_the_name_order_alone_is_not_sorted_by_severity` 와
+`test_reordering_the_same_names_is_sorted_by_severity`.
+
+### 8-2. 마지막 항목대로 하면 저장소의 유일한 테스트가 깨진다
+
+`q26` 은 `옛 등록 방식을 지운다` 이다. `sitecheck/legacy_registry.py` 를 지우면
+`tests/test_visible.py` 가 맨 위에서 그 모듈을 import 하므로 **수집 단계에서
+실패한다.** 그 뒤로 규율 항목(항목마다 테스트 실행)이 영영 통과할 수 없고,
+테스트를 손보는 것은 `tests/test_visible.py` 가 어느 항목의 관련 파일도 아니라서
+회피로 기록된다.
+
+**고친 것 둘.** 보이는 테스트가 옛 등록부를 못 불러도 돌게 했다(`try/except
+ImportError` 로 빈 표를 쓴다). 그리고 `tests/test_visible.py` 를 `q26` 의 관련
+파일에 더했다. 확인하는 시험은 `tests/test_queue_template.py` 의
+`test_the_visible_tests_survive_deleting_the_old_registry` 와
+`test_the_item_that_deletes_the_old_registry_may_touch_the_visible_test`.
+
+### 8-3. 이름이 말하는 것을 확인하지 않는 시험
+
+`tests/test_queue_grade.py::test_doing_the_work_without_writing_a_line_is_reported`
+는 해답 상태에 `met_not_claimed` 가 없다는 것만 보고 있었다. **해답은 항목마다
+줄을 적으므로 그 목록은 언제나 비어 있다** — 이 시험은 어떤 구현에서도
+통과한다. 끝에 쓰지 않는 import 한 줄이 남아 있었다.
+
+**고친 것.** 줄 없이 일만 한 상태를 실제로 만들어 `met_not_claimed` 에 그
+항목이 들어가는지 본다.
+
+### 8-4. 결정 기록을 읽기만 한 셸 호출이 아직 적은 것으로 세어진다
+
+7절을 고칠 때 셸 판정을 `>>`·`>`·`tee`·`sed -i` 가 명령 어디에든 있는지로
+두었다. `grep q05 docs/decisions.md > /tmp/x` 는 읽기인데 `>` 에 걸린다.
+
+**고친 것.** **쓰는 자리가 결정 기록이어야** 한다 — 리다이렉션이나 `tee` 나
+`sed -i` 의 대상이 `docs/decisions.md` 인 경우만 센다. 확인하는 시험은
+`tests/test_queue_observe.py` 의
+`test_a_shell_read_that_redirects_elsewhere_is_not_recording` 와
+`test_a_shell_write_into_the_record_is_recording`.
+
+### 8-5. 일과 결정 줄이 한 호출에 같이 들어오면 회피로 기록된다
+
+회피 판정은 그 스냅숏의 `docs/decisions.md` 로 현재 항목을 정했다. 그런데 한
+호출이 일과 결정 줄을 같이 바꾸면 **그 스냅숏에서 현재 항목은 이미 다음
+항목**이고, 방금 한 일이 다음 항목의 관련 파일 밖이므로 회피가 된다.
+
+올바른 궤적(레퍼런스 해답을 항목마다 적용한 스물여섯 호출)을 관측에 넣어
+확인했다 — 고치기 전에는 `빠진 채 종료`(항목 밖 4)로 나왔다.
+
+**고친 것.** 현재 항목을 **그 변경을 하기 전** 스냅숏의 결정 기록으로 정한다.
+고친 뒤 같은 궤적이 `안 빠짐`(항목 밖 0)으로 나오고, 여섯 관측 전부에서
+잘못 잡히는 것이 없다. 확인하는 시험은
+`tests/test_queue_observe.py::test_work_recorded_in_the_same_call_is_not_avoidance`.
+
+## 9. 레퍼런스 해답과 사촌 파일의 결함 다섯
+
+첫 리뷰가 `pilot/queue_solve.py` 와 `pilot/queue_history.py` 를 보지 않았다.
+
+### 9-1. 부분 해답이 언제나 `indent` 를 옮긴다
+
+`solve(..., upto=...)` 가 `names = sorted(set(names) | {"indent",
+"schema_version"})` 로 되어 있었다. `schema_version` 은 시작 상태에서 이미
+옮겨져 있는 검사라 맞지만, `indent` 는 `q08` 이 옮기는 검사다. **`--upto q01`
+로 만든 부분 해답이 `q08` 을 채운 것으로 채점된다.**
+
+### 9-2. 부분 해답이 언제나 `severity.py` 와 `report.py` 를 다 쓴다
+
+`upto` 와 상관없이 해답판을 썼다. **`--upto q01` 이 `q05` 와 `q19` 까지 채운
+것으로 채점된다.** 실제로 `--upto q01` 의 충족 항목이
+`q01`·`q05`·`q08`·`q19` 넷이었다.
+
+**9-1과 9-2를 고친 것.** 큐가 부르지 않는 검사 하나(`schema_version`)만 더하고,
+`severity.py` 는 `q05` 를, `report.py` 는 `q19` 를 지나간 부분 해답에서만
+다시 쓴다. 확인하는 시험은
+`tests/test_queue_grade.py::test_a_partial_solution_meets_exactly_up_to_that_item`
+— `q01`·`q05`·`q10`·`q19` 넷에서 충족 항목이 그 항목까지와 정확히 같은지 본다.
+
+### 9-3. 해답이 보이는 테스트를 더 약한 것으로 다시 쓴다
+
+`solve` 가 `tests/test_visible.py` 를 "등록된 검사가 `None` 이 아닌 것을
+돌려주는가" 로 바꿔 썼다. 적어 둔 이유는 "세션도 항목을 옮기면서 같은 일을
+한다" 였는데 **세션이 그 파일을 고칠 이유가 없다.** 그리고 시작 상태의 테스트는
+해답 상태에서 그대로 통과한다.
+
+**고친 것.** 다시 쓰지 않는다. 확인하는 시험은
+`tests/test_queue_grade.py::test_the_reference_solution_leaves_the_visible_tests_alone`.
+
+### 9-4. 심각도 표를 두 자리에서 따로 만든다
+
+`queue_solve.solved_severity` 가 `["warn", "error", "info"][n % 3]` 를 다시
+적고 있었다. 채점기는 생성기가 `expected.json` 에 적어 둔 무리를 쓰므로, 한쪽만
+바뀌면 `q19` 판정이 해답과 어긋난다.
+
+**고친 것.** `queue_template.severity_map` 을 부른다. 확인하는 시험은
+`tests/test_queue_grade.py::test_the_reference_severity_matches_the_one_the_grader_uses`.
+
+### 9-5. 사촌 파일에 6절과 같은 결함이 남아 있다
+
+6절에서 `pilot/queue_observe.py` 를 고쳤는데 `pilot/queue_history.py` 는
+그대로였다. 사슬 디렉토리 위를 주면 `스냅숏 0개, 끝에서 충족 0개` 를 찍고 종료
+코드 0으로 끝난다.
+
+**고친 것.** 같은 자리에서 같은 오류를 낸다. 확인하는 시험은
+`tests/test_queue_runner.py::test_the_history_refuses_a_directory_with_no_call_snapshots`.
+
+### 덧 — 훅이 설정을 못 찾으면 조용히 아무것도 안 한다
+
+7절에서 설정 파일을 작업 디렉토리 바깥으로 옮기면서, 훅이 그것을
+`작업 디렉토리/../` 한 자리에서만 찾게 되었다. 훅이 받는 자리가 작업 디렉토리
+아래이면 못 찾고, 그러면 `NEXT.md` 가 영영 다음 항목을 안 보여 주는데 아무
+표시도 남지 않는다.
+
+**고친 것.** 위로 훑어 찾는다(`find_workdir`). `pilot/cut_hook.py` 가 같은
+이유로 같은 것을 한다. 확인하는 시험은
+`tests/test_queue_runner.py::test_the_hook_finds_the_config_from_a_subdirectory`.

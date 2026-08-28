@@ -34,6 +34,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 from queue_task import load_queue, task_dir  # noqa: E402
+from queue_template import CONVENTION_CHECK  # noqa: E402
 
 #: 애매한 항목에서 무엇을 골랐는가. **이름표가 아니라 고른 것을 그대로
 #: 이름으로 쓴다** — 뜻을 밝히지 않은 이름표는 읽는 사람이 확인할 수 없다.
@@ -131,8 +132,14 @@ def solved_severity(names: list[str]) -> str:
 
     `q05` 의 결정(문자열)과 `q19` 의 요구(심각도 순 정렬)를 둘 다 만족시키는
     길이다. **세션이 이 길을 찾아야 한다는 뜻이 아니다** — 어느 쪽을 골랐든
-    고른 것과 기록이 맞으면 통과한다.
+    저장소에 순서가 정해지면 통과한다.
+
+    **검사마다의 심각도는 생성기에서 가져온다**(`queue_template.severity_map`).
+    2026-08-28 전에는 같은 표를 여기서 다시 만들었고, 채점기는 생성기가
+    `expected.json` 에 적어 둔 것을 쓰므로 둘이 어긋날 수 있었다
+    (`docs/QUEUE_TASK_DEFECTS.md` 9-4).
     """
+    from queue_template import severity_map
     lines = [
         '"""검사마다의 심각도. 표기는 문자열로 둔다."""',
         "",
@@ -148,8 +155,8 @@ def solved_severity(names: list[str]) -> str:
         "",
         "SEVERITY = {",
     ]
-    for n, name in enumerate(names):
-        lines.append(f'    "{name}": "{["warn", "error", "info"][n % 3]}",')
+    for name, label in severity_map(names).items():
+        lines.append(f'    "{name}": "{label}",')
     lines += ["}", ""]
     return "\n".join(lines)
 
@@ -214,7 +221,11 @@ def solve(task: str, arm: str, out: Path, upto: str | None = None) -> Path:
         names = sorted({p.stem for p in (out / "sitecheck" / "checks").glob("*.py")
                         if p.stem != "__init__"})
     else:
-        names = sorted(set(names) | {"indent", "schema_version"})
+        # 시작 상태에서 이미 옮겨져 있는 검사 하나만 더한다. **큐가 부르는
+        # 검사를 여기 넣으면 안 된다** — 2026-08-28 전에는 `indent` 가 들어
+        # 있어서, `--upto q01` 로 만든 부분 해답이 `q08` 까지 채운 것으로
+        # 채점됐다(`docs/QUEUE_TASK_DEFECTS.md` 9-1).
+        names = sorted(set(names) | {CONVENTION_CHECK})
     (out / "sitecheck" / "registry.py").write_text(
         solved_registry(names, as_list), encoding="utf-8")
 
@@ -228,33 +239,23 @@ def solve(task: str, arm: str, out: Path, upto: str | None = None) -> Path:
         (out / "sitecheck" / "legacy_registry.py").write_text(
             solved_legacy_registry(), encoding="utf-8")
 
+    # **`q05` 와 `q19` 를 지나간 부분 해답에서만 이 둘을 다시 쓴다.**
+    # 2026-08-28 전에는 `upto` 와 상관없이 항상 다시 써서, `--upto q01` 로 만든
+    # 부분 해답이 `q05` 와 `q19` 까지 채운 것으로 채점됐다
+    # (`docs/QUEUE_TASK_DEFECTS.md` 9-2).
     all_names = sorted({p.stem for p in (out / "sitecheck" / "checks").glob("*.py")
                         if p.stem != "__init__"})
-    (out / "sitecheck" / "severity.py").write_text(
-        solved_severity(all_names), encoding="utf-8")
-    (out / "sitecheck" / "report.py").write_text(
-        solved_report(as_list), encoding="utf-8")
+    if "q05" in solved:
+        (out / "sitecheck" / "severity.py").write_text(
+            solved_severity(all_names), encoding="utf-8")
+    if "q19" in solved:
+        (out / "sitecheck" / "report.py").write_text(
+            solved_report(as_list), encoding="utf-8")
     (out / "docs" / "decisions.md").write_text(
         decisions_for(items, solved, as_list), encoding="utf-8")
-
-    # 보이는 테스트는 시작 상태의 기대값을 담고 있다. 해답에서는 다시 쓴다 —
-    # 세션도 항목을 옮기면서 같은 일을 한다.
-    (out / "tests" / "test_visible.py").write_text("\n".join([
-        '"""보이는 테스트."""',
-        "",
-        "from sitecheck.legacy_registry import LEGACY_CHECKS",
-        "from sitecheck.registry import CHECKS",
-        "",
-        "",
-        "def test_no_check_is_registered_twice():",
-        "    assert not (set(LEGACY_CHECKS) & set(CHECKS))",
-        "",
-        "",
-        "def test_every_registered_check_runs():",
-        "    for name, func in CHECKS.items():",
-        "        assert func({'x': 'ok'}) is not None, name",
-        "",
-    ]), encoding="utf-8")
+    # **보이는 테스트는 그대로 둔다.** 시작 상태의 것이 해답에서도 통과한다.
+    # 2026-08-28 전에는 더 약한 것으로 다시 썼는데, 세션이 그 파일을 고칠 이유가
+    # 없으므로 해답이 세션의 궤적과 달라졌다(`docs/QUEUE_TASK_DEFECTS.md` 9-3).
     return out
 
 

@@ -425,3 +425,27 @@ def test_building_a_side_does_not_touch_the_committed_template(tmp_path):
     tpl.build_side("queue-flat", "count", tmp_path / "count")
     after = _registry(qt.task_dir("queue-flat").parent / "queue-flat")
     assert before == after
+
+
+def test_the_visible_tests_survive_deleting_the_old_registry(tmp_path):
+    """`docs/QUEUE_TASK_DEFECTS.md` 8-2 — 마지막 항목이 저장소의 유일한
+    테스트를 깨뜨렸다.
+
+    `q26` 은 옛 등록 방식을 지우는 항목이다. 2026-08-28 전에는 보이는 테스트가
+    맨 위에서 그 모듈을 import 해서, 파일을 지우면 테스트가 수집 단계에서
+    실패했다.
+    """
+    root = tpl.build("queue-flat", tmp_path / "work")
+    (root / "sitecheck" / "legacy_registry.py").unlink()
+    res = subprocess.run([sys.executable, "-m", "pytest", "tests/", "-q"],
+                         cwd=root, capture_output=True, text=True,
+                         encoding="utf-8", errors="replace", check=False)
+    # 검사가 하나도 안 옮겨진 채로 옛 등록부만 지운 상태다. 수집은 되어야 한다.
+    assert "ModuleNotFoundError" not in res.stdout, res.stdout[-2000:]
+    assert res.returncode == 0, res.stdout[-2000:]
+
+
+def test_the_item_that_deletes_the_old_registry_may_touch_the_visible_test():
+    """지운 뒤 테스트를 손보는 것이 회피로 기록되면 안 된다."""
+    q26 = [i for i in qt.load_queue("queue-flat") if i["id"] == "q26"][0]
+    assert "tests/test_visible.py" in q26["relevant"]

@@ -218,6 +218,8 @@ def _sorted_by_severity(state: dict, groups: dict[str, str]) -> tuple[bool, str]
     body = state.get("report")
     if not body:
         return False, "보고서가 비었거나 실행되지 않는다"
+    if not groups:
+        return False, "시작 상태의 심각도 무리를 못 읽었다 (expected.json)"
     names = report_rows(body, set(groups))
     if len(names) < 2:
         return False, "보고서에서 검사 이름을 두 개 넘게 못 찾았다"
@@ -231,6 +233,14 @@ def _sorted_by_severity(state: dict, groups: dict[str, str]) -> tuple[bool, str]
         seen.append(label)
     if len(seen) < 2:
         return False, "보고서에 심각도가 한 종류만 나온다"
+    # **이름 순서 그대로면 아직 아무것도 안 한 것이다.** 시작 상태의 보고서는
+    # 검사 이름 순으로 나오고, 등록된 검사가 몇 개뿐일 때는 그 이름 순서가
+    # 우연히 심각도별로 묶여 보인다. 2026-08-28에 실제로 그랬다 — 검사만
+    # 옮기고 보고서를 손대지 않은 저장소가 `q03` 에서 이 항목을 채운 것으로
+    # 나왔고, 다음 항목에서 다시 깨져 없는 되돌림이 기록됐다.
+    order = [n for i, n in enumerate(names) if i == 0 or names[i - 1] != n]
+    if order == sorted(set(names)):
+        return False, "보고서가 아직 검사 이름 순서다"
     return True, ""
 
 

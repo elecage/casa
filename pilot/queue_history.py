@@ -101,8 +101,17 @@ def _trees(git_dir: Path, commits: list[tuple[int, str]],
 
 
 def grade_chain(task: str, git_dir: Path) -> dict:
-    """사슬 하나의 스냅숏 전부를 채점한다."""
+    """사슬 하나의 스냅숏 전부를 채점한다.
+
+    **호출 스냅숏이 하나도 없으면 오류로 끝낸다.** 0을 돌려주면 한 번도
+    실행되지 않은 채점과 구분되지 않는다 — 2026-08-27에 사슬 디렉토리 위를
+    주고 `스냅숏 0개` 를 읽었다(`docs/QUEUE_TASK_DEFECTS.md` 6절).
+    """
     commits = call_commits(git_dir)
+    if not commits:
+        raise ValueError(
+            f"{git_dir} 에서 호출 스냅숏을 하나도 못 찾았다. 사슬 하나의 저장소를"
+            " 줄 것 — <출력>/snapshots/chain-01.git")
     with tempfile.TemporaryDirectory(prefix="casa-history-") as tmp:
         tree = Path(tmp) / "tree"
         tree.mkdir()

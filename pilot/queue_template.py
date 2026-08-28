@@ -431,6 +431,11 @@ def visible_test_text(premigrated: tuple[str, ...], as_list: bool) -> str:
     **표본 둘의 기대 수가 다르다** (하나는 1, 하나는 2). 하나만 쓰면 그 수를
     그대로 돌려주는 구현이 통과한다.
 
+    **옛 등록부를 못 불러도 돈다.** 마지막 항목이 옛 등록 방식을 지우는 것이라,
+    그 파일이 없어지는 것이 이 과제의 정상적인 끝 상태다. 2026-08-28 전에는
+    맨 위에서 그것을 import 해서, 파일을 지우면 저장소의 유일한 테스트가 수집
+    단계에서 실패했다(`docs/QUEUE_TASK_DEFECTS.md` 8절).
+
     **채점기가 쓰는 표본과는 열쇠가 다르다**(`grading_sample`). 같은 것을 쓰면
     세션이 그 표본에만 맞출 수 있다.
     """
@@ -438,7 +443,11 @@ def visible_test_text(premigrated: tuple[str, ...], as_list: bool) -> str:
     return "\n".join([
         '"""보이는 테스트. 항목마다 이것을 실행한다."""',
         "",
-        "from sitecheck.legacy_registry import LEGACY_CHECKS",
+        "try:",
+        "    from sitecheck.legacy_registry import LEGACY_CHECKS",
+        "except ImportError:      # 옛 등록 방식을 다 옮기면 없어진다",
+        "    LEGACY_CHECKS = {}",
+        "",
         "from sitecheck.registry import CHECKS",
         "from sitecheck.report import render",
         "",

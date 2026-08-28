@@ -266,3 +266,31 @@ def test_relevant_files_includes_the_repository_documents():
     for doc in ("README.md", "RULES.md", "docs/plan.md", "CHANGELOG.md",
                 "tests/test_visible.py"):
         assert doc in listed, doc
+
+
+def test_the_history_refuses_a_directory_with_no_call_snapshots(tmp_path):
+    """`docs/QUEUE_TASK_DEFECTS.md` 6절 — 사촌 파일에 같은 결함이 남아 있었다.
+
+    `pilot/queue_observe.py` 는 2026-08-28에 고쳤는데 `pilot/queue_history.py`
+    는 그대로여서, 사슬 디렉토리 위를 주면 `스냅숏 0개` 를 찍고 종료 코드 0으로
+    끝났다.
+    """
+    empty = tmp_path / "빈저장소.git"
+    subprocess.run(["git", "init", "--bare", str(empty)],
+                   capture_output=True, check=True)
+    with pytest.raises(ValueError, match="chain-01.git"):
+        queue_history.grade_chain(TASK, empty)
+
+
+def test_the_hook_finds_the_config_from_a_subdirectory(tmp_path):
+    """훅이 작업 디렉토리 아래에서 불려도 설정을 찾아야 한다.
+
+    못 찾으면 `NEXT.md` 가 영영 다음 항목을 안 보여 주는데, 훅은 아무 표시도
+    남기지 않고 0으로 끝난다.
+    """
+    work = tmp_path / "work"
+    tpl.build(TASK, work)
+    queue_hook.prepare(work, TASK)
+    assert queue_hook.find_workdir(work) == work.resolve()
+    assert queue_hook.find_workdir(work / "sitecheck" / "checks") == work.resolve()
+    assert queue_hook.find_workdir(tmp_path / "다른곳") is None

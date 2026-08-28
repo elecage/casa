@@ -45,6 +45,21 @@ def config_path(workdir: Path) -> Path:
     return Path(workdir).resolve().parent / CONFIG_NAME
 
 
+def find_workdir(start: Path) -> Path | None:
+    """`start` 나 그 위 어느 디렉토리가 작업 디렉토리인가.
+
+    **위로 훑는다.** 훅이 받는 자리가 작업 디렉토리의 아래일 수 있고, 그때
+    `start.parent` 만 보면 설정을 못 찾는다. 못 찾으면 `NEXT.md` 가 영영 다음
+    항목을 안 보여 주는데 아무 데도 표시가 남지 않는다.
+    `pilot/cut_hook.py` 가 같은 이유로 같은 것을 한다.
+    """
+    here = Path(start).resolve()
+    for candidate in [here, *here.parents]:
+        if candidate.is_dir() and (candidate.parent / CONFIG_NAME).is_file():
+            return candidate
+    return None
+
+
 def load_task(workdir: Path) -> str | None:
     """이 작업 디렉토리가 어느 큐 과제인가."""
     try:
@@ -111,7 +126,10 @@ def install(workdir: Path, task: str) -> None:
 def main() -> int:
     try:
         sys.stdin.read()                 # 훅 입력은 읽고 버린다
-        refresh(Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path.cwd()))
+        start = Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path.cwd())
+        workdir = find_workdir(start)
+        if workdir is not None:
+            refresh(workdir)
     except Exception:                    # noqa: BLE001 - 장치가 세션을 죽이면 안 된다
         pass
     return 0

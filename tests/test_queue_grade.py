@@ -2,14 +2,16 @@
 
 이 파일이 못 박는 것 여덟.
 
-1. **세 과제가 풀 수 있다.** 해답이 없으면 세션이 못 한 것이 과제 탓인지
+1. **과제를 풀 수 있다.** 해답이 없으면 세션이 못 한 것이 과제 탓인지
    세션 탓인지 구분되지 않는다.
-2. **세트 설계의 핵심 주장이 실제로 성립한다** — 애매한 항목에서 다른 쪽을
+2. **부분 해답이 그 항목까지만 채운다.** 넘치면 "항목 N 직후의 상태" 가
+   아니게 된다.
 3. **채점기가 구현 중립이다.** 건수를 돌려주든 목록을 돌려주든 옮긴 것으로
    판정한다. 명세가 정하지 않은 것을 못 박으면 맞는 구현을 떨어뜨릴 수만 있다.
-4. **줄 번호 판정이 문자열 포함으로 통과하지 않는다.** 검사 이름
-   `line_length` 의 `line` 에 걸려 통과한 적이 있다.
-5. **적었는데 안 된 항목을 따로 낸다** — 규율과 완료 조건은 다른 것이다.
+4. **`q05` 와 `q19` 를 글자가 아니라 동작으로 판정한다.** 그리고 아무것도 안
+   한 저장소가 우연히 채운 것으로 나오지 않는다.
+5. **적었는데 안 된 항목과 됐는데 안 적은 항목을 따로 낸다** — 규율과 완료
+   조건은 다른 것이다.
 6. **스냅숏마다 채점해 한 번 채워졌던 조건이 깨지는 자리를 센다.**
 7. **기술적 실패를 완료 조건과 섞지 않는다.**
 8. **저장소가 망가져도 채점이 죽지 않는다.**
@@ -61,7 +63,20 @@ def test_the_visible_tests_pass_on_the_reference_solution(task, solved):
     assert res.returncode == 0, (task, res.stdout[-2000:])
 
 
-# --------------------------------- 세트 설계의 핵심 주장이 성립하는가
+# ------------------------------- 부분 해답이 그 항목까지만 채우는가
+#
+# `docs/QUEUE_TASK_DEFECTS.md` 9절. 2026-08-28 전에는 `--upto` 와 상관없이
+# `indent` 를 옮기고 `severity.py` 와 `report.py` 를 다 쓴 상태를 만들어서,
+# `--upto q01` 로 만든 부분 해답이 `q05`·`q08`·`q19` 까지 채운 것으로 나왔다.
+
+
+@pytest.mark.parametrize("upto", ["q01", "q05", "q10", "q19"])
+def test_a_partial_solution_meets_exactly_up_to_that_item(upto, tmp_path):
+    ids = [i["id"] for i in qt.load_queue("queue-flat")]
+    root = sol.solve("queue-flat", "목록", tmp_path / upto, upto=upto)
+    result = gr.grade("queue-flat", root)
+    met = sorted(q for q, r in result["items"].items() if r["met"])
+    assert met == ids[:ids.index(upto) + 1], upto
 
 
 # ------------------------------------------------- 채점기가 구현 중립인가
@@ -179,11 +194,22 @@ def test_writing_a_line_without_doing_the_work_is_reported(tmp_path):
     assert "q01" in result["claimed_not_met"]
 
 
-def test_doing_the_work_without_writing_a_line_is_reported(solved):
-    """반대쪽도 센다 — 규율 항목이 무너지는 것 자체가 관측 대상이다."""
-    result = gr.grade("queue-flat", solved[("queue-flat", "목록")])
-    assert result["met_not_claimed"] == []
-    from queue_template import build
+def test_doing_the_work_without_writing_a_line_is_reported(tmp_path):
+    """반대쪽도 센다 — 규율 항목이 무너지는 것 자체가 관측 대상이다.
+
+    **이 시험은 이름이 말하는 것을 확인하지 않고 있었다** (2026-08-28,
+    `docs/QUEUE_TASK_DEFECTS.md` 8-3). 해답 상태에 `met_not_claimed` 가 없다는
+    것만 보고 있었는데, 해답은 항목마다 줄을 적으므로 그 목록은 언제나 비어
+    있다. 실제로 줄 없이 일만 한 상태를 만들어 확인한다.
+    """
+    root = sol.solve("queue-flat", "목록", tmp_path / "w", upto="q02")
+    (root / "docs" / "decisions.md").write_text(
+        "# 결정 기록\n\n- q01: 옮겼다\n", encoding="utf-8")
+    result = gr.grade("queue-flat", root)
+    assert result["items"]["q02"]["met"]
+    assert not result["items"]["q02"]["recorded"]
+    assert "q02" in result["met_not_claimed"]
+    assert result["claimed_not_met"] == []
 
 
 def test_the_start_state_meets_nothing(tmp_path):
@@ -385,3 +411,60 @@ def test_the_command_line_reports_what_is_missing(tmp_path, capsys):
 def test_the_command_lines_refuse_bad_arguments(capsys):
     assert gr.main([]) == 1
     assert sol.main(["queue-flat"]) == 1
+
+
+def test_the_name_order_alone_is_not_sorted_by_severity():
+    """`docs/QUEUE_TASK_DEFECTS.md` 8-1 — 우연히 묶여 보이는 자리가 있었다.
+
+    등록된 검사가 몇 개뿐일 때는 시작 상태의 보고서(검사 이름 순)가 심각도별로
+    묶여 보인다. 2026-08-28에 검사만 옮기고 보고서를 안 고친 저장소가 `q03`
+    에서 이 항목을 채운 것으로 나왔고, 다음 항목에서 다시 깨져 없는 되돌림이
+    기록됐다.
+    """
+    groups = {"aa": "warn", "bb": "warn", "cc": "info", "dd": "info"}
+    body = _report(["aa", "bb", "cc", "dd"])          # 이름 순서 그대로다
+    ok, why = gr._sorted_by_severity({"report": body}, groups)
+    assert not ok and "이름 순서" in why
+
+
+def test_reordering_the_same_names_is_sorted_by_severity():
+    groups = {"aa": "warn", "bb": "info", "cc": "warn", "dd": "info"}
+    body = _report(["bb", "dd", "aa", "cc"])
+    ok, why = gr._sorted_by_severity({"report": body}, groups)
+    assert ok, why
+
+
+def test_a_missing_severity_map_is_reported():
+    ok, why = gr._sorted_by_severity({"report": _report(["alias_cycle"])}, {})
+    assert not ok and "expected.json" in why
+
+
+def test_the_reference_solution_leaves_the_visible_tests_alone(tmp_path):
+    """`docs/QUEUE_TASK_DEFECTS.md` 9-3 — 해답이 보이는 테스트를 다시 썼다.
+
+    세션이 그 파일을 고칠 이유가 없으므로 해답이 세션의 궤적과 달라졌다.
+    시작 상태의 테스트가 해답 상태에서도 통과한다.
+    """
+    from queue_template import build
+    start = build("queue-flat", tmp_path / "start")
+    root = sol.solve("queue-flat", "목록", tmp_path / "w")
+    assert (root / "tests" / "test_visible.py").read_text(encoding="utf-8") == \
+        (start / "tests" / "test_visible.py").read_text(encoding="utf-8")
+
+
+def test_the_reference_severity_matches_the_one_the_grader_uses(tmp_path):
+    """`docs/QUEUE_TASK_DEFECTS.md` 9-4 — 같은 표를 두 자리에서 만들었다.
+
+    채점기는 생성기가 `expected.json` 에 적어 둔 무리를 쓴다. 해답이 다른 표를
+    쓰면 `q19` 판정이 해답과 어긋난다.
+    """
+    import json as _json
+    from queue_template import severity_map, ALL_CHECKS
+    root = sol.solve("queue-flat", "목록", tmp_path / "w")
+    body = (root / "sitecheck" / "severity.py").read_text(encoding="utf-8")
+    want = severity_map(sorted(ALL_CHECKS))
+    for name, label in want.items():
+        assert f'"{name}": "{label}"' in body, name
+    expected = _json.loads(
+        (qt.task_dir("queue-flat") / "expected.json").read_text(encoding="utf-8"))
+    assert expected["severity"] == want

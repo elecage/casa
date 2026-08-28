@@ -261,7 +261,8 @@
       "title": "옛 등록 방식을 지운다",
       "relevant": [
         "sitecheck/legacy_registry.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "tests/test_visible.py"
       ],
       "queue_says": "todo"
     }

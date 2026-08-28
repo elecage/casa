@@ -1,6 +1,10 @@
 """보이는 테스트. 항목마다 이것을 실행한다."""
 
-from sitecheck.legacy_registry import LEGACY_CHECKS
+try:
+    from sitecheck.legacy_registry import LEGACY_CHECKS
+except ImportError:      # 옛 등록 방식을 다 옮기면 없어진다
+    LEGACY_CHECKS = {}
+
 from sitecheck.registry import CHECKS
 from sitecheck.report import render
 

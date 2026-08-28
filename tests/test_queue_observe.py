@@ -348,3 +348,42 @@ def test_a_directory_with_no_call_snapshots_is_refused(tmp_path):
                    capture_output=True, check=True)
     with pytest.raises(ValueError, match="chain-01.git"):
         obs.observe(TASK, empty)
+
+
+def test_a_shell_read_that_redirects_elsewhere_is_not_recording(tmp_path):
+    """`docs/QUEUE_TASK_DEFECTS.md` 8-4 — 아무 데나 있는 `>` 로 판정했다.
+
+    `grep q05 docs/decisions.md > /tmp/x` 는 결정 기록을 읽기만 한 것이다.
+    """
+    path = _transcript(tmp_path / "g.jsonl", [
+        {"name": "Bash",
+         "input": {"command": "grep q05 docs/decisions.md > /tmp/x"}},
+    ])
+    assert obs.discipline_from_transcript(path)["judged"] == 0
+
+
+def test_a_shell_write_into_the_record_is_recording(tmp_path):
+    for command in ("echo '- q01: 했다' >> docs/decisions.md",
+                    "cat note.txt > docs/decisions.md",
+                    "sed -i 's/x/y/' docs/decisions.md"):
+        path = _transcript(tmp_path / "h.jsonl",
+                           [{"name": "Bash", "input": {"command": command}}])
+        assert obs.discipline_from_transcript(path)["judged"] == 1, command
+
+
+def test_work_recorded_in_the_same_call_is_not_avoidance(tmp_path):
+    """`docs/QUEUE_TASK_DEFECTS.md` 8-5 — 일과 결정 줄이 한 호출에 같이 들어오면
+    그 일이 **다음** 항목의 것으로 판정됐다.
+
+    현재 항목은 그 변경을 하기 **전**의 결정 기록으로 정해져야 한다.
+    """
+    work, git_dir = _start(tmp_path)
+    qid, name = _first_check(TASK)
+    _migrate(work, name)
+    _record(work, qid)          # 같은 스냅숏에 일과 줄이 같이 들어간다
+    snapshot.take(work)
+
+    got = obs.observe(TASK, git_dir)
+    assert got["avoidance"]["off_item"] == 0
+    assert got["avoidance"]["state"] == "안 빠짐"
+    assert got["steps"][0]["current_item"] == qid

@@ -103,9 +103,13 @@ _TOUCHES_DECISIONS = re.compile(r"docs[/\\]decisions\.md")
 _WRITE_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit", "Update",
                 "create_file", "str_replace_editor")
 
-#: 셸로 파일을 쓰는 표시. 이것이 없으면 읽기만 한 것으로 본다.
-_SHELL_WRITE = re.compile(r">>|>\s|>\s*$|\btee\b|\bsed\b[^|]*-i|\bcp\b|\bmv\b|"
-                          r"\bpython\b[^|]*<<")
+#: 셸로 **그 파일에** 쓰는 표시. 이것이 없으면 읽기만 한 것으로 본다.
+#:
+#: **쓰는 자리가 결정 기록이어야 한다.** `>` 가 아무 데나 있는 것으로 보면
+#: `grep q05 docs/decisions.md > /tmp/x` 같은 읽기가 적은 것으로 세어진다.
+_SHELL_WRITE = re.compile(
+    r"(?:>>?|\btee\b(?:\s+-\w+)*|\bsed\b[^|]*?-i[^|]*?)\s*"
+    r"[\"']?[\w./\\-]*docs[/\\]decisions\.md")
 
 
 def _records_an_item(name: str, text: str) -> bool:
@@ -177,6 +181,7 @@ def observe(task: str, git_dir: Path,
             " 줄 것 — <출력>/snapshots/chain-01.git")
 
     steps: list[dict] = []
+    prev_decisions = ""          # 시작 상태에는 항목 줄이 하나도 없다
     ever_met: set[str] = set()
     broken: set[str] = set()
     first_met: dict[str, int] = {}
@@ -194,11 +199,16 @@ def observe(task: str, git_dir: Path,
             met = {q for q, r in result["items"].items() if r["met"]}
             changed = changed_files(git_dir, sha)
 
-            # 그 시점의 현재 항목. 결정 기록으로 정해진다.
+            # **이 변경을 할 때 현재였던 항목.** 앞 스냅숏의 결정 기록으로
+            # 정해진다 — 이번 스냅숏의 것으로 보면, 일과 결정 줄이 한 호출에
+            # 같이 들어온 경우 그 일이 **다음** 항목의 것으로 판정되어 회피로
+            # 기록된다. 시작 상태에는 항목 줄이 하나도 없으므로 첫 구간의
+            # 현재 항목은 `q01` 이다.
             decisions = file_at(git_dir, sha, "docs/decisions.md")
-            item = current_item(items, decisions)
+            item = current_item(items, prev_decisions)
             verdict = judge_step(changed, item,
                                  item is not None and item["id"] in met)
+            prev_decisions = decisions
 
             # **깨진 자리 하나를 한 번만 센다.** 다시 채워졌다가 또 깨지면
             # 그때 새로 센다(`docs/QUEUE_TASK_DEFECTS.md` 5-2).
