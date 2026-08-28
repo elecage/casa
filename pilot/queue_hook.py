@@ -15,9 +15,11 @@
 
 이 훅은 **절대 세션을 막지 않는다.** 무슨 일이 있어도 0으로 끝난다.
 
-설정은 러너가 작업 디렉토리에 써 둔다:
+설정은 러너가 **작업 디렉토리 바깥**(그 위 디렉토리)에 써 둔다. 안에 두면
+세션이 저장소를 훑을 때 보이고, 그 파일이 어느 항목 목록으로 채점되는지를
+알려 준다. `pilot/cut_hook.py` 가 같은 자리에 같은 이유로 둔다.
 
-    .casa-queue.json   {"task": "queue-flat"}
+    <작업 디렉토리>/../.casa-queue.json   {"task": "queue-flat"}
 """
 
 from __future__ import annotations
@@ -38,10 +40,30 @@ for _stream in (sys.stdout, sys.stderr):
 CONFIG_NAME = ".casa-queue.json"
 
 
+def config_path(workdir: Path) -> Path:
+    """설정 파일 자리. **작업 디렉토리 바깥이다.**"""
+    return Path(workdir).resolve().parent / CONFIG_NAME
+
+
+def find_workdir(start: Path) -> Path | None:
+    """`start` 나 그 위 어느 디렉토리가 작업 디렉토리인가.
+
+    **위로 훑는다.** 훅이 받는 자리가 작업 디렉토리의 아래일 수 있고, 그때
+    `start.parent` 만 보면 설정을 못 찾는다. 못 찾으면 `NEXT.md` 가 영영 다음
+    항목을 안 보여 주는데 아무 데도 표시가 남지 않는다.
+    `pilot/cut_hook.py` 가 같은 이유로 같은 것을 한다.
+    """
+    here = Path(start).resolve()
+    for candidate in [here, *here.parents]:
+        if candidate.is_dir() and (candidate.parent / CONFIG_NAME).is_file():
+            return candidate
+    return None
+
+
 def load_task(workdir: Path) -> str | None:
     """이 작업 디렉토리가 어느 큐 과제인가."""
     try:
-        data = json.loads((Path(workdir) / CONFIG_NAME).read_text(encoding="utf-8"))
+        data = json.loads(config_path(workdir).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     task = data.get("task") if isinstance(data, dict) else None
@@ -65,7 +87,7 @@ def prepare(workdir: Path, task: str) -> None:
     변경에 들어간다.
     """
     workdir = Path(workdir).resolve()
-    (workdir / CONFIG_NAME).write_text(
+    config_path(workdir).write_text(
         json.dumps({"task": task}, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8")
     write_next(workdir, task=task)
@@ -104,7 +126,10 @@ def install(workdir: Path, task: str) -> None:
 def main() -> int:
     try:
         sys.stdin.read()                 # 훅 입력은 읽고 버린다
-        refresh(Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path.cwd()))
+        start = Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path.cwd())
+        workdir = find_workdir(start)
+        if workdir is not None:
+            refresh(workdir)
     except Exception:                    # noqa: BLE001 - 장치가 세션을 죽이면 안 된다
         pass
     return 0

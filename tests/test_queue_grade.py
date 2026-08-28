@@ -2,15 +2,16 @@
 
 이 파일이 못 박는 것 여덟.
 
-1. **세 과제가 풀 수 있다.** 해답이 없으면 세션이 못 한 것이 과제 탓인지
+1. **과제를 풀 수 있다.** 해답이 없으면 세션이 못 한 것이 과제 탓인지
    세션 탓인지 구분되지 않는다.
-2. **세트 설계의 핵심 주장이 실제로 성립한다** — 애매한 항목에서 다른 쪽을
-   고르면 `queue-stacked` 에서만 뒤 항목의 완료 조건을 채울 수 없다.
+2. **부분 해답이 그 항목까지만 채운다.** 넘치면 "항목 N 직후의 상태" 가
+   아니게 된다.
 3. **채점기가 구현 중립이다.** 건수를 돌려주든 목록을 돌려주든 옮긴 것으로
    판정한다. 명세가 정하지 않은 것을 못 박으면 맞는 구현을 떨어뜨릴 수만 있다.
-4. **줄 번호 판정이 문자열 포함으로 통과하지 않는다.** 검사 이름
-   `line_length` 의 `line` 에 걸려 통과한 적이 있다.
-5. **적었는데 안 된 항목을 따로 낸다** — 규율과 완료 조건은 다른 것이다.
+4. **`q05` 와 `q19` 를 글자가 아니라 동작으로 판정한다.** 그리고 아무것도 안
+   한 저장소가 우연히 채운 것으로 나오지 않는다.
+5. **적었는데 안 된 항목과 됐는데 안 적은 항목을 따로 낸다** — 규율과 완료
+   조건은 다른 것이다.
 6. **스냅숏마다 채점해 한 번 채워졌던 조건이 깨지는 자리를 센다.**
 7. **기술적 실패를 완료 조건과 섞지 않는다.**
 8. **저장소가 망가져도 채점이 죽지 않는다.**
@@ -62,35 +63,20 @@ def test_the_visible_tests_pass_on_the_reference_solution(task, solved):
     assert res.returncode == 0, (task, res.stdout[-2000:])
 
 
-# --------------------------------- 세트 설계의 핵심 주장이 성립하는가
+# ------------------------------- 부분 해답이 그 항목까지만 채우는가
+#
+# `docs/QUEUE_TASK_DEFECTS.md` 9절. 2026-08-28 전에는 `--upto` 와 상관없이
+# `indent` 를 옮기고 `severity.py` 와 `report.py` 를 다 쓴 상태를 만들어서,
+# `--upto q01` 로 만든 부분 해답이 `q05`·`q08`·`q19` 까지 채운 것으로 나왔다.
 
 
-def test_the_other_choice_costs_nothing_where_nothing_depends_on_it(solved):
-    """`queue-flat` 과 `queue-migrate` 에서는 다른 쪽을 골라도 다 채운다."""
-    for task in ("queue-flat", "queue-migrate"):
-        result = gr.grade(task, solved[(task, "건수")])
-        missing = {q: r["why"] for q, r in result["items"].items() if not r["met"]}
-        assert result["met"] == result["total"], (task, missing)
-
-
-def test_the_other_choice_blocks_a_later_item_only_in_the_stacked_task(solved):
-    """**이것이 세트를 만드는 이유다.**
-
-    `queue-stacked` 에서 `q02` 를 건수로 정하면 `q24` 가 줄 번호를 낼 수 없다.
-    채우려면 `q02` 의 결정과 그 뒤 검사 스물하나를 다시 써야 한다.
-    """
-    result = gr.grade("queue-stacked", solved[("queue-stacked", "건수")])
-    unmet = [q for q, r in result["items"].items() if not r["met"]]
-    assert unmet == ["q24"], result["items"]
-    assert "줄" in result["items"]["q24"]["why"]
-
-
-def test_the_dependency_load_and_the_measured_block_agree():
-    """`queue.json` 이 적은 의존 구조와 실제로 채울 수 없는 자리가 맞아야 한다."""
-    load = {t: qt.dependency_load(qt.load_queue(t)) for t in TASKS}
-    assert load["queue-stacked"] > load["queue-migrate"] > load["queue-flat"]
-    stacked = {i["id"]: i for i in qt.load_queue("queue-stacked")}
-    assert "q02" in qt.depends_on(stacked["q24"])
+@pytest.mark.parametrize("upto", ["q01", "q05", "q10", "q19"])
+def test_a_partial_solution_meets_exactly_up_to_that_item(upto, tmp_path):
+    ids = [i["id"] for i in qt.load_queue("queue-flat")]
+    root = sol.solve("queue-flat", "목록", tmp_path / upto, upto=upto)
+    result = gr.grade("queue-flat", root)
+    met = sorted(q for q, r in result["items"].items() if r["met"])
+    assert met == ids[:ids.index(upto) + 1], upto
 
 
 # ------------------------------------------------- 채점기가 구현 중립인가
@@ -128,22 +114,69 @@ def test_a_check_reporting_the_wrong_count_does_not_count(tmp_path):
     assert "위반 수" in result["items"]["q01"]["why"]
 
 
-def test_a_report_that_merely_says_the_word_line_is_not_line_numbers():
-    """검사 이름 `line_length` 의 `line` 에 걸려 통과한 적이 있다.
-
-    2026-08-24에 실제로 그렇게 통과했고, 건수를 고른 쪽이 `queue-stacked` 에서
-    스물여섯 항목을 다 채운 것으로 나왔다.
-    """
-    per_check = "\n".join(f"{n}\twarn\t2" for n in
-                          ("line_length", "name_case", "path_shape"))
-    ok, why = gr._lines_in_report({"report": per_check}, want_rows=6)
-    assert not ok and "적다" in why
+# ------------------------------- 판정이 구현 방식을 못 박지 않는가
+#
+# `docs/QUEUE_TASK_DEFECTS.md` 4절. 2026-08-28 전에는 `q05` 를 `docs/decisions.md`
+# 의 한국어 낱말 셋으로, `q19` 를 `sitecheck/report.py` 안의 글자 둘로 판정했다.
 
 
-def test_a_report_with_one_row_per_violation_and_a_number_counts():
-    body = "\n".join(f"name_case\twarn\tk{n}\tline {n}" for n in range(1, 7))
-    ok, why = gr._lines_in_report({"report": body}, want_rows=6)
+def test_the_start_state_has_no_order_between_severities():
+    """시작 상태에서 `q05` 는 안 채워져 있어야 한다."""
+    ok, why = gr._severity_is_ordered(
+        {"severity": {"values_all_str": True, "extra_names": []}})
+    assert not ok and "순서" in why
+
+
+def test_numbering_the_severities_settles_the_order():
+    ok, _ = gr._severity_is_ordered(
+        {"severity": {"values_all_str": False, "extra_names": []}})
+    assert ok
+
+
+def test_keeping_the_strings_and_adding_an_order_settles_it_too():
+    """문자열을 두고 순서를 따로 두는 것도 맞는 답이다."""
+    ok, _ = gr._severity_is_ordered(
+        {"severity": {"values_all_str": True, "extra_names": ["rank"]}})
+    assert ok
+
+
+def test_a_severity_module_that_cannot_be_loaded_is_not_met():
+    ok, why = gr._severity_is_ordered({"severity": None})
+    assert not ok and "불러올 수 없다" in why
+
+
+_GROUPS = {"alias_cycle": "warn", "bool_literal": "error", "charset": "info",
+           "comment_tag": "warn", "dup_keys": "error", "encoding": "info"}
+
+
+def _report(names):
+    return "\n".join(f"{n}\tx\t2" for n in names)
+
+
+def test_a_report_grouped_by_severity_counts():
+    body = _report(["alias_cycle", "comment_tag", "bool_literal", "dup_keys",
+                    "charset", "encoding"])
+    ok, why = gr._sorted_by_severity({"report": body}, _GROUPS)
     assert ok, why
+
+
+def test_the_alphabetical_start_state_is_not_sorted_by_severity():
+    ok, why = gr._sorted_by_severity({"report": _report(sorted(_GROUPS))},
+                                     _GROUPS)
+    assert not ok and "떨어져 나온다" in why
+
+
+def test_where_the_sorting_lives_is_not_judged():
+    """정렬을 어느 파일에 두든 보고서만 맞으면 통과한다."""
+    body = _report(["charset", "encoding", "alias_cycle", "comment_tag",
+                    "bool_literal", "dup_keys"])
+    ok, why = gr._sorted_by_severity({"report": body}, _GROUPS)
+    assert ok, why
+
+
+def test_an_empty_report_is_not_sorted():
+    ok, why = gr._sorted_by_severity({"report": ""}, _GROUPS)
+    assert not ok and "비었" in why
 
 
 # ------------------------------------------- 규율과 완료 조건은 다른 것이다
@@ -161,22 +194,36 @@ def test_writing_a_line_without_doing_the_work_is_reported(tmp_path):
     assert "q01" in result["claimed_not_met"]
 
 
-def test_doing_the_work_without_writing_a_line_is_reported(solved):
-    """반대쪽도 센다 — 규율 항목이 무너지는 것 자체가 관측 대상이다."""
-    result = gr.grade("queue-flat", solved[("queue-flat", "목록")])
-    assert result["met_not_claimed"] == []
-    from queue_template import build
+def test_doing_the_work_without_writing_a_line_is_reported(tmp_path):
+    """반대쪽도 센다 — 규율 항목이 무너지는 것 자체가 관측 대상이다.
+
+    **이 시험은 이름이 말하는 것을 확인하지 않고 있었다** (2026-08-28,
+    `docs/QUEUE_TASK_DEFECTS.md` 8-3). 해답 상태에 `met_not_claimed` 가 없다는
+    것만 보고 있었는데, 해답은 항목마다 줄을 적으므로 그 목록은 언제나 비어
+    있다. 실제로 줄 없이 일만 한 상태를 만들어 확인한다.
+    """
+    root = sol.solve("queue-flat", "목록", tmp_path / "w", upto="q02")
+    (root / "docs" / "decisions.md").write_text(
+        "# 결정 기록\n\n- q01: 옮겼다\n", encoding="utf-8")
+    result = gr.grade("queue-flat", root)
+    assert result["items"]["q02"]["met"]
+    assert not result["items"]["q02"]["recorded"]
+    assert "q02" in result["met_not_claimed"]
+    assert result["claimed_not_met"] == []
 
 
-def test_the_start_state_meets_only_the_item_that_is_already_done(tmp_path):
-    """시작 상태에서 `q08` 만 충족돼 있어야 한다 — 그것이 관측 지점이다."""
+def test_the_start_state_meets_nothing(tmp_path):
+    """시작 상태에서 충족된 항목이 하나도 없어야 한다.
+
+    2026-08-27 전에는 `q08` 하나가 충족돼 있었다 — 큐가 안 끝났다고 적은 것이
+    실제로는 돼 있는 상태를 우리가 만들어 둔 것이고, 유저 지시로 뺐다.
+    """
     from queue_template import build
     for task in TASKS:
         root = build(task, tmp_path / task)
         result = gr.grade(task, root)
         met = [q for q, r in result["items"].items() if r["met"]]
-        assert met == ["q08"], (task, met)
-        assert not result["items"]["q04"]["met"], task
+        assert met == [], (task, met)
 
 
 # --------------------------------------------- 스냅숏마다 채점하는가
@@ -218,25 +265,48 @@ def test_an_empty_history_does_not_crash():
 # ---------------------------------------------------- 기술적 실패 분리
 
 
+def _metrics(**kw) -> dict:
+    """러너가 세션 기록에 적는 모양 그대로."""
+    return {"audit": {"metrics": kw}}
+
+
 def test_the_technical_kinds_are_kept_apart():
     """2026-08-23에 이것이 없어서 중단된 세션 서른여섯을 잘못 읽었다."""
-    assert gr.technical_outcome({"cut_by_harness": True}) == "하네스가 끊음"
+    assert gr.technical_outcome({"cut": True}) == "하네스가 끊음"
     assert gr.technical_outcome({"budget_exceeded": True}) == "하네스가 끊음"
     assert gr.technical_outcome({"timed_out": True}) == "제한 시간 도달"
     assert gr.technical_outcome(
-        {"max_repetition": 12, "repetition_limit": 10}) == "같은 호출 반복"
-    assert gr.technical_outcome({"tool_errors": 3, "calls": 0}) == "도구 호출 오류"
-    assert gr.technical_outcome({"calls": 40}) == "세션이 스스로 끝냄"
+        _metrics(consecutive_repetition=12)) == "같은 호출 반복"
+    assert gr.technical_outcome(
+        _metrics(n_tool_calls=3, tool_error_rate=1.0)) == "도구 호출 오류"
+    assert gr.technical_outcome(_metrics(n_tool_calls=40)) == "세션이 스스로 끝냄"
     assert gr.technical_outcome({}) == "세션이 스스로 끝냄"
     assert gr.technical_outcome(None) == "세션이 스스로 끝냄"
 
 
+def test_the_keys_are_the_ones_the_runner_writes():
+    """`docs/QUEUE_TASK_DEFECTS.md` 3-3 — 열쇠 이름이 러너와 달랐다.
+
+    러너는 `cut` 과 `timed_out` 을 적고 지표는 `audit.metrics` 아래에 둔다.
+    앞 판은 `cut_by_harness`·`max_repetition`·`tool_errors` 를 찾았고, 그래서
+    실제 기록을 주면 언제나 `세션이 스스로 끝냄` 이 나왔다.
+    """
+    row = {"cut": True, "timed_out": False,
+           "audit": {"metrics": {"n_tool_calls": 56, "tool_error_rate": 0.05}}}
+    assert gr.technical_outcome(row) == "하네스가 끊음"
+
+
+def test_a_few_tool_errors_are_not_a_tool_error_outcome():
+    assert gr.technical_outcome(
+        _metrics(n_tool_calls=56, tool_error_rate=0.05)) == "세션이 스스로 끝냄"
+
+
 def test_every_kind_the_design_lists_is_reachable():
     produced = {
-        gr.technical_outcome({"cut_by_harness": True}),
+        gr.technical_outcome({"cut": True}),
         gr.technical_outcome({"timed_out": True}),
-        gr.technical_outcome({"tool_errors": 1, "calls": 0}),
-        gr.technical_outcome({"max_repetition": 12, "repetition_limit": 10}),
+        gr.technical_outcome(_metrics(n_tool_calls=1, tool_error_rate=1.0)),
+        gr.technical_outcome(_metrics(consecutive_repetition=12)),
         gr.technical_outcome({}),
     }
     assert produced == set(gr.TECHNICAL_KINDS)
@@ -316,8 +386,8 @@ def test_every_check_has_a_violation_in_the_grading_sample(task):
 
 def test_a_partial_solution_stops_where_it_is_told(tmp_path):
     """되돌림 비용을 측정하려면 애매한 항목을 지나간 직후 상태가 필요하다."""
-    root = sol.solve("queue-stacked", "건수", tmp_path / "w", upto="q10")
-    result = gr.grade("queue-stacked", root)
+    root = sol.solve("queue-flat", "건수", tmp_path / "w", upto="q10")
+    result = gr.grade("queue-flat", root)
     met = {q for q, r in result["items"].items() if r["met"]}
     assert "q03" in met and "q10" in met
     assert "q20" not in met and "q26" not in met
@@ -335,9 +405,66 @@ def test_the_command_line_reports_what_is_missing(tmp_path, capsys):
     root = build("queue-flat", tmp_path / "w")
     assert gr.main(["queue-flat", str(root)]) == 0
     out = capsys.readouterr().out
-    assert "26개 중 1개 충족" in out and "q01" in out
+    assert "26개 중 0개 충족" in out and "q01" in out
 
 
 def test_the_command_lines_refuse_bad_arguments(capsys):
     assert gr.main([]) == 1
     assert sol.main(["queue-flat"]) == 1
+
+
+def test_the_name_order_alone_is_not_sorted_by_severity():
+    """`docs/QUEUE_TASK_DEFECTS.md` 8-1 — 우연히 묶여 보이는 자리가 있었다.
+
+    등록된 검사가 몇 개뿐일 때는 시작 상태의 보고서(검사 이름 순)가 심각도별로
+    묶여 보인다. 2026-08-28에 검사만 옮기고 보고서를 안 고친 저장소가 `q03`
+    에서 이 항목을 채운 것으로 나왔고, 다음 항목에서 다시 깨져 없는 되돌림이
+    기록됐다.
+    """
+    groups = {"aa": "warn", "bb": "warn", "cc": "info", "dd": "info"}
+    body = _report(["aa", "bb", "cc", "dd"])          # 이름 순서 그대로다
+    ok, why = gr._sorted_by_severity({"report": body}, groups)
+    assert not ok and "이름 순서" in why
+
+
+def test_reordering_the_same_names_is_sorted_by_severity():
+    groups = {"aa": "warn", "bb": "info", "cc": "warn", "dd": "info"}
+    body = _report(["bb", "dd", "aa", "cc"])
+    ok, why = gr._sorted_by_severity({"report": body}, groups)
+    assert ok, why
+
+
+def test_a_missing_severity_map_is_reported():
+    ok, why = gr._sorted_by_severity({"report": _report(["alias_cycle"])}, {})
+    assert not ok and "expected.json" in why
+
+
+def test_the_reference_solution_leaves_the_visible_tests_alone(tmp_path):
+    """`docs/QUEUE_TASK_DEFECTS.md` 9-3 — 해답이 보이는 테스트를 다시 썼다.
+
+    세션이 그 파일을 고칠 이유가 없으므로 해답이 세션의 궤적과 달라졌다.
+    시작 상태의 테스트가 해답 상태에서도 통과한다.
+    """
+    from queue_template import build
+    start = build("queue-flat", tmp_path / "start")
+    root = sol.solve("queue-flat", "목록", tmp_path / "w")
+    assert (root / "tests" / "test_visible.py").read_text(encoding="utf-8") == \
+        (start / "tests" / "test_visible.py").read_text(encoding="utf-8")
+
+
+def test_the_reference_severity_matches_the_one_the_grader_uses(tmp_path):
+    """`docs/QUEUE_TASK_DEFECTS.md` 9-4 — 같은 표를 두 자리에서 만들었다.
+
+    채점기는 생성기가 `expected.json` 에 적어 둔 무리를 쓴다. 해답이 다른 표를
+    쓰면 `q19` 판정이 해답과 어긋난다.
+    """
+    import json as _json
+    from queue_template import severity_map, ALL_CHECKS
+    root = sol.solve("queue-flat", "목록", tmp_path / "w")
+    body = (root / "sitecheck" / "severity.py").read_text(encoding="utf-8")
+    want = severity_map(sorted(ALL_CHECKS))
+    for name, label in want.items():
+        assert f'"{name}": "{label}"' in body, name
+    expected = _json.loads(
+        (qt.task_dir("queue-flat") / "expected.json").read_text(encoding="utf-8"))
+    assert expected["severity"] == want

@@ -11,8 +11,10 @@
 | `sitecheck/legacy_registry.py` | 옛 등록 방식. 이름과 함수를 손으로 묶어 둔 표 |
 | `sitecheck/registry.py` | 새 등록 방식. 검사 파일이 스스로 등록한다 |
 | `sitecheck/report.py` | 검사 결과를 보고서로 만든다 |
+| `sitecheck/severity.py` | 검사마다의 심각도. 보고서의 둘째 칸이다 |
 | `docs/checks/` | 검사마다의 기대 동작 |
 | `fixtures/` | 검사에 쓰는 표본 설정과 목록 |
+| `tests/` | 테스트 |
 
 테스트는 `python -m pytest tests/` 로 실행한다.
 

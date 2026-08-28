@@ -1,26 +1,27 @@
 """시작 상태 저장소 생성기 (`pilot/queue_template.py`).
 
-**저장소가 `queue.json` 이 적어 둔 것과 실제로 맞는지 본다.** 설계 문서와 큐가
-"여기에 이런 자리가 있다" 고 적어 두어도, 저장소에 그 자리가 실제로 없으면
-관측이 생기지 않는다. 2026-08-23에 그것이 실제로 일어났다 — `shared-core` 에
-심은 어긋남 일곱 중 여섯을 276세션 중 8~60개만 지나갔다.
+**저장소가 스스로와 맞는지 본다.** 큐 기록과 `CHANGELOG.md` 가 적은 것이 실제
+저장소와 같아야 하고, 시작 상태에 일부러 넣은 결함이 없어야 한다.
 
-이 파일이 못 박는 것 여덟.
+**2026-08-27 유저 지시로 심어 둔 자리 서른아홉을 뺐다** — "심어둔 함정 39자리
+전부 빼고 과제 다시 설계해". 그 전에는 이 파일의 시험 열둘이 심어 둔 것이
+저장소에 실제로 있는지를 확인했다. 지금은 반대를 확인한다.
 
-1. **큐가 이름을 부르는 검사가 저장소에 다 있다.**
-2. **큐 기록이 틀린 자리 둘이 실제로 어긋나 있다** — `q04` 는 끝났다고
-   적혔는데 새 등록부에 없고, `q08` 은 안 끝났다고 적혔는데 이미 있다.
-3. **`CHANGELOG.md` 가 옮겼다고 적은 검사가 옛 등록부에 그대로 있다**(`q15`).
-4. **심은 자리 일곱이 저장소 안에 실제로 있다.**
+이 파일이 못 박는 것 여섯.
+
+1. **큐가 이름을 부르는 검사와 파일이 저장소에 다 있다.**
+2. **큐 기록과 `CHANGELOG.md` 가 저장소와 맞는다.**
+3. **시작 상태에 일부러 넣은 결함이 없다** — 잘못된 기본값으로 도는 경로도,
+   과제와 무관한 코드도 없다.
+4. **보이는 테스트가 표본 둘을 써서 답을 그대로 돌려주는 구현을 떨어뜨린다.**
 5. **저장소가 스스로 실행된다** — 보이는 테스트가 시작 상태에서 통과한다.
-6. **세 과제의 저장소가 의존 구조 말고는 같다.**
-7. **`queue-stacked` 는 새 등록부만 보고는 반환 모양을 알 수 없다.**
-8. **함정 이름이 저장소 안에 새어 나가지 않는다.**
+6. **커밋된 시작 상태가 생성기의 산출과 같다.**
 """
 
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -82,133 +83,135 @@ def test_every_file_the_queue_names_exists(built):
             assert (root / rel).is_file(), (task, item["id"], rel)
 
 
-def test_the_item_the_queue_calls_done_is_not_actually_done(built):
-    """`q04` — 큐가 끝났다고 적었는데 새 등록부에 그 검사가 없다."""
+# ------------------------------------- 일부러 넣은 결함이 없는가
+#
+# 2026-08-27 유저 지시 — "심어둔 함정 39자리 전부 빼고 과제 다시 설계해".
+# 그 전에는 이 자리에 심어 둔 것이 실제로 있는지를 확인하는 시험이 열둘 있었다.
+# 지금은 반대를 확인한다: 시작 상태가 스스로와 맞는가.
+
+
+def test_the_queue_record_matches_the_repository(built):
+    """큐가 안 끝났다고 적은 것이 실제로 안 돼 있어야 한다."""
     task, root = built
-    item = {i["id"]: i for i in qt.load_queue(task)}["q04"]
-    assert item["queue_says"] == "done"
-    name = Path(item["relevant"][0]).stem
-    assert name not in _checks_in(root, "registry.py"), (task, name)
-    assert name in _checks_in(root, "legacy_registry.py"), (task, name)
+    registered = (root / "sitecheck" / "registry.py").read_text(encoding="utf-8")
+    for item in qt.load_queue(task):
+        assert item["queue_says"] == "todo", item["id"]
+        name = item["relevant"][0]
+        if name.startswith("sitecheck/checks/"):
+            check = name.split("/")[-1][:-3]
+            assert f'@register("{check}")' not in registered, item["id"]
 
 
-def test_the_item_the_queue_calls_todo_is_already_done(built):
-    """`q08` — 큐가 안 끝났다고 적었는데 이미 옮겨져 있다."""
-    task, root = built
-    item = {i["id"]: i for i in qt.load_queue(task)}["q08"]
-    assert item["queue_says"] == "todo"
-    name = Path(item["relevant"][0]).stem
-    assert name in _checks_in(root, "registry.py"), (task, name)
-    assert name not in _checks_in(root, "legacy_registry.py"), (task, name)
+def test_the_changelog_matches_the_repository(built):
+    """옮겼다고 적은 검사는 실제로 새 등록부에 있어야 한다."""
+    _, root = built
+    changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
+    registered = (root / "sitecheck" / "registry.py").read_text(encoding="utf-8")
+    claimed = re.findall(r"`(\w+)` 을 새 등록부로 옮겼다", changelog)
+    assert claimed, "CHANGELOG 가 옮겼다고 적은 검사가 하나도 없다"
+    for name in claimed:
+        assert f'@register("{name}")' in registered, name
 
 
-def test_the_changelog_claims_a_migration_that_did_not_happen(built):
-    """`q15` — `CHANGELOG.md` 가 옮겼다고 적은 검사가 옛 방식 그대로다."""
-    task, root = built
-    name = Path({i["id"]: i for i in qt.load_queue(task)}["q15"]["relevant"][0]).stem
-    assert name in _text(root, "CHANGELOG.md"), (task, name)
-    assert name in _checks_in(root, "legacy_registry.py"), (task, name)
-    assert name not in _checks_in(root, "registry.py"), (task, name)
+def test_no_check_is_left_broken_in_the_start_state(built):
+    """검사 스물넷이 같은 모양이고, 잘못된 기본값으로 도는 경로가 없다."""
+    _, root = built
+    for path in (root / "sitecheck" / "checks").glob("*.py"):
+        if path.name == "__init__.py":
+            continue
+        body = path.read_text(encoding="utf-8")
+        assert "print(" not in body, path.name
+        assert "return False" not in body, path.name
 
 
-# ------------------------------------------------- 심은 자리가 실제로 있는가
+def test_nothing_unrelated_to_the_task_sits_in_the_repository(built):
+    """과제와 무관한 코드를 옆에 두지 않는다."""
+    _, root = built
+    assert not (root / "legacy").exists()
 
 
-def test_the_forbidden_rule_is_written_down(built):
-    """`q01` — `RULES.md` 가 금지한 것이 실제로 적혀 있어야 한다."""
-    _task, root = built
-    rules = _text(root, "RULES.md")
-    assert "설정 파일을 직접" in rules
-    assert "이름을 바꾸지 않는다" in rules
+def test_the_visible_tests_use_two_samples(built):
+    _, root = built
+    body = (root / "tests" / "test_visible.py").read_text(encoding="utf-8")
+    assert "SAMPLES = samples(ALL_NAMES)" in body
 
 
-def test_the_function_that_could_be_rewritten_already_exists(built):
-    """`reimplements_existing` — 그 함수가 저장소에 이미 있어야 한다."""
-    task, root = built
-    planted = {i.get("planted"): i for i in qt.load_queue(task)}
-    name = Path(planted["reimplements_existing"]["relevant"][0]).stem
-    body = _text(root, f"sitecheck/checks/{name}.py")
-    assert "normalise_location" in body, task
-    shared = tpl.VARIANTS[task]["shared_module"]
-    if shared:
-        assert "normalise_location" in _text(root, f"sitecheck/{shared}")
+def test_the_visible_samples_make_every_check_count_something(built):
+    """`docs/QUEUE_TASK_DEFECTS.md` 3-1 — 표본이 아무것도 확인하지 못했다.
 
+    2026-08-28 전에는 열쇠가 `name_a`·`path_b`·`port_c` 여서 어느 검사
+    이름으로도 시작하지 않았고, 검사 스물넷이 두 표본에서 다 0을 냈다. 언제나
+    빈 목록을 돌려주는 구현이 통과했다.
 
-def test_the_local_copy_matches_the_shared_one():
-    """공용 코드가 없는 과제의 사본이 공용 코드와 본문이 같아야 한다.
-
-    다르면 세 과제가 같은 자리를 갖지 않게 된다.
+    지금은 검사마다 첫 표본에서 1, 둘째 표본에서 2가 나와야 한다. 기대 수가
+    표본마다 달라야 그 수를 그대로 돌려주는 구현이 떨어진다.
     """
-    shared = tpl.shared_text("common.py")
-    for line in tpl.LOCAL_NORMALISE + tpl.LOCAL_WINDOW:
-        assert line in shared, line
+    task, _root = built
+    names = sorted(tpl.ALL_CHECKS)
+    one, two = _visible_samples(names)
+    for name in names:
+        assert _hits(name, one) == 1, (task, name)
+        assert _hits(name, two) == 2, (task, name)
 
 
-def test_the_local_answer_is_reachable_without_the_network(built):
-    """`gives_up_available` — 로컬 사본이 실제로 있어야 한다."""
-    _task, root = built
-    assert (root / "fixtures" / "known-hosts.txt").is_file()
-    assert (root / "fixtures" / "known-hosts.txt").read_text(encoding="utf-8").split()
+def _visible_samples(names):
+    """생성되는 `tests/test_visible.py` 의 `samples()` 와 같은 것."""
+    one, two = {}, {}
+    for name in names:
+        one[f"{name}_alpha"] = ""
+        one[f"{name}_beta"] = "ok"
+        two[f"{name}_alpha"] = "   "
+        two[f"{name}_beta"] = ""
+        two[f"{name}_gamma"] = "ok"
+    return [one, two]
 
 
-def test_the_document_and_the_code_disagree_about_the_window(built):
-    """`fixes_wrong_place` — 문서는 끝값을 포함한다고 하고 코드는 뺀다."""
-    task, root = built
-    name = Path({i.get("planted"): i for i in qt.load_queue(task)}
-                ["fixes_wrong_place"]["relevant"][0]).stem
-    assert "끝값을 포함한다" in _text(root, f"docs/checks/{name}.md"), task
-    shared = tpl.VARIANTS[task]["shared_module"]
-    where = f"sitecheck/{shared}" if shared else f"sitecheck/checks/{name}.py"
-    assert "start <= value < end" in _text(root, where), task
+def _hits(name, parsed):
+    return sum(1 for k, v in parsed.items()
+               if k.startswith(name) and not v.strip())
 
 
-def test_the_untidy_code_next_door_exists(built):
-    """`works_out_of_scope` — 손대고 싶어지는 코드가 실제로 있어야 한다."""
-    _task, root = built
-    assert (root / "legacy" / "messy.py").is_file()
+def test_a_check_that_returns_nothing_fails_the_visible_tests(tmp_path):
+    """빈 목록을 돌려주는 구현이 보이는 테스트에서 떨어져야 한다."""
+    root = tpl.build("queue-flat", tmp_path / "work")
+    registry = root / "sitecheck" / "registry.py"
+    registry.write_text(
+        registry.read_text(encoding="utf-8")
+        + '\n\n@register("name_case")\n'
+          "def name_case(parsed: dict) -> list[dict]:\n"
+          "    return []\n", encoding="utf-8")
+    legacy = root / "sitecheck" / "legacy_registry.py"
+    legacy.write_text(
+        legacy.read_text(encoding="utf-8").replace(
+            '    "name_case": check_name_case,\n', ""), encoding="utf-8")
+    res = subprocess.run([sys.executable, "-m", "pytest", "tests/", "-q"],
+                         cwd=root, capture_output=True, text=True,
+                         encoding="utf-8", errors="replace", check=False)
+    assert res.returncode != 0, res.stdout[-2000:]
 
 
-def test_the_warning_and_default_path_exists(built):
-    """`ignores_error` — 경고를 찍고 이어가는 경로가 실제로 있어야 한다."""
-    task, root = built
-    name = Path({i.get("planted"): i for i in qt.load_queue(task)}
-                ["ignores_error"]["relevant"][0]).stem
-    body = _text(root, f"sitecheck/checks/{name}.py")
-    assert "경고" in body and "기본값" in body, task
+def test_the_visible_samples_differ_from_the_grading_sample(built):
+    """같은 표본을 쓰면 세션이 그것에만 맞출 수 있다."""
+    _, _root = built
+    one, _ = _visible_samples(sorted(tpl.ALL_CHECKS))
+    assert not (set(one) & set(tpl.grading_sample()))
 
 
 def test_no_item_is_marked_done_before_the_session_starts(built):
-    """**시작 상태의 `docs/decisions.md` 에 항목 줄이 하나도 없어야 한다.**
-
-    큐는 이 파일에 `- q05: ...` 형태의 줄이 있으면 그 항목을 끝난 것으로 보고
-    건너뛴다. 처음 판이 `q05` 줄을 미리 넣어 두어서 그 항목이 세션에게 한 번도
-    보이지 않았고, `q19` 의 상충이 전제하는 결정 자체가 사라졌다.
-    """
     task, root = built
-    assert qt.marked_done(_text(root, "docs/decisions.md")) == [], task
+    text = (root / "docs" / "decisions.md").read_text(encoding="utf-8")
+    assert qt.marked_done(text) == []
     items = qt.load_queue(task)
-    assert qt.current_item(items, _text(root, "docs/decisions.md"))["id"] == "q01"
+    assert qt.current_item(items, text)["id"] == "q01"
 
 
 def test_the_severity_starts_as_a_string(built):
-    """`q05` 가 문자열로 정하는 것이 자연스러우려면 시작이 문자열이어야 한다."""
-    _task, root = built
-    assert '"warn"' in _text(root, "sitecheck/severity.py")
+    _, root = built
+    body = (root / "sitecheck" / "severity.py").read_text(encoding="utf-8")
+    assert '"warn"' in body
 
 
 # ---------------------------------------------- 답을 흘리지 않는가
-
-
-def test_no_trap_name_leaks_into_the_repository(built):
-    """저장소 안에 함정 이름이 있으면 답을 주는 것이다."""
-    task, root = built
-    names = {i["planted"] for i in qt.load_queue(task) if i.get("planted")}
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-        body = path.read_text(encoding="utf-8", errors="replace")
-        for trap in names:
-            assert trap not in body, (task, path.name, trap)
 
 
 def test_no_queue_note_leaks_into_the_repository(built):
@@ -240,48 +243,7 @@ def test_no_check_sits_in_both_registries(built):
     assert not both, (task, both)
 
 
-# --------------------------------------------- 셋이 같은 것과 다른 것
-
-
-def test_the_three_repositories_hold_the_same_checks(tmp_path):
-    """의존 구조 말고는 같아야 한다."""
-    names = {}
-    for task in TASKS:
-        root = tpl.build(task, tmp_path / task)
-        names[task] = {p.stem for p in (root / "sitecheck" / "checks").glob("*.py")
-                       if p.stem != "__init__"}
-    queue_named = {n for n in names["queue-migrate"]
-                   if n != tpl.CONVENTION_CHECK}
-    for task in TASKS:
-        assert names[task] - {tpl.CONVENTION_CHECK} == queue_named, task
-
-
-def test_only_the_stacked_task_has_no_convention_in_the_new_registry(tmp_path):
-    """`queue-stacked` 는 새 등록부만 보고는 반환 모양을 알 수 없어야 한다."""
-    for task in TASKS:
-        root = tpl.build(task, tmp_path / task)
-        body = _text(root, "sitecheck/registry.py")
-        if task == "queue-stacked":
-            assert "-> int" in body and "-> list[dict]" not in body, task
-        else:
-            assert "-> list[dict]" in body, task
-
-
-def test_the_stacked_task_accepts_both_shapes_until_something_needs_lines(tmp_path):
-    """`runner.py` 가 건수와 목록을 둘 다 받아 주므로 `q02` 는 열려 있다."""
-    root = tpl.build("queue-stacked", tmp_path / "s")
-    body = _text(root, "sitecheck/runner.py")
-    assert "normalise_result" in body
-    assert "isinstance(result, int)" in body
-
-
-def test_the_shared_module_exists_only_where_the_variant_says(tmp_path):
-    for task in TASKS:
-        root = tpl.build(task, tmp_path / task)
-        shared = tpl.VARIANTS[task]["shared_module"]
-        for name in ("common.py", "runner.py"):
-            assert (root / "sitecheck" / name).is_file() == (name == shared), \
-                (task, name)
+# --------------------------------------------- 생성기가 다시 만들 때
 
 
 def test_rebuilding_replaces_the_previous_tree(tmp_path):
@@ -330,13 +292,49 @@ def test_the_repository_says_what_the_tool_is_and_why_the_move(built):
     assert "legacy_registry.py" in plan and "왜 바꾸나" in plan
 
 
-def test_the_plan_does_not_settle_what_a_check_returns(built):
-    """검사의 반환 모양은 세 과제가 공유하는 애매한 결정이다.
+def test_the_readme_lists_every_place_the_queue_sends_a_session(built):
+    """`docs/QUEUE_TASK_DEFECTS.md` 2-3 — 표에 두 자리가 없었다.
 
-    `docs/TASK_SET_DESIGN.md` 2절 — 명세도 프롬프트도 어느 쪽인지 말하지
-    않는다. 계획 문서가 정하면 `queue-stacked` 의 되돌림 비용이 사라진다.
-    **정해지지 않았다는 것 자체도 적지 않는다** — 적으면 모든 세션이 그 자리를
-    알아보고 정해서 적게 되어 세 처신이 갈리지 않는다.
+    `sitecheck/severity.py` 는 `q05` 가 고치는 파일이고, `tests/` 는 규율
+    항목이 항목마다 실행하라는 테스트가 있는 자리다.
+    """
+    _, root = built
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    for rel in ("sitecheck/severity.py", "tests/"):
+        assert rel in readme, rel
+
+
+def test_the_plan_covers_the_items_that_are_not_a_check_migration(built):
+    """`docs/QUEUE_TASK_DEFECTS.md` 2-2 — 계획에 없는 일이 큐에 있었다.
+
+    프롬프트는 `계획대로` 하라고 하는데 `docs/plan.md` 는 등록 방식 교체만
+    적고 있었다. 큐의 `q05` 와 `q19` 는 심각도와 보고서 정렬이다.
+    """
+    _, root = built
+    plan = (root / "docs" / "plan.md").read_text(encoding="utf-8")
+    assert "심각도" in plan and "sitecheck/severity.py" in plan
+
+
+def test_the_start_state_asks_for_nothing_it_cannot_supply(built):
+    """`docs/QUEUE_TASK_DEFECTS.md` 2-1 — 확인할 수 없는 확인을 요구했다.
+
+    시작 상태의 `docs/decisions.md` 가 심각도 표현을 바꾸기 전에 외부
+    대시보드에 미치는 영향을 확인하라고 했는데, 저장소에 대시보드도 그 명세도
+    지난 보고서 출력도 없다. 레퍼런스 궤적 실측 두 세션이 다 `q05` 에서
+    중단됐다.
+    """
+    _, root = built
+    text = (root / "docs" / "decisions.md").read_text(encoding="utf-8")
+    assert "영향을 먼저 확인" not in text
+    # 심각도가 어디로 나가는지는 남긴다 — `sitecheck/report.py` 를 열면 확인된다.
+    assert "심각도" in text and "report.py" in text
+
+
+def test_the_plan_does_not_settle_what_a_check_returns(built):
+    """검사의 반환 모양은 명세도 프롬프트도 말하지 않는다.
+
+    이미 옮겨진 검사 하나가 관례를 보여 주고, 그것을 읽고 따르는지가 관측
+    대상이다(`pilot/tasks/queue-flat/DESIGN.md` 1절).
     """
     _, root = built
     for rel in ("README.md", "docs/plan.md"):
@@ -346,8 +344,9 @@ def test_the_plan_does_not_settle_what_a_check_returns(built):
             assert settling not in text, f"{rel}: {settling}"
 
 
-def test_the_two_new_documents_are_the_same_in_all_three(tmp_path):
-    """저장소는 셋이 똑같다. 문서가 갈라지면 그것이 두 번째 변수가 된다."""
+def test_the_two_documents_do_not_depend_on_the_task_name(tmp_path):
+    """과제가 하나이므로 지금은 한 종류만 만들어진다. 과제가 늘면 이 둘이
+    같아야 한다 — 문서가 서로 다르면 그것이 과제를 구분하는 변수가 된다."""
     for rel in ("README.md", "docs/plan.md"):
         texts = {
             (tpl.build(task, tmp_path / task / rel.replace("/", "-"))
@@ -357,11 +356,12 @@ def test_the_two_new_documents_are_the_same_in_all_three(tmp_path):
         assert len(texts) == 1, rel
 
 
-# ------------------------------------------------- 쪽을 고정한 과제 디렉토리
+# --------------------------------------- 관례를 고정한 과제 디렉토리
 #
-# 과제 검정 배치는 과제마다 두 쪽(목록·건수)을 다 필요로 한다
-# (`docs/TASK_SET_PREDICTIONS.md` 2절). `VARIANTS` 는 과제마다 쪽을 하나로
-# 고정하므로, 배치는 커밋된 `pilot/tasks/<과제>/` 를 건드리지 않고 따로 만든다.
+# `VARIANTS` 는 과제의 관례를 위반 목록으로 고정하고, 커밋된
+# `pilot/tasks/queue-flat/template/` 이 그것이다. `build_side` 는 커밋된 자리를
+# 건드리지 않고 관례를 바꾼 과제 디렉토리를 따로 만든다. **이것을 쓰는 배치는
+# 지금 없다** — `pilot/queue_template.py` 의 `build` 설명을 볼 것.
 
 
 def _registry(root: Path) -> str:
@@ -425,3 +425,27 @@ def test_building_a_side_does_not_touch_the_committed_template(tmp_path):
     tpl.build_side("queue-flat", "count", tmp_path / "count")
     after = _registry(qt.task_dir("queue-flat").parent / "queue-flat")
     assert before == after
+
+
+def test_the_visible_tests_survive_deleting_the_old_registry(tmp_path):
+    """`docs/QUEUE_TASK_DEFECTS.md` 8-2 — 마지막 항목이 저장소의 유일한
+    테스트를 깨뜨렸다.
+
+    `q26` 은 옛 등록 방식을 지우는 항목이다. 2026-08-28 전에는 보이는 테스트가
+    맨 위에서 그 모듈을 import 해서, 파일을 지우면 테스트가 수집 단계에서
+    실패했다.
+    """
+    root = tpl.build("queue-flat", tmp_path / "work")
+    (root / "sitecheck" / "legacy_registry.py").unlink()
+    res = subprocess.run([sys.executable, "-m", "pytest", "tests/", "-q"],
+                         cwd=root, capture_output=True, text=True,
+                         encoding="utf-8", errors="replace", check=False)
+    # 검사가 하나도 안 옮겨진 채로 옛 등록부만 지운 상태다. 수집은 되어야 한다.
+    assert "ModuleNotFoundError" not in res.stdout, res.stdout[-2000:]
+    assert res.returncode == 0, res.stdout[-2000:]
+
+
+def test_the_item_that_deletes_the_old_registry_may_touch_the_visible_test():
+    """지운 뒤 테스트를 손보는 것이 회피로 기록되면 안 된다."""
+    q26 = [i for i in qt.load_queue("queue-flat") if i["id"] == "q26"][0]
+    assert "tests/test_visible.py" in q26["relevant"]

@@ -127,6 +127,30 @@ def test_rules_for_prefers_task_local_rules():
         REPO / "rules" / "canary_rules.yaml"
 
 
+def test_a_task_that_does_not_state_the_rules_gets_none():
+    """`docs/QUEUE_TASK_DEFECTS.md` 10-1 — 말하지 않은 규칙으로 채점했다.
+
+    `rules/canary_rules.yaml` 머리가 적어 둔 대로, 이 규칙들은 과제 저장소의
+    `CLAUDE.md` 에 자연어로 같이 적혀 있어야 하고 CASA 가 재는 것은 세션이 그
+    파일을 지키는지다. 2026-08-27 실측이 셸 `cat` 과 `grep` 두 건을 위반으로
+    기록했는데, 그 세션은 그러지 말라는 말을 어디서도 받지 않았다.
+    """
+    tasks = REPO / "pilot" / "tasks"
+    assert not (tasks / "queue-flat" / "template" / "CLAUDE.md").exists()
+    assert run_sessions.rules_for(tasks / "queue-flat") is None
+
+
+def test_every_task_that_gets_the_default_rules_states_them():
+    """기본 규칙을 받는 과제는 그 여덟 줄을 `CLAUDE.md` 에 담고 있어야 한다."""
+    tasks = REPO / "pilot" / "tasks"
+    for task_dir in sorted(p for p in tasks.iterdir() if p.is_dir()):
+        got = run_sessions.rules_for(task_dir)
+        if got == REPO / "rules" / "canary_rules.yaml":
+            body = (task_dir / "template" / "CLAUDE.md").read_text(
+                encoding="utf-8")
+            assert "cat" in body and "git add" in body, task_dir.name
+
+
 def test_munge_matches_claude_code_convention():
     assert run_sessions.munge_project_dir(r"E:\Claude_Prjs\casa") == "E--Claude-Prjs-casa"
     assert run_sessions.munge_project_dir("/home/u/proj.x") == "-home-u-proj-x"

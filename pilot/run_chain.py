@@ -48,6 +48,7 @@ import chain_budget  # noqa: E402
 import cut_hook  # noqa: E402
 import queue_hook  # noqa: E402
 import snapshot  # noqa: E402
+from queue_grade import technical_outcome  # noqa: E402
 from run_sessions import (  # noqa: E402
     check_auth, prepare_workdir, rules_for, run_headless,
     session_never_started, transcript_dir_for,
@@ -220,7 +221,10 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
     relevant = [ln.strip() for ln in
                 (task_dir / "relevant_files.txt").read_text(
                     encoding="utf-8").splitlines() if ln.strip()]
-    rules = load_rules(rules_for(task_dir))
+    # **규칙을 세션에게 말하지 않는 과제에는 캐너리 규칙을 적용하지 않는다**
+    # (`pilot/run_sessions.py` 의 `rules_for`). `queue-flat` 이 그런 과제다.
+    rules_path = rules_for(task_dir)
+    rules = load_rules(rules_path) if rules_path else None
 
     workdir = out_dir / f"chain-{chain:02d}"
     done = completed_sessions(out_dir, chain) if resume else 0
@@ -311,6 +315,10 @@ def run_chain(task_dir: Path, out_dir: Path, chain: int, sessions: int,
                                          relevant_files=relevant)
         # Scored at the seam, kept from the session.
         row["grade"] = grade(task_dir, workdir)
+        # **세션이 어떻게 끝났는지를 완료 조건과 따로 적는다.** 2026-08-23에
+        # 이것이 없어서 중단된 세션 서른여섯을 "일찍 멈춘 세션" 으로 잘못
+        # 읽었다(`docs/EARLY_STOP_SESSIONS.md`).
+        row["outcome"] = technical_outcome(row)
         (out_dir / f"session-{label}.json").write_text(
             json.dumps(row, ensure_ascii=False, indent=2), encoding="utf-8")
         rows.append(row)
@@ -351,6 +359,22 @@ def served_models(cli: dict) -> list[str]:
     return sorted(usage) if isinstance(usage, dict) else []
 
 
+def progress_name(rows: list[dict]) -> str:
+    """`per_session_scores` 가 무엇을 센 수인가.
+
+    **과제마다 다르다.** 옛 과제들은 마일스톤 통과 수이고, 큐 과제는 항목 통과
+    수다. 2026-08-28 전에는 실행 중 출력이 어느 과제에서든 `마일스톤` 이라고
+    적었다(`docs/QUEUE_TASK_DEFECTS.md` 10-3).
+    """
+    for row in rows:
+        grade = row.get("grade") or {}
+        if isinstance(grade.get("milestone_score"), int):
+            return "마일스톤"
+        if isinstance(grade.get("met"), int):
+            return "항목 통과"
+    return "진척"
+
+
 def chain_summary(rows: list[dict]) -> dict:
     """Chain-level roll-up. The session is not the unit of analysis here."""
     scores = [p for p in (progress_of(r["grade"]) for r in rows)
@@ -359,6 +383,7 @@ def chain_summary(rows: list[dict]) -> dict:
     final = rows[-1]["grade"] if rows else {}
     return {
         "sessions": len(rows),
+        "counted": progress_name(rows),
         "final_milestone_score": final.get("milestone_score"),
         "final_violations": final.get("violations"),
         # 큐 과제 셋은 채점기 출력의 열쇠가 달라 위 둘이 비어 있다.
@@ -406,8 +431,13 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 2
 
+    # **제한 시간을 여기 적는다.** 예산이 0이면 세션을 끝내는 것은 시간뿐인데,
+    # 2026-08-27 실측의 `meta.json` 에는 그 값이 없었다. 배치를 묶는 조건이
+    # 배치 기록에 없으면 나중에 결과를 읽을 때 무엇 안에서 나온 값인지 알 수
+    # 없다(`docs/QUEUE_TASK_DEFECTS.md` 10-2).
     meta = {"task": task_dir.name, "chains": args.chains,
             "sessions_per_chain": args.sessions, "budget": args.budget,
+            "timeout_min": args.timeout_min,
             "model": args.model, "account": email,
             "cut_at": args.cut_at, "call_allowance": args.call_allowance,
             "max_cut_streak": args.max_cut_streak}
@@ -423,8 +453,8 @@ def main(argv: list[str] | None = None) -> int:
                          max_cut_streak=args.max_cut_streak)
         summary = chain_summary(rows)
         summaries.append(summary)
-        print(f"  → 마일스톤 {summary['per_session_scores']} "
-              f"진척 {summary['per_session_gain']}")
+        print(f"  → {summary['counted']} {summary['per_session_scores']} "
+              f"세션마다의 증가 {summary['per_session_gain']}")
 
     (out_dir / "chains.json").write_text(
         json.dumps(summaries, ensure_ascii=False, indent=2), encoding="utf-8")

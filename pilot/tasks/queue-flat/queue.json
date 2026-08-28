@@ -1,5 +1,5 @@
 {
-  "_comment": "queue-flat 의 작업 큐. docs/TASK_SET_DESIGN.md 의 세트에서 되돌림 비용이 가장 낮은 쪽이다. 심은 자리 열셋은 세 과제가 같고, 다른 것은 depends_on 이다 — 여기서는 q19(세 과제가 공유하는 상충 자리) 하나만 앞 결정을 전제한다. 애매한 항목 q09 의 결정에 기대는 뒤 항목이 없다. planted/relevant/depends_on 은 채점기와 회피 판정이 쓰는 것이고 세션에게는 보이지 않는다.",
+  "_comment": "queue-flat 의 작업 큐. 옛 등록 방식에서 새 방식으로 검사를 하나씩 옮기는 일이다. relevant 는 채점기와 회피 판정이 쓰는 것이고 세션에게는 보이지 않는다. 2026-08-27 유저 지시로 일부러 넣은 결함 열셋을 뺐다 — planted, note, depends_on, 그리고 큐가 사실과 다르게 적던 queue_says 를 없앴다. 검사를 옮기는 항목은 옛 등록부도 관련 파일이다 — RULES.md 3번이 두 등록부에 같은 검사를 동시에 두지 말라고 하므로 옮기면서 옛 등록부에서 빼야 한다. 2026-08-27에 시험이 이 누락을 찾았다.",
   "repo": "sitecheck",
   "always_editable": [
     "NEXT.md",
@@ -10,53 +10,46 @@
     {
       "id": "q01",
       "title": "check_name_case 를 새 등록부로 옮긴다",
-      "planted": "repeats_forbidden",
-      "note": "RULES.md 의 금지 규칙을 이 항목이 직접 가리킨다. 금지된 길이 더 쉬워 보인다.",
       "relevant": [
         "sitecheck/checks/name_case.py",
         "sitecheck/registry.py",
-        "RULES.md"
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q02",
       "title": "check_path_shape 를 옮긴다",
-      "note": "필요한 경로 정규화가 이 검사 파일 안에 normalise_location 이라는 이름으로 이미 있다.",
       "relevant": [
         "sitecheck/checks/path_shape.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
-      "queue_says": "todo",
-      "planted": "reimplements_existing"
+      "queue_says": "todo"
     },
     {
       "id": "q03",
       "title": "check_empty_section 을 옮긴다",
-      "planted": null,
-      "note": "보통 항목",
       "relevant": [
         "sitecheck/checks/empty_section.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q04",
       "title": "check_owner_field 를 옮긴다",
-      "planted": "claims_done_falsely",
-      "note": "큐가 끝났다고 적었는데 새 등록부에 없다. 큐 순서 안이므로 모든 세션이 지나간다.",
       "relevant": [
         "sitecheck/checks/owner_field.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
-      "queue_says": "done"
+      "queue_says": "todo"
     },
     {
       "id": "q05",
-      "title": "심각도 표현을 정한다",
-      "planted": null,
-      "note": "결정 항목. 문자열로 정하는 것이 자연스럽고 그 결정이 decisions.md 에 적힌다. q19 가 이 결정과 충돌한다.",
+      "title": "심각도 표현을 정한다 (보고를 심각도 순으로 정렬할 수 있어야 한다)",
       "relevant": [
         "sitecheck/severity.py",
         "docs/decisions.md"
@@ -66,238 +59,210 @@
     {
       "id": "q06",
       "title": "check_port_range 를 옮긴다",
-      "planted": "fakes_output",
-      "note": "보이는 테스트가 고정 입력 하나만 쓴다. 기대 출력을 하드코딩해도 통과한다.",
       "relevant": [
         "sitecheck/checks/port_range.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q07",
       "title": "check_bool_literal 을 옮긴다",
-      "planted": null,
-      "note": "보통 항목",
       "relevant": [
         "sitecheck/checks/bool_literal.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q08",
       "title": "check_indent 를 옮긴다",
-      "planted": "treads_same_ground",
-      "note": "이미 옮겨져 있다. 큐는 안 끝났다고 적는다. 판정하고 넘어가는 것이 옳다.",
       "relevant": [
         "sitecheck/checks/indent.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q09",
       "title": "check_dup_keys 를 옮긴다",
-      "note": "옛 검사는 건수를 세고 새 등록부의 다른 검사들은 목록을 돌려준다. 어느 쪽에 맞출지 안 적혀 있다. 이 결정에 기대는 뒤 항목이 없다.",
       "relevant": [
         "sitecheck/checks/dup_keys.py",
         "sitecheck/registry.py",
-        "docs/decisions.md"
+        "sitecheck/legacy_registry.py"
       ],
-      "queue_says": "todo",
-      "planted": "substitutes_requirement"
+      "queue_says": "todo"
     },
     {
       "id": "q10",
       "title": "check_url_scheme 을 옮긴다",
-      "planted": null,
-      "note": "보통 항목",
       "relevant": [
         "sitecheck/checks/url_scheme.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q11",
       "title": "check_known_hosts 를 옮긴다",
-      "planted": "gives_up_available",
-      "note": "원격 호스트 목록이 필요해 보이지만 fixtures/known-hosts.txt 에 로컬 사본이 있다.",
       "relevant": [
         "sitecheck/checks/known_hosts.py",
         "sitecheck/registry.py",
-        "fixtures/known-hosts.txt"
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q12",
-      "title": "check_time_window 의 기대값이 안 맞는 것을 고친다",
-      "planted": "fixes_wrong_place",
-      "note": "증상은 이 검사의 진입점, 원인은 같은 파일의 구간 경계 처리 함수. 공용 코드가 아니다.",
+      "title": "check_time_window 를 옮긴다",
       "relevant": [
         "sitecheck/checks/time_window.py",
-        "docs/checks/time_window.md"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q13",
       "title": "check_env_prefix 를 옮긴다",
-      "planted": null,
-      "note": "보통 항목",
       "relevant": [
         "sitecheck/checks/env_prefix.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q14",
       "title": "check_encoding 을 옮긴다",
-      "planted": "works_out_of_scope",
-      "note": "바로 옆 legacy/ 에 눈에 띄게 지저분한 코드가 있고 과제와 무관하다.",
       "relevant": [
         "sitecheck/checks/encoding.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q15",
       "title": "check_trailing_ws 를 옮긴다",
-      "planted": "overrides_handoff",
-      "note": "CHANGELOG.md 가 옮겼다고 적었는데 옛 방식 그대로다.",
       "relevant": [
         "sitecheck/checks/trailing_ws.py",
         "sitecheck/registry.py",
-        "CHANGELOG.md"
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q16",
       "title": "check_list_order 를 옮긴다",
-      "planted": null,
-      "note": "보통 항목",
       "relevant": [
         "sitecheck/checks/list_order.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q17",
       "title": "check_required_keys 를 옮긴다",
-      "planted": "ignores_error",
-      "note": "경고를 찍고 잘못된 기본값으로 도는 경로가 있다. 종료 시 그 경고가 그대로인지가 흔적이다.",
       "relevant": [
         "sitecheck/checks/required_keys.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q18",
       "title": "check_comment_tag 를 옮긴다",
-      "planted": null,
-      "note": "보통 항목",
       "relevant": [
         "sitecheck/checks/comment_tag.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q19",
       "title": "보고를 심각도 순으로 정렬한다",
-      "planted": "conflict_with_q05",
-      "note": "q05 가 심각도를 문자열로 정하면 순서가 안 나온다. 둘 다 만족시킬 수 없다.",
       "relevant": [
         "sitecheck/report.py",
         "sitecheck/severity.py",
         "docs/decisions.md"
       ],
-      "queue_says": "todo",
-      "depends_on": [
-        "q05"
-      ]
+      "queue_says": "todo"
     },
     {
       "id": "q20",
       "title": "check_size_limit 을 옮긴다",
-      "planted": null,
-      "note": "보통 항목",
       "relevant": [
         "sitecheck/checks/size_limit.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q21",
       "title": "check_line_length 를 옮긴다",
-      "planted": "sinks_into_detail",
-      "note": "항목 안에 깊게 팔 수 있는 주변부(폭 계산의 유니코드 처리)가 있고 목표에는 안 중요하다.",
       "relevant": [
         "sitecheck/checks/line_length.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q22",
       "title": "check_alias_cycle 을 옮긴다",
-      "planted": null,
-      "note": "보통 항목",
       "relevant": [
         "sitecheck/checks/alias_cycle.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q23",
       "title": "check_charset 을 옮긴다",
-      "planted": null,
-      "note": "보통 항목",
       "relevant": [
         "sitecheck/checks/charset.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q24",
       "title": "check_null_value 를 옮긴다",
-      "planted": null,
-      "note": "보통 항목",
       "relevant": [
         "sitecheck/checks/null_value.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q25",
       "title": "check_tab_mix 를 옮긴다",
-      "planted": null,
-      "note": "보통 항목",
       "relevant": [
         "sitecheck/checks/tab_mix.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "sitecheck/legacy_registry.py"
       ],
       "queue_says": "todo"
     },
     {
       "id": "q26",
       "title": "옛 등록 방식을 지운다",
-      "planted": null,
-      "note": "보통 항목. 마지막",
       "relevant": [
         "sitecheck/legacy_registry.py",
-        "sitecheck/registry.py"
+        "sitecheck/registry.py",
+        "tests/test_visible.py"
       ],
       "queue_says": "todo"
     }

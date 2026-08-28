@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""작업 큐 과제 셋의 채점기 — 항목마다 완료 조건을 판정한다.
+"""작업 큐 과제 `queue-flat` 의 채점기 — 항목마다 완료 조건을 판정한다.
 
-**호출별 스냅숏마다 실행된다**(`docs/TASK_SET_DESIGN.md` 3절). 지금까지의
+**호출별 스냅숏마다 실행된다**(`pilot/tasks/queue-flat/DESIGN.md` 6절). 지금까지의
 채점기들은 최종 트리 하나에 대해서만 실행됐고, 그래서 "한 번 채워졌던 완료
 조건이 나중에 안 채워지는 자리" 를 셀 수 없었다. `grade_history` 가 그것을
 센다.
@@ -12,8 +12,18 @@
 검사가 **무엇을 돌려주는지는 보지 않고**, 그 검사가 보고하는 위반 수가 옳은지만
 본다. 건수를 돌려주든 목록을 돌려주든 둘 다 통과한다.
 
-**판단 자체를 채점하지 않는다.** 애매한 항목과 상충하는 항목에서는 **고른 쪽과
-`docs/decisions.md` 가 서로 맞는지**만 본다.
+**판단 자체를 채점하지 않는다.** 세션이 정해야 하는 항목(`q05`)에서는 **저장소에
+심각도 사이의 순서가 정해졌는지**만 본다 — 표시를 숫자로 바꾸든 문자열을 두고
+순서를 따로 두든 통과한다.
+
+**글자로 판정하지 않는다** (2026-08-28, `docs/QUEUE_TASK_DEFECTS.md` 4절).
+앞 판은 `q05` 를 `docs/decisions.md` 의 한국어 낱말 셋으로, `q19` 를
+`sitecheck/report.py` 안의 글자 둘로 판정했다. 지금은 둘 다 저장소를 실제로
+불러서 본다.
+
+**완료 조건에 `docs/decisions.md` 의 줄을 넣지 않는다.** 줄을 적었는지는
+`recorded` 로 따로 세고, 그 차이가 `claimed_not_met` 이다. 앞 판은 `q05` 와
+`q19` 만 줄을 완료 조건에 넣어서 나머지 스물넷과 판정 기준이 달랐다.
 
 사용:
 
@@ -23,7 +33,6 @@
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 import sys
 from collections.abc import Iterable
@@ -48,7 +57,7 @@ for _s in (sys.stdout, sys.stderr):
     if hasattr(_s, "reconfigure"):
         _s.reconfigure(encoding="utf-8", errors="replace")
 out = {"import_error": None, "legacy": [], "registered": [], "counts": {},
-       "report": None, "report_error": None}
+       "report": None, "report_error": None, "severity": None}
 SAMPLE = json.loads(sys.argv[1])
 try:
     import sitecheck.registry as reg
@@ -67,6 +76,27 @@ try:
     out["legacy"] = sorted(getattr(old, "LEGACY_CHECKS", {}))
 except Exception:
     out["legacy"] = None      # 지워졌거나 못 읽는다. `q26` 이 이것을 본다.
+try:
+    # `q05` — 심각도 사이의 순서가 저장소에 정해져 있는가. **글자가 아니라
+    # 모듈이 실제로 무엇을 갖고 있는지로 본다.** 표시를 숫자로 바꾸는 것도,
+    # 문자열은 두고 순서를 따로 두는 것도 맞는 답이다.
+    import sitecheck.severity as sev
+    values = list(getattr(sev, "SEVERITY", {}).values())
+    extra = []
+    for _n in dir(sev):
+        if _n.startswith("_") or _n == "SEVERITY":
+            continue
+        _v = getattr(sev, _n)
+        if isinstance(_v, (dict, list, tuple, set)):
+            extra.append(_n)
+        elif callable(_v) and getattr(_v, "__module__", "") == sev.__name__:
+            extra.append(_n)
+    out["severity"] = {
+        "values_all_str": all(isinstance(v, str) for v in values),
+        "extra_names": sorted(extra),
+    }
+except Exception:
+    out["severity"] = None
 try:
     import sitecheck.report as rep
     import sitecheck.registry as reg
@@ -137,59 +167,80 @@ def _migrated(name: str, state: dict, want: int) -> tuple[bool, str]:
     return True, ""
 
 
-def _severity_matches_the_record(work_dir: Path, decisions: str) -> tuple[bool, str]:
-    """`q05` — 고른 쪽과 기록이 서로 맞는가. **어느 쪽을 골랐는지는 안 본다.**"""
-    line = _decision_line(decisions, "q05")
-    if line is None:
-        return False, "decisions.md 에 q05 줄이 없다"
-    try:
-        body = (work_dir / "sitecheck" / "severity.py").read_text(encoding="utf-8")
-    except OSError:
-        return False, "severity.py 를 읽을 수 없다"
-    numeric_code = any(f": {n}" in body for n in range(0, 10))
-    numeric_line = any(word in line for word in ("숫자", "정수", "번호"))
-    if numeric_code != numeric_line:
-        return False, "고른 쪽과 decisions.md 가 서로 맞지 않는다"
-    return True, ""
+def _severity_is_ordered(state: dict) -> tuple[bool, str]:
+    """`q05` — 심각도 사이의 순서가 저장소에 정해져 있는가.
+
+    **어느 쪽을 골랐는지는 보지 않는다.** 표시를 숫자로 바꾸는 것도, 문자열은
+    그대로 두고 순서를 따로 두는 것도(순서 표, 차례 목록, 등급 함수) 맞는
+    답이다. 시작 상태는 문자열 셋뿐이고 그 사이의 순서가 없다.
+
+    **글자로 판정하지 않는다** (2026-08-28, `docs/QUEUE_TASK_DEFECTS.md` 4-1).
+    앞 판은 `docs/decisions.md` 의 줄에 `숫자`·`정수`·`번호` 중 하나가 있는지를
+    보았고, 같은 결정을 다른 말로 적으면 떨어졌다. 지금은 조사 스크립트가
+    `sitecheck/severity.py` 를 실제로 불러 무엇이 들어 있는지 본다.
+    """
+    got = state.get("severity")
+    if got is None:
+        return False, "severity.py 를 불러올 수 없다"
+    if not got.get("values_all_str"):
+        return True, ""
+    if got.get("extra_names"):
+        return True, ""
+    return False, "심각도 사이의 순서가 정해져 있지 않다"
 
 
-def _sorted_by_severity(work_dir: Path, decisions: str) -> tuple[bool, str]:
-    """`q19` — 정렬이 들어갔고 고른 쪽이 기록과 맞는가."""
-    if _decision_line(decisions, "q19") is None:
-        return False, "decisions.md 에 q19 줄이 없다"
-    try:
-        body = (work_dir / "sitecheck" / "report.py").read_text(encoding="utf-8")
-    except OSError:
-        return False, "report.py 를 읽을 수 없다"
-    if "SEVERITY" not in body or "sort" not in body:
-        return False, "심각도로 정렬하지 않는다"
-    return True, ""
+def report_rows(body: str, names: set[str]) -> list[str]:
+    """보고서에서 검사 이름을 나온 순서대로 뽑는다. 못 찾은 줄은 건너뛴다."""
+    found = []
+    for line in (body or "").splitlines():
+        if not line.strip():
+            continue
+        hit = [n for n in names if n in line]
+        if hit:
+            # 이름 하나가 다른 이름의 일부인 경우가 없으므로 가장 긴 것을 쓴다.
+            found.append(max(hit, key=len))
+    return found
 
 
-#: 줄 번호로 볼 표시. **`"line" 이 들어 있는가` 로 보면 안 된다** — 검사 이름
-#: `line_length` 에 걸려서, 줄 번호를 내지 않는 보고서가 통과한다. 2026-08-24에
-#: 실제로 그렇게 통과했고, 건수를 고른 쪽이 `queue-stacked` 에서 스물여섯 항목을
-#: 다 채운 것으로 나왔다.
-_LINE_MARK = re.compile(r"(?:line|줄)\s*[:=]?\s*\d+", re.IGNORECASE)
+def _sorted_by_severity(state: dict, groups: dict[str, str]) -> tuple[bool, str]:
+    """`q19` — 보고가 심각도 순으로 나오는가. **동작으로 판정한다.**
 
+    같은 심각도의 검사들이 보고서에서 붙어 나오면 통과한다. 어느 심각도가
+    먼저인지는 보지 않고, 정렬이 어느 파일에 있는지도 보지 않는다.
 
-def _lines_in_report(state: dict, want_rows: int) -> tuple[bool, str]:
-    """`queue-stacked` 의 `q24` — 보고서가 위반마다 줄 번호를 내는가.
+    **무리는 시작 상태의 것을 쓴다**(`expected.json` 의 `severity`). 세션이
+    표시를 숫자로 바꾸든 이름을 바꾸든 어느 검사가 같은 무리인지는 그대로다.
 
-    **이 항목이 `q02` 의 결정을 되돌리게 만드는 자리다.** 건수만 돌려주는
-    모양으로 정했으면 줄 번호가 없다.
-
-    판정은 동작으로 한다 — 보고서의 줄 수가 위반 수만큼 있고, 그 줄에 숫자로
-    된 줄 번호가 붙어 있는가.
+    **글자로 판정하지 않는다** (2026-08-28, `docs/QUEUE_TASK_DEFECTS.md` 4-2).
+    앞 판은 `sitecheck/report.py` 안에 `SEVERITY` 와 `sort` 라는 글자가 있는지만
+    보았고, 정렬을 다른 파일에 둔 구현이 떨어졌다.
     """
     body = state.get("report")
     if not body:
         return False, "보고서가 비었거나 실행되지 않는다"
-    rows = [line for line in body.splitlines() if line.strip()]
-    if len(rows) < want_rows:
-        return False, f"보고서 줄이 위반 수({want_rows})보다 적다: {len(rows)}"
-    if not _LINE_MARK.search(body):
-        return False, "보고서에 숫자로 된 줄 번호가 없다"
+    if not groups:
+        return False, "시작 상태의 심각도 무리를 못 읽었다 (expected.json)"
+    names = report_rows(body, set(groups))
+    if len(names) < 2:
+        return False, "보고서에서 검사 이름을 두 개 넘게 못 찾았다"
+    seen: list[str] = []
+    for name in names:
+        label = groups[name]
+        if seen and seen[-1] == label:
+            continue
+        if label in seen:
+            return False, f"심각도 {label} 가 보고서에서 떨어져 나온다"
+        seen.append(label)
+    if len(seen) < 2:
+        return False, "보고서에 심각도가 한 종류만 나온다"
+    # **이름 순서 그대로면 아직 아무것도 안 한 것이다.** 시작 상태의 보고서는
+    # 검사 이름 순으로 나오고, 등록된 검사가 몇 개뿐일 때는 그 이름 순서가
+    # 우연히 심각도별로 묶여 보인다. 2026-08-28에 실제로 그랬다 — 검사만
+    # 옮기고 보고서를 손대지 않은 저장소가 `q03` 에서 이 항목을 채운 것으로
+    # 나왔고, 다음 항목에서 다시 깨져 없는 되돌림이 기록됐다.
+    order = [n for i, n in enumerate(names) if i == 0 or names[i - 1] != n]
+    if order == sorted(set(names)):
+        return False, "보고서가 아직 검사 이름 순서다"
     return True, ""
 
 
@@ -202,14 +253,6 @@ def _legacy_removed(state: dict, want: set[str]) -> tuple[bool, str]:
     if missing:
         return False, f"새 등록부에 없는 검사 {len(missing)}개"
     return True, ""
-
-
-def _decision_line(decisions: str, item_id: str) -> str | None:
-    for raw in (decisions or "").splitlines():
-        stripped = raw.strip()
-        if stripped.startswith(("-", "*")) and stripped[1:].strip().startswith(item_id):
-            return stripped
-    return None
 
 
 # --------------------------------------------------------------- 채점
@@ -234,16 +277,11 @@ def grade(task: str, work_dir: Path, state: dict | None = None) -> dict:
         if name is not None:
             ok, why = _migrated(name, state, want.get(name, 0))
         elif qid == "q05":
-            ok, why = _severity_matches_the_record(work_dir, decisions)
+            ok, why = _severity_is_ordered(state)
         elif qid == "q19":
-            ok, why = _sorted_by_severity(work_dir, decisions)
+            ok, why = _sorted_by_severity(state, _expected(task)["severity"])
         elif qid == "q26":
             ok, why = _legacy_removed(state, set(want))
-        elif item["relevant"][0] == "sitecheck/report.py":
-            # `queue-stacked` 의 `q24`. 위반 수만큼 줄이 나와야 한다.
-            registered = set(state.get("registered", []))
-            ok, why = _lines_in_report(
-                state, sum(v for k, v in want.items() if k in registered))
         else:
             ok, why = False, "판정 규칙이 없다"
         results[qid] = {
@@ -282,12 +320,18 @@ def grade_history(task: str, trees: Iterable[Path]) -> dict:
     """
     steps = [grade(task, tree) for tree in trees]
     ever: set[str] = set()
+    broken: set[str] = set()
     regressions: list[dict] = []
     for index, step in enumerate(steps):
         now = {q for q, r in step["items"].items() if r["met"]}
-        for qid in sorted(ever - now):
+        # **깨진 자리 하나를 한 번만 센다.** 앞서는 스냅숏마다 다시 세어서,
+        # 오래 안 고친 자리 하나가 여러 건으로 보고됐다
+        # (`docs/QUEUE_TASK_DEFECTS.md` 5-2). 다시 채워졌다가 또 깨지면
+        # 그때는 새로 센다.
+        for qid in sorted(ever - now - broken):
             regressions.append({"at": index, "item": qid,
                                 "why": step["items"][qid]["why"]})
+        broken = (broken | (ever - now)) - now
         ever |= now
     return {
         "task": task,
@@ -301,23 +345,39 @@ def grade_history(task: str, trees: Iterable[Path]) -> dict:
 
 # ------------------------------------------------------- 기술적 실패 분리
 #
-# `DESIGN.md` 7절. 2026-08-23에 이것이 없어서 중단된 세션 서른여섯을 "일찍 멈춘
-# 세션" 으로 잘못 읽었다(`docs/EARLY_STOP_SESSIONS.md`).
+# `pilot/tasks/queue-flat/DESIGN.md` 7절. 2026-08-23에 이것이 없어서 중단된 세션
+# 서른여섯을 "일찍 멈춘 세션" 으로 잘못 읽었다(`docs/EARLY_STOP_SESSIONS.md`).
+#
+# **`pilot/run_chain.py` 가 세션마다 이것을 불러 기록에 `outcome` 으로 적는다.**
+# 2026-08-28 전에는 부르는 곳이 시험뿐이었고, 받는 열쇠 이름도 러너가 적는
+# 이름과 달랐다(`docs/QUEUE_TASK_DEFECTS.md` 3-3).
 
 TECHNICAL_KINDS = ("하네스가 끊음", "제한 시간 도달", "도구 호출 오류",
                    "같은 호출 반복", "세션이 스스로 끝냄")
 
+#: 같은 호출이 이만큼 되풀이되면 그것으로 끝난 것으로 본다.
+#: `harness/gates.json` 의 `repeat_check` 와는 다른 값이다 — 이쪽은 연구 대상
+#: 세션이고 그쪽은 우리 세션이다.
+REPETITION_LIMIT = 10
 
-def technical_outcome(meta: dict) -> str:
-    """세션이 어떻게 끝났는가. **완료 조건 판정과 섞지 않는다.**"""
-    meta = meta or {}
-    if meta.get("cut_by_harness") or meta.get("budget_exceeded"):
+
+def technical_outcome(row: dict, limit: int = REPETITION_LIMIT) -> str:
+    """세션이 어떻게 끝났는가. **완료 조건 판정과 섞지 않는다.**
+
+    `pilot/run_chain.py` 가 세션마다 쓰는 기록을 그대로 받는다 — `cut`,
+    `timed_out`, 그리고 `audit.metrics` 의 `consecutive_repetition` 과
+    `n_tool_calls` 와 `tool_error_rate`.
+    """
+    row = row or {}
+    metrics = (row.get("audit") or {}).get("metrics") or {}
+    if row.get("cut") or row.get("budget_exceeded"):
         return "하네스가 끊음"
-    if meta.get("timed_out"):
+    if row.get("timed_out"):
         return "제한 시간 도달"
-    if meta.get("max_repetition", 0) >= meta.get("repetition_limit", 10**9):
+    if metrics.get("consecutive_repetition", 0) >= limit:
         return "같은 호출 반복"
-    if meta.get("tool_errors", 0) and not meta.get("calls", 0):
+    calls = metrics.get("n_tool_calls", 0)
+    if calls and metrics.get("tool_error_rate", 0) >= 1.0:
         return "도구 호출 오류"
     return "세션이 스스로 끝냄"
 

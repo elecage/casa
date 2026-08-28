@@ -208,3 +208,121 @@ def test_next_md_is_part_of_the_start_state_before_the_baseline(tmp_path):
         capture_output=True, text=True, encoding="utf-8", check=False)
     assert "NEXT.md" in listed.stdout.split()
     assert ".casa-queue.json" not in listed.stdout.split()
+
+
+# --------------------------- 측정 장치가 저장소 안에서 보이지 않는가
+#
+# `docs/QUEUE_TASK_DEFECTS.md` 7절. 2026-08-28 전에는 설정 파일이 작업 디렉토리
+# 안에 있었다 — 세션이 저장소를 훑으면 보이고, 어느 항목 목록으로 채점되는지를
+# 알려 준다. `pilot/cut_hook.py` 가 같은 이유로 그 위 디렉토리에 둔다.
+
+
+def test_the_queue_config_sits_outside_the_working_directory(tmp_path):
+    work = tmp_path / "work"
+    tpl.build(TASK, work)
+    queue_hook.prepare(work, TASK)
+    assert not (work / queue_hook.CONFIG_NAME).exists()
+    assert (tmp_path / queue_hook.CONFIG_NAME).is_file()
+
+
+def test_the_hook_still_finds_the_config_from_the_working_directory(tmp_path):
+    work = tmp_path / "work"
+    tpl.build(TASK, work)
+    queue_hook.prepare(work, TASK)
+    assert queue_hook.load_task(work) == TASK
+    assert queue_hook.refresh(work) is not None
+
+
+def test_nothing_of_ours_is_left_in_the_repository(tmp_path):
+    """세션이 `ls` 를 해도 우리 설정 파일이 안 보여야 한다."""
+    work = tmp_path / "work"
+    tpl.build(TASK, work)
+    queue_hook.prepare(work, TASK)
+    assert [p.name for p in work.iterdir() if p.name.startswith(".casa")] == []
+
+
+# ----------------------------- 세션이 어떻게 끝났는지를 기록에 적는가
+#
+# `docs/QUEUE_TASK_DEFECTS.md` 3-3. 판정 함수는 있었는데 부르는 곳이 시험뿐이었고,
+# 받는 열쇠 이름도 러너가 적는 이름과 달랐다.
+
+
+def test_the_runner_writes_the_technical_outcome():
+    row = {"cut": True, "timed_out": False,
+           "audit": {"metrics": {"n_tool_calls": 10, "tool_error_rate": 0.0}}}
+    assert run_chain.technical_outcome(row) == "하네스가 끊음"
+    assert run_chain.technical_outcome(
+        {"cut": False, "timed_out": True}) == "제한 시간 도달"
+
+
+def test_relevant_files_includes_the_repository_documents():
+    """`coverage` 는 이 목록의 파일 중 몇을 읽었는지다.
+
+    큐 항목의 관련 파일만 넣으면 `README.md`·`docs/plan.md`·`RULES.md` 를
+    읽었는지가 그 값에 들어가지 않는다.
+    """
+    listed = (qt.task_dir(TASK) / "relevant_files.txt").read_text(
+        encoding="utf-8").split()
+    for doc in ("README.md", "RULES.md", "docs/plan.md", "CHANGELOG.md",
+                "tests/test_visible.py"):
+        assert doc in listed, doc
+
+
+def test_the_history_refuses_a_directory_with_no_call_snapshots(tmp_path):
+    """`docs/QUEUE_TASK_DEFECTS.md` 6절 — 사촌 파일에 같은 결함이 남아 있었다.
+
+    `pilot/queue_observe.py` 는 2026-08-28에 고쳤는데 `pilot/queue_history.py`
+    는 그대로여서, 사슬 디렉토리 위를 주면 `스냅숏 0개` 를 찍고 종료 코드 0으로
+    끝났다.
+    """
+    empty = tmp_path / "빈저장소.git"
+    subprocess.run(["git", "init", "--bare", str(empty)],
+                   capture_output=True, check=True)
+    with pytest.raises(ValueError, match="chain-01.git"):
+        queue_history.grade_chain(TASK, empty)
+
+
+def test_the_hook_finds_the_config_from_a_subdirectory(tmp_path):
+    """훅이 작업 디렉토리 아래에서 불려도 설정을 찾아야 한다.
+
+    못 찾으면 `NEXT.md` 가 영영 다음 항목을 안 보여 주는데, 훅은 아무 표시도
+    남기지 않고 0으로 끝난다.
+    """
+    work = tmp_path / "work"
+    tpl.build(TASK, work)
+    queue_hook.prepare(work, TASK)
+    assert queue_hook.find_workdir(work) == work.resolve()
+    assert queue_hook.find_workdir(work / "sitecheck" / "checks") == work.resolve()
+    assert queue_hook.find_workdir(tmp_path / "다른곳") is None
+
+
+# ------------------------- 배치 조건과 진행 표시가 기록에 맞는가
+#
+# `docs/QUEUE_TASK_DEFECTS.md` 10절.
+
+
+def test_the_batch_record_says_what_limited_the_sessions(tmp_path, monkeypatch):
+    """예산이 0이면 세션을 끝내는 것은 시간뿐인데 `meta.json` 에 그 값이 없었다."""
+    monkeypatch.setattr(run_chain, "check_auth", lambda: (True, "누구"))
+    out = tmp_path / "out"
+    assert run_chain.main([str(qt.task_dir(TASK)), "--chains", "0",
+                           "--budget", "0", "--timeout-min", "40",
+                           "--out", str(out)]) == 0
+    meta = json.loads((out / "meta.json").read_text(encoding="utf-8"))
+    assert meta["timeout_min"] == 40
+    assert meta["budget"] == 0
+
+
+def test_the_progress_line_names_what_the_chain_counted():
+    """큐 과제의 수는 마일스톤 통과 수가 아니라 항목 통과 수다."""
+    queue_rows = [{"grade": {"met": 4, "total": 26}, "wall_s": 1.0}]
+    old_rows = [{"grade": {"milestone_score": 3, "violations": 0}, "wall_s": 1.0}]
+    assert run_chain.progress_name(queue_rows) == "항목 통과"
+    assert run_chain.progress_name(old_rows) == "마일스톤"
+    assert run_chain.chain_summary(queue_rows)["counted"] == "항목 통과"
+
+
+def test_a_task_without_a_claude_md_gets_no_canary_rules():
+    """말하지 않은 규칙을 위반으로 기록하지 않는다."""
+    from run_sessions import rules_for
+    assert rules_for(qt.task_dir(TASK)) is None

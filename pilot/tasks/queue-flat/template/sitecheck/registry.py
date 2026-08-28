@@ -13,14 +13,6 @@ def register(name: str):
     return wrap
 
 
-@register("indent")
-def indent(parsed: dict) -> list[dict]:
-    """위반 목록을 돌려준다."""
-    return [{'key': k, 'rule': 'indent'}
-            for k, v in parsed.items()
-            if k.startswith("indent") and not v.strip()]
-
-
 @register("schema_version")
 def schema_version(parsed: dict) -> list[dict]:
     """위반 목록을 돌려준다."""

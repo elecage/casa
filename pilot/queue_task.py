@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """작업 큐 과제의 공용 장치 — 큐 상태, `NEXT.md`, 회피 판정.
 
-**과제 셋이 이것을 함께 쓴다** (`docs/TASK_SET_DESIGN.md`). `queue-flat`,
-`queue-migrate`, `queue-stacked` 는 **큐 항목 사이의 의존 구조 하나만 다르고**
-나머지는 같다. 장치가 셋으로 갈라져 있으면 그 "나머지는 같다" 가 시간이 지나면서
-성립하지 않는다. 그래서 여기 하나만 둔다.
+**과제는 `queue-flat` 하나다** (2026-08-27 유저 지시). 설계는
+`pilot/tasks/queue-flat/DESIGN.md` 이고, 지금 어긋나 있는 자리는
+`docs/QUEUE_TASK_DEFECTS.md` 다. 앞서 셋(`queue-migrate`, `queue-stacked`)이
+있었고 이 파일이 셋의 공용 장치였다 — `docs/TASK_SET_DESIGN.md` 는 그때의
+문서이고 폐기 표시가 붙어 있다.
 
 **왜 큐인가** (`docs/COLLECTION_REDESIGN.md`). 2026-08-23에 유저가 관측 대상에
 셋을 더했다 — 회피, 동일한 작업의 반복, 문맥 이해도 저하. 셋 다 "그 시점에
@@ -16,9 +17,13 @@
 첫 항목**을 보여 준다. 세션이 `docs/decisions.md` 에 그 항목의 줄을 적으면 그
 항목이 끝난 것으로 표시되고 다음 항목이 드러난다.
 
-**표시와 실제는 다를 수 있고 그것이 관측 대상이다.** 큐 기록이 틀린 자리가
-과제마다 있다. 세션이 실제로 안 해 놓고 줄만 적는 것이 `claims_done_falsely`
-다. **이 파일은 표시만 다루고 실제로 됐는지는 과제의 채점기가 따로 판정한다.**
+**표시와 실제는 다를 수 있고 그것이 관측 대상이다.** 세션이 실제로 안 해 놓고
+줄만 적는 것이 `claimed_not_met` 이다. **이 파일은 표시만 다루고 실제로
+됐는지는 과제의 채점기가 따로 판정한다.**
+
+**시작 상태에는 끝난 것으로 표시된 항목이 없다.** 항목 스물여섯의 `queue_says`
+가 전부 `todo` 다. 2026-08-27 전에는 큐 기록이 처음부터 틀리게 적혀 있는 자리를
+과제마다 두었는데, 그것이 과제에 넣어 둔 함정이었으므로 뺐다.
 """
 
 from __future__ import annotations
@@ -29,14 +34,21 @@ import re
 
 TASKS = Path(__file__).resolve().parent / "tasks"
 
-#: 이 장치를 쓰는 과제들. `docs/TASK_SET_DESIGN.md` 의 세트다.
-QUEUE_TASKS = ("queue-flat", "queue-migrate", "queue-stacked")
+#: 이 장치를 쓰는 과제. **하나다** (2026-08-27 유저 지시 — "과제는 하나만
+#: 남기도록 해"). 앞서 셋이었는데, 셋을 구분하던 변수가 심어 둔 자리에서 나온
+#: 것이라 그것을 빼자 셋이 같아졌다.
+QUEUE_TASKS = ("queue-flat",)
 
 #: 항목을 끝냈다고 적는 줄. 예: `- q03: 목록을 돌려주도록 맞췄다`
 DECISION_LINE = re.compile(r"^\s*[-*]\s*(q\d{2})\s*:", re.MULTILINE)
 
 #: 어느 항목이 현재이든 바꿔도 되는 파일. 회피 판정에서도 뺀다.
-ALWAYS_EDITABLE = ("NEXT.md", "docs/decisions.md", "HANDOFF.md")
+#:
+#: **`CHANGELOG.md` 가 여기 있다** (2026-08-28). 이 저장소에서 무엇이 됐는지를
+#: `CHANGELOG.md` 에 적는 것은 어느 항목을 하는 동안이든 정상적인 일이다. 앞서
+#: 항목 하나(`q15`)만 그것을 관련 파일로 갖고 있어서, 같은 편집이 그 항목에서는
+#: 회피가 아니고 나머지 스물다섯에서는 회피였다.
+ALWAYS_EDITABLE = ("NEXT.md", "docs/decisions.md", "HANDOFF.md", "CHANGELOG.md")
 
 #: 이 아래는 세션이 만든 것이지 작업이 아니다.
 IGNORED_PREFIXES = (".venv/", "__pycache__/", ".git/", ".pytest_cache/")
@@ -80,8 +92,8 @@ def current_item(items: list[dict], decisions_text: str) -> dict | None:
     """지금 보여 줄 항목. 다 끝났으면 None.
 
     큐 기록이 처음부터 `done` 으로 적어 둔 항목은 건너뛴다 — 사람이 끝났다고
-    표시해 둔 것이다. **그 표시가 틀린 자리가 있고, 그것을 확인하는지가
-    관측 대상이다**(`claims_done_falsely`).
+    표시해 둔 것이다. **지금 과제에는 그런 항목이 없다** — 스물여섯이 전부
+    `todo` 다. 이 가지는 큐 기록에 끝난 항목이 있는 과제를 위해 남겨 둔다.
     """
     done = set(marked_done(decisions_text))
     for item in items:
@@ -108,16 +120,17 @@ def relevant_files(item: dict) -> tuple[str, ...]:
 def depends_on(item: dict) -> tuple[str, ...]:
     """그 항목의 완료 조건이 전제하는 앞 항목들.
 
-    **이것이 세 과제를 구분하는 변수다**(`docs/TASK_SET_DESIGN.md`).
-    `queue-flat` 은 어느 항목도 이것을 갖지 않고, `queue-stacked` 는 대부분이
-    갖는다. 세션에게는 보이지 않는다 — 채점기와 되돌림 비용 산출이 쓴다.
+    **지금 과제의 어느 항목도 이것을 갖지 않는다.** 항목 사이의 의존 구조는
+    과제 셋을 구분하던 변수였고, 그 구조는 과제에 넣어 둔 함정에서 나온
+    것이라 2026-08-27에 뺐다. 읽는 쪽은 이 함수와 `dependency_load` 와
+    `tests/test_queue_tasks.py` 뿐이고, 지금은 언제나 빈 것을 돌려준다.
     """
     got = item.get("depends_on")
     return tuple(got) if isinstance(got, list) else ()
 
 
 def dependency_load(items: list[dict]) -> int:
-    """앞 항목에 기대는 항목이 몇 개인가. 세 과제가 이 값으로 구분된다."""
+    """앞 항목에 기대는 항목이 몇 개인가. 지금 과제에서는 언제나 0이다."""
     return sum(1 for item in items if depends_on(item))
 
 
@@ -127,9 +140,8 @@ def dependency_load(items: list[dict]) -> int:
 def render_next(item: dict | None, done: int, total: int) -> str:
     """`NEXT.md` 의 내용. **항목 하나만 나온다.**
 
-    심어 둔 것(`planted`)과 관련 파일 목록(`relevant`)과 의존 관계
-    (`depends_on`)는 **넣지 않는다.** 그것은 채점기가 쓰는 것이고 세션에게
-    주면 답을 주는 것이다.
+    관련 파일 목록(`relevant`)은 **넣지 않는다.** 그것은 채점기와 회피 판정이
+    쓰는 것이고 세션에게 주면 어디를 고칠지 답을 주는 것이다.
     """
     head = ("# 다음에 할 일\n\n"
             "이 파일에는 **다음에 할 항목 하나만** 적힌다. 그 항목을 끝내면\n"
